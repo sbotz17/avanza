@@ -56,6 +56,7 @@ class FirestoreService {
       githubUrl: githubUrl,
       clientCode: code,
       ownerId: ownerId,
+      nextTaskNumber: 1,
       createdAt: now,
       updatedAt: now,
     );
@@ -102,21 +103,16 @@ class FirestoreService {
     double estimatedHours = 0,
     double hourlyRate = 0,
   }) async {
-    final ref = _db
-        .collection('projects')
-        .doc(projectId)
-        .collection('tasks')
-        .doc();
+    final projectRef = _db.collection('projects').doc(projectId);
+    final taskRef = projectRef.collection('tasks').doc();
     final now = DateTime.now();
 
     final defaultPhases = kPhaseNames
         .map((n) => TaskPhase(name: n, status: 'pending', label: 'In attesa'))
         .toList();
 
-    // Get current max order
-    final existing = await _db
-        .collection('projects')
-        .doc(projectId)
+    // Get current max order (outside transaction — read-only, ordering, no conflict risk)
+    final existing = await projectRef
         .collection('tasks')
         .orderBy('order', descending: true)
         .limit(1)
@@ -124,29 +120,41 @@ class FirestoreService {
     final nextOrder =
         existing.docs.isEmpty ? 0 : ((existing.docs.first['order'] as int) + 1);
 
-    final task = Task(
-      id: ref.id,
-      projectId: projectId,
-      title: title,
-      description: description,
-      clientRequest: clientRequest,
-      status: 'backlog',
-      phases: defaultPhases,
-      notes: [],
-      estimatedHours: estimatedHours,
-      actualHours: 0,
-      hourlyRate: hourlyRate,
-      order: nextOrder,
-      createdAt: now,
-      updatedAt: now,
-    );
-    await ref.set(task.toMap());
+    late Task task;
 
-    // Update project updatedAt
-    await _db
-        .collection('projects')
-        .doc(projectId)
-        .update({'updatedAt': FieldValue.serverTimestamp()});
+    // Use a transaction to atomically read nextTaskNumber, assign taskCode
+    // and increment the counter on the project document.
+    await _db.runTransaction((txn) async {
+      final projectSnap = await txn.get(projectRef);
+      final currentNext = (projectSnap.data()?['nextTaskNumber'] as int?) ?? 1;
+      final taskNumber = currentNext;
+      final taskCode = 'T-$taskNumber';
+
+      task = Task(
+        id: taskRef.id,
+        projectId: projectId,
+        title: title,
+        description: description,
+        clientRequest: clientRequest,
+        status: 'backlog',
+        phases: defaultPhases,
+        notes: [],
+        estimatedHours: estimatedHours,
+        actualHours: 0,
+        hourlyRate: hourlyRate,
+        order: nextOrder,
+        taskCode: taskCode,
+        taskNumber: taskNumber,
+        createdAt: now,
+        updatedAt: now,
+      );
+
+      txn.set(taskRef, task.toMap());
+      txn.update(projectRef, {
+        'nextTaskNumber': currentNext + 1,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+    });
 
     return task;
   }

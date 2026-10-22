@@ -7,6 +7,7 @@ class Project {
   final String githubUrl;
   final String clientCode;
   final String ownerId;
+  final int nextTaskNumber; // contatore usato per assegnare taskCode ai nuovi task
   final DateTime createdAt;
   final DateTime updatedAt;
 
@@ -17,6 +18,7 @@ class Project {
     required this.githubUrl,
     required this.clientCode,
     required this.ownerId,
+    this.nextTaskNumber = 1,
     required this.createdAt,
     required this.updatedAt,
   });
@@ -30,6 +32,7 @@ class Project {
       githubUrl: d['githubUrl'] as String? ?? '',
       clientCode: d['clientCode'] as String? ?? '',
       ownerId: d['ownerId'] as String? ?? '',
+      nextTaskNumber: (d['nextTaskNumber'] as int?) ?? 1,
       createdAt: (d['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       updatedAt: (d['updatedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
     );
@@ -41,6 +44,7 @@ class Project {
         'githubUrl': githubUrl,
         'clientCode': clientCode,
         'ownerId': ownerId,
+        'nextTaskNumber': nextTaskNumber,
         'createdAt': Timestamp.fromDate(createdAt),
         'updatedAt': Timestamp.fromDate(updatedAt),
       };

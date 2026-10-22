@@ -57,6 +57,8 @@ class Task {
   final double actualHours;
   final double hourlyRate;
   final int order;
+  final String taskCode; // es. "T-1" — identificatore breve unico nel progetto
+  final int taskNumber; // numero progressivo usato per generare taskCode
   final DateTime createdAt;
   final DateTime updatedAt;
 
@@ -73,6 +75,8 @@ class Task {
     required this.actualHours,
     required this.hourlyRate,
     required this.order,
+    this.taskCode = '',
+    this.taskNumber = 0,
     required this.createdAt,
     required this.updatedAt,
   });
@@ -96,6 +100,8 @@ class Task {
       actualHours: (d['actualHours'] as num?)?.toDouble() ?? 0,
       hourlyRate: (d['hourlyRate'] as num?)?.toDouble() ?? 0,
       order: (d['order'] as int?) ?? 0,
+      taskCode: d['taskCode'] as String? ?? '',
+      taskNumber: (d['taskNumber'] as int?) ?? 0,
       createdAt: (d['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       updatedAt: (d['updatedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
     );
@@ -112,6 +118,8 @@ class Task {
         'actualHours': actualHours,
         'hourlyRate': hourlyRate,
         'order': order,
+        'taskCode': taskCode,
+        'taskNumber': taskNumber,
         'createdAt': Timestamp.fromDate(createdAt),
         'updatedAt': Timestamp.fromDate(updatedAt),
       };
@@ -141,6 +149,8 @@ class Task {
     double? actualHours,
     double? hourlyRate,
     int? order,
+    String? taskCode,
+    int? taskNumber,
   }) =>
       Task(
         id: id,
@@ -155,6 +165,8 @@ class Task {
         actualHours: actualHours ?? this.actualHours,
         hourlyRate: hourlyRate ?? this.hourlyRate,
         order: order ?? this.order,
+        taskCode: taskCode ?? this.taskCode,
+        taskNumber: taskNumber ?? this.taskNumber,
         createdAt: createdAt,
         updatedAt: DateTime.now(),
       );
