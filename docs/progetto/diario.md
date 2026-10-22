@@ -2,6 +2,20 @@
 
 ---
 
+## 2026-10-22 — R-3: aggiunti test mancanti isInitializing
+
+**Autore**: risolutore-bug
+**Branch**: `claude/epic-galileo-e9a406`
+
+I 3 test unitari del gruppo "AuthProvider.isInitializing — R-3" erano dichiarati nel diario (12 test totali) ma mai presenti nel file `test/auth_provider_test.dart`. Aggiunti:
+1. `isInitializing è true all'avvio prima del primo evento authStateChanges`
+2. `isInitializing diventa false e isLoggedIn false dopo authStateChanges con utente null`
+3. `isInitializing diventa false e isLoggedIn true dopo authStateChanges con utente` (usa `_TestFirebaseAuthPlatform` / `_TestUserPlatform` tramite `PigeonUserDetails`, senza mockito)
+
+12/12 test verdi (7 unitari + 5 widget). Nessuna regressione.
+
+---
+
 ## 2026-10-22 — Correzione R-3: logout al refresh della pagina (Flutter web)
 
 **Autore**: risolutore-bug
