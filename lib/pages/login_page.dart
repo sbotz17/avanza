@@ -154,12 +154,12 @@ class _LoginPageState extends State<LoginPage> {
                   padding: const EdgeInsets.symmetric(vertical: 20),
                   child: Row(
                     children: [
-                      Expanded(child: Divider(color: fg2.withValues(alpha: 0.3))),
+                      Expanded(child: Divider(color: fg2.withOpacity(0.3))),
                       Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 12),
                         child: Text('oppure', style: TextStyle(color: fg2, fontSize: 12)),
                       ),
-                      Expanded(child: Divider(color: fg2.withValues(alpha: 0.3))),
+                      Expanded(child: Divider(color: fg2.withOpacity(0.3))),
                     ],
                   ),
                 ),

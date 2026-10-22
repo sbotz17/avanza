@@ -13,12 +13,12 @@ ThemeData buildLightTheme() {
       onSurface: kFgLight,
       outline: kBorderLight,
     ),
-    cardTheme: CardThemeData(
+    cardTheme: const CardTheme(
       color: kCardLight,
       elevation: 0,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(14),
-        side: const BorderSide(color: kBorderLight),
+        borderRadius: BorderRadius.all(Radius.circular(14)),
+        side: BorderSide(color: kBorderLight),
       ),
     ),
     appBarTheme: AppBarTheme(
@@ -71,12 +71,12 @@ ThemeData buildDarkTheme() {
       onSurface: kFgDark,
       outline: kBorderDark,
     ),
-    cardTheme: CardThemeData(
+    cardTheme: const CardTheme(
       color: kCardDark,
       elevation: 0,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(14),
-        side: const BorderSide(color: kBorderDark),
+        borderRadius: BorderRadius.all(Radius.circular(14)),
+        side: BorderSide(color: kBorderDark),
       ),
     ),
     appBarTheme: AppBarTheme(

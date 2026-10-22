@@ -10,6 +10,18 @@ class FirestoreService {
 
   // ── PROJECTS ──────────────────────────────────────────────────────────────
 
+  Future<Project?> getProject(String projectId) async {
+    final doc = await _db.collection('projects').doc(projectId).get();
+    if (!doc.exists) return null;
+    return Project.fromFirestore(doc);
+  }
+
+  Stream<Project?> projectStream(String projectId) => _db
+      .collection('projects')
+      .doc(projectId)
+      .snapshots()
+      .map((doc) => doc.exists ? Project.fromFirestore(doc) : null);
+
   Stream<List<Project>> projectsStream(String ownerId) => _db
       .collection('projects')
       .where('ownerId', isEqualTo: ownerId)
