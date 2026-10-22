@@ -36,9 +36,10 @@
 - Causa: `AuthProvider` non aveva un flag `_initializing`. Su Flutter web, Firebase ripristina la sessione da `localStorage` in modo asincrono: nell'istante subito dopo il refresh, `_user` è `null` e `isLoggedIn = false`, anche per un utente autenticato. `HomePage.build()` vedeva `isLoggedIn == false` e schedulava immediatamente `context.go('/login')` via `addPostFrameCallback`, prima che Firebase potesse emettere il primo evento `authStateChanges` con l'utente ripristinato.
 - Correzione: (1) `AuthProvider`: aggiunto `_initializing = true` (diventa `false` al primo evento `authStateChanges`); aggiunto getter `isInitializing`. (2) `HomePage`: aggiunto controllo `if (auth.isInitializing)` prima del redirect a `/login` — mostra solo lo spinner mentre Firebase carica, senza fare redirect.
 - File toccati: `lib/providers/auth_provider.dart`, `lib/pages/home_page.dart`, `test/auth_provider_test.dart` (3 nuovi test)
-- Stato: IN TEST
+- Stato: PRONTO PER RILASCIO
 - Note / storico:
   - 2026-10-22: Confermato per analisi statica del codice. Causa individuata in `AuthProvider` (mancanza del flag `_initializing`) e `HomePage` (redirect immediato senza aspettare Firebase). Fix applicato su `claude/epic-galileo-e9a406`. 12 test totali (7 unitari + 5 widget): tutti verdi.
+  - 2026-10-22: APPROVATO dal validatore (commit `7782d40`). Correzione minimale confermata; nessuna zona protetta toccata. Report: `docs/progetto/test/test-R3-isInitializing-20261022.md`.
 
 ---
 
@@ -58,7 +59,7 @@
 - Causa: (1) `lib/providers/auth_provider.dart`: mancava un `catch` generale in `signIn()`, `_loading` restava `true` su eccezioni non-Firebase. (2) `lib/pages/home_page.dart`: `FirestoreService()` e lo stream creati dentro `build()` di uno `StatelessWidget` — ogni rebuild per notifica `AuthProvider` generava un nuovo stream e uno spinner.
 - Correzione: (1) Aggiunto `catch (_)` + `finally` in `signIn()` per garantire `_loading = false` in tutti i percorsi. Estratta interfaccia `AuthServiceBase` in `auth_service.dart` per testabilità (iniettabile). `AuthProvider` accetta ora `AuthServiceBase?` nel costruttore. (2) `HomePage` convertito in `StatefulWidget`; `FirestoreService` e stream creati una volta in `didChangeDependencies()`.
 - File toccati: `lib/providers/auth_provider.dart`, `lib/services/auth_service.dart`, `lib/pages/home_page.dart`, `test/auth_provider_test.dart` (nuovo)
-- Stato: IN TEST
+- Stato: PRONTO PER RILASCIO
 - Note / storico:
   - 2026-10-22: Prima ricezione — segnalazione generica "il software non funziona per niente". Richiesti dettagli ad Andrea.
   - 2026-10-22: Andrea fornisce dettaglio: "spinner di caricamento non si ferma mai, sia all'accesso sia dopo aver salvato un nuovo progetto." Classificato come confermato. Corretto su `claude/epic-galileo-e9a406` con 4 test unitari (tutti verdi).
