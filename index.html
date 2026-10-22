@@ -1,0 +1,547 @@
+<title>Volty — Avanzamento sviluppo</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+
+<style>
+  :root {
+    --bg: #f2f2ed;
+    --card: #ffffff;
+    --border: #e4e2da;
+    --fg: #18181a;
+    --fg2: #76766e;
+    --done: #1e8a3e;
+    --done-bg: #e4f5eb;
+    --active: #1a6be8;
+    --active-bg: #e6effe;
+    --pending: #adad9a;
+    --pending-bg: #f2f2ed;
+    --blocked: #c62828;
+    --blocked-bg: #fdecea;
+    --col-bg: #e8e8e2;
+    --shadow: 0 1px 3px rgba(0,0,0,.06), 0 3px 10px rgba(0,0,0,.05);
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #18181a; --card: #24242a; --border: #38383e; --fg: #e8e8e2;
+      --fg2: #96968e; --done: #4caf6e; --done-bg: #192e21; --active: #5b96f6;
+      --active-bg: #152040; --pending: #64645c; --pending-bg: #24242a;
+      --blocked: #ef5350; --blocked-bg: #2c1616; --col-bg: #1e1e22;
+      --shadow: 0 1px 3px rgba(0,0,0,.3), 0 3px 10px rgba(0,0,0,.2);
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #18181a; --card: #24242a; --border: #38383e; --fg: #e8e8e2;
+    --fg2: #96968e; --done: #4caf6e; --done-bg: #192e21; --active: #5b96f6;
+    --active-bg: #152040; --pending: #64645c; --pending-bg: #24242a;
+    --blocked: #ef5350; --blocked-bg: #2c1616; --col-bg: #1e1e22;
+    --shadow: 0 1px 3px rgba(0,0,0,.3), 0 3px 10px rgba(0,0,0,.2);
+    color-scheme: dark;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg); color: var(--fg);
+    font-family: 'Inter', system-ui, sans-serif;
+    font-size: 14px; line-height: 1.5;
+    padding-block: max(20px, env(safe-area-inset-top,0px)) max(20px, env(safe-area-inset-bottom,0px));
+    padding-left: max(16px, env(safe-area-inset-left,0px));
+    padding-right: max(16px, env(safe-area-inset-right,0px));
+    min-height: 100vh;
+  }
+
+  /* ─── HEADER ─────────────────────────────────────── */
+  header {
+    display: flex; align-items: center; justify-content: space-between;
+    flex-wrap: wrap; gap: 10px; margin-bottom: 20px;
+  }
+  .hdr-left { display: flex; flex-direction: column; gap: 2px; }
+  h1 { font-size: 18px; font-weight: 700; letter-spacing: -.3px; }
+  .sub { font-size: 11px; color: var(--fg2); }
+  .hdr-controls { display: flex; gap: 8px; align-items: center; }
+  .ctrl-btn {
+    background: var(--card); border: 1px solid var(--border); border-radius: 8px;
+    padding: 5px 12px; font-size: 12px; color: var(--fg2); cursor: pointer;
+    font-family: inherit; transition: background .15s;
+  }
+  .ctrl-btn:hover { background: var(--border); }
+  .ctrl-btn.on { background: var(--active); color: #fff; border-color: var(--active); }
+
+  /* ─── VIEWS ─────────────────────────────────────── */
+  #view-list   { display: flex; flex-direction: column; gap: 10px; }
+  #view-kanban { display: none; }
+  #view-detail { display: none; }
+
+  /* ─── PILL ─────────────────────────────────────── */
+  .pill {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 3px 10px; border-radius: 20px;
+    font-size: 11px; font-weight: 600; white-space: nowrap; flex-shrink: 0;
+  }
+  .pill.done    { background: var(--done-bg);    color: var(--done);   }
+  .pill.active  { background: var(--active-bg);  color: var(--active); }
+  .pill.pending { background: var(--pending-bg); color: var(--pending); border: 1px solid var(--border); }
+  .pill.blocked { background: var(--blocked-bg); color: var(--blocked); }
+  .pill-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; flex-shrink: 0; }
+  .pill.active .pill-dot { animation: pulse 2s ease-in-out infinite; }
+
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+
+  /* ─── PROGRESS BAR ─────────────────────────────── */
+  .pb-track {
+    display: flex; gap: 3px; height: 8px;
+    border-radius: 8px; overflow: hidden;
+  }
+  .seg { flex: 1; border-radius: 3px; }
+  .seg.done    { background: var(--done); }
+  .seg.active  { background: var(--active); animation: pulse 2s ease-in-out infinite; }
+  .seg.pending { background: var(--col-bg); }
+  .seg.blocked { background: var(--blocked); }
+  .seg.skip    { background: transparent; }
+
+  /* ═══════════ LIST VIEW (minimal card) ═══════════ */
+  .list-card {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 14px; padding: 16px 18px;
+    box-shadow: var(--shadow); cursor: pointer;
+    transition: border-color .15s, box-shadow .15s;
+    display: flex; flex-direction: column; gap: 12px;
+  }
+  .list-card:hover {
+    border-color: var(--active);
+    box-shadow: 0 2px 12px rgba(26,107,232,.12);
+  }
+  .lc-top {
+    display: flex; align-items: flex-start;
+    justify-content: space-between; gap: 12px;
+  }
+  .lc-meta { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+  .lc-id   { font-size: 10px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: var(--fg2); }
+  .lc-title{ font-size: 15px; font-weight: 700; }
+  .lc-req  { font-size: 12px; color: var(--fg2); margin-top: 2px; }
+  .lc-bottom {
+    display: flex; align-items: center; gap: 10px;
+  }
+  .pb-wrap { flex: 1; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+  .pb-nums { display: flex; justify-content: space-between; font-size: 11px; color: var(--fg2); }
+  .lc-arrow { color: var(--fg2); font-size: 16px; flex-shrink: 0; }
+
+  /* ═══════════ DETAIL VIEW ═══════════ */
+  .back-btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: none; border: none; cursor: pointer;
+    font-family: inherit; font-size: 13px; font-weight: 500;
+    color: var(--active); padding: 0; margin-bottom: 16px;
+  }
+  .back-btn:hover { opacity: .75; }
+
+  .detail-card {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 14px; padding: 20px; box-shadow: var(--shadow);
+    display: flex; flex-direction: column; gap: 18px;
+  }
+  .det-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+  .det-meta { display: flex; flex-direction: column; gap: 3px; }
+  .det-id    { font-size: 10px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: var(--fg2); }
+  .det-title { font-size: 18px; font-weight: 700; }
+  .det-desc  { font-size: 13px; color: var(--fg2); margin-top: 2px; }
+
+  .det-section-title {
+    font-size: 11px; font-weight: 700; letter-spacing: .6px;
+    text-transform: uppercase; color: var(--fg2);
+    margin-bottom: 8px;
+  }
+
+  /* Request box */
+  .req-box {
+    background: var(--col-bg); border-radius: 10px;
+    padding: 12px 14px; font-size: 13px; line-height: 1.6; color: var(--fg);
+    border-left: 3px solid var(--active);
+  }
+
+  /* Phase list */
+  .phase-list { display: flex; flex-direction: column; gap: 6px; }
+  .phase-row {
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 10px; border-radius: 8px;
+    font-size: 13px;
+  }
+  .phase-row.done    { background: var(--done-bg); }
+  .phase-row.active  { background: var(--active-bg); }
+  .phase-row.pending { background: var(--pending-bg); }
+  .phase-row.blocked { background: var(--blocked-bg); }
+  .phase-row.skip    { opacity: .35; }
+  .phase-icon { font-size: 14px; flex-shrink: 0; width: 18px; text-align: center; }
+  .phase-name { flex: 1; font-weight: 500; }
+  .phase-label{ font-size: 11px; font-weight: 600; }
+  .phase-row.done    .phase-label { color: var(--done); }
+  .phase-row.active  .phase-label { color: var(--active); }
+  .phase-row.blocked .phase-label { color: var(--blocked); }
+  .phase-row.pending .phase-label { color: var(--pending); }
+
+  /* Notes */
+  .note-list { display: flex; flex-direction: column; gap: 5px; }
+  .note {
+    display: flex; gap: 8px; align-items: flex-start;
+    font-size: 12px; padding: 7px 10px; border-radius: 8px; border-left: 3px solid;
+  }
+  .note.ok  { border-color: var(--done);    background: var(--done-bg); }
+  .note.info{ border-color: var(--active);  background: var(--active-bg); }
+  .note.blk { border-color: var(--blocked); background: var(--blocked-bg); }
+  .note-ic  { flex-shrink: 0; }
+
+  /* ═══════════ KANBAN VIEW ═══════════ */
+  .kb-wrap { overflow-x: auto; padding-bottom: 8px; }
+  .kanban  { display: flex; gap: 10px; min-width: max-content; }
+  .kb-col  {
+    background: var(--col-bg); border-radius: 12px;
+    padding: 12px 10px; width: 160px; flex-shrink: 0;
+    display: flex; flex-direction: column; gap: 8px;
+  }
+  .kb-hdr {
+    font-size: 10px; font-weight: 700; letter-spacing: .6px;
+    text-transform: uppercase; color: var(--fg2);
+    padding: 0 2px 7px; border-bottom: 1px solid var(--border);
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .kb-cnt {
+    background: var(--border); color: var(--fg2);
+    font-size: 10px; font-weight: 700;
+    width: 16px; height: 16px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .kb-card {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 10px; padding: 9px 11px;
+    box-shadow: 0 1px 3px rgba(0,0,0,.08);
+    display: flex; flex-direction: column; gap: 5px;
+    cursor: pointer; transition: border-color .12s;
+  }
+  .kb-card:hover { border-color: var(--active); }
+  .kb-cid   { font-size: 10px; font-weight: 700; letter-spacing: .8px; text-transform: uppercase; color: var(--fg2); }
+  .kb-ctitle{ font-size: 12px; font-weight: 600; line-height: 1.3; }
+  .kb-badge {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 2px 7px; border-radius: 10px;
+    font-size: 10px; font-weight: 600; width: fit-content; margin-top: 2px;
+  }
+  .kb-badge.done    { background: var(--done-bg);    color: var(--done); }
+  .kb-badge.active  { background: var(--active-bg);  color: var(--active); }
+  .kb-badge.pending { background: var(--pending-bg); color: var(--pending); border: 1px solid var(--border); }
+  .kb-badge.blocked { background: var(--blocked-bg); color: var(--blocked); }
+  .kb-minibar { display: flex; gap: 2px; height: 3px; border-radius: 4px; overflow: hidden; }
+  .kb-mseg    { flex: 1; border-radius: 2px; }
+  .kb-mseg.done    { background: var(--done); }
+  .kb-mseg.active  { background: var(--active); }
+  .kb-mseg.pending { background: var(--col-bg); }
+  .kb-mseg.blocked { background: var(--blocked); }
+  .kb-mseg.skip    { background: transparent; }
+
+  .kb-phase-tag { font-size: 10px; font-weight: 600; padding: 1px 6px; border-radius: 8px; flex-shrink: 0; }
+  .kb-phase-tag.active  { background: var(--active-bg);  color: var(--active); }
+  .kb-phase-tag.blocked { background: var(--blocked-bg); color: var(--blocked); }
+  .kb-block-alert {
+    font-size: 10px; font-weight: 600; color: var(--blocked);
+    background: var(--blocked-bg); border-radius: 6px;
+    padding: 3px 7px; margin-top: 2px;
+  }
+
+  /* Legend */
+  .legend {
+    display: flex; gap: 14px; flex-wrap: wrap;
+    margin-top: 20px; padding-top: 14px; border-top: 1px solid var(--border);
+  }
+  .leg-it { display: flex; align-items: center; gap: 5px; font-size: 11px; color: var(--fg2); }
+  .leg-dot{ width: 10px; height: 10px; border-radius: 3px; flex-shrink: 0; }
+</style>
+
+<header>
+  <div class="hdr-left">
+    <h1>Volty — Sviluppo in corso</h1>
+    <span class="sub">Branch: claude/friendly-gauss-od428w · 2026-10-22</span>
+  </div>
+  <div class="hdr-controls">
+    <button class="ctrl-btn on" id="btn-list"   onclick="setView('list')">☰ Lista</button>
+    <button class="ctrl-btn"   id="btn-kanban" onclick="setView('kanban')">⊞ Kanban</button>
+    <button class="ctrl-btn"                   onclick="toggleTheme()">◑</button>
+  </div>
+</header>
+
+<div id="view-list"></div>
+<div id="view-kanban"><div class="kb-wrap"><div class="kanban" id="kanban-board"></div></div></div>
+<div id="view-detail"></div>
+
+<div class="legend" id="legend">
+  <div class="leg-it"><div class="leg-dot" style="background:var(--done)"></div>Completato</div>
+  <div class="leg-it"><div class="leg-dot" style="background:var(--active)"></div>In lavorazione</div>
+  <div class="leg-it"><div class="leg-dot" style="background:var(--col-bg);border:1px solid var(--border)"></div>In attesa</div>
+  <div class="leg-it"><div class="leg-dot" style="background:var(--blocked)"></div>Bloccato / Azione Andrea</div>
+</div>
+
+<script>
+const PHASES_NAMES = ['Analisi','Database','Backend','Design','Frontend','Test','Validazione'];
+
+const FEATURES = [
+  {
+    id: 'F-LOG',
+    title: 'Sistema di Logging',
+    desc: 'Log asincrono fire-and-forget degli eventi app su Supabase',
+    request: 'Tracciare automaticamente le azioni dell\'utente, gli errori e le chiamate API in modo asincrono (fire-and-forget), senza mai bloccare l\'interfaccia. Dati conservati 90 giorni, visibili solo al superadmin.',
+    overallStatus: 'active',
+    overallLabel: 'Test in attesa',
+    pct: 70,
+    phases: [
+      {name:'Analisi',   status:'done',    label:'Completata'},
+      {name:'Database',  status:'done',    label:'Completato'},
+      {name:'Backend',   status:'skip',    label:'Non richiesto'},
+      {name:'Design',    status:'skip',    label:'Non richiesto'},
+      {name:'Frontend',  status:'done',    label:'Completato'},
+      {name:'Test',      status:'pending', label:'In attesa'},
+      {name:'Validazione',status:'pending',label:'In attesa'},
+    ],
+    notes:[
+      {type:'ok',  icon:'✓', text:'logging.dart — unawaited fire-and-forget, max 5ms overhead'},
+      {type:'ok',  icon:'✓', text:'add_app_logs.sql — RLS INSERT autenticati, SELECT solo superadmin, purge pg_cron 90gg'},
+      {type:'ok',  icon:'✓', text:'Integrato in main.dart (errori Flutter/Platform), repos.dart (clienti, preventivi)'},
+      {type:'info',icon:'→', text:'Tester e validatore si attivano al completamento di tutti i blocchi'},
+    ]
+  },
+  {
+    id: 'F-ASS',
+    title: 'Modulo Assistente',
+    desc: 'Segnalazioni malfunzionamenti, manuale, novità e problemi risolti',
+    request: 'Sezione nell\'app dove gli utenti possono segnalare malfunzionamenti con un form guidato (cosa stavi facendo / cosa è successo / cosa ti aspettavi), vedere le proprie segnalazioni e le novità rilasciate. Limite 3 segnalazioni per ora per utente.',
+    overallStatus: 'active',
+    overallLabel: 'Frontend in corso',
+    pct: 57,
+    phases: [
+      {name:'Analisi',   status:'done',   label:'Completata'},
+      {name:'Database',  status:'done',   label:'Completato'},
+      {name:'Backend',   status:'done',   label:'Completato'},
+      {name:'Design',    status:'done',   label:'Completato'},
+      {name:'Frontend',  status:'active', label:'In corso'},
+      {name:'Test',      status:'pending',label:'In attesa'},
+      {name:'Validazione',status:'pending',label:'In attesa'},
+    ],
+    notes:[
+      {type:'ok',  icon:'✓', text:'add_segnalazioni.sql — RLS user-scoped, trigger updated_at'},
+      {type:'ok',  icon:'✓', text:'Edge Fn crea-segnalazione — validazione 3 campi, rate limit 3/h, HTTP 429'},
+      {type:'ok',  icon:'✓', text:'Design AssistentePage definito (4 tab: Guida / Segnala / Le mie / Novità)'},
+      {type:'info',icon:'→', text:'Frontend (Blocco 5): implementazione AssistentePage + routing + navigazione'},
+    ]
+  },
+  {
+    id: 'F-TEST',
+    title: 'Test automatici CI',
+    desc: 'OWASP ZAP DAST su staging + Playwright E2E + pannello stato in app',
+    request: 'Eseguire automaticamente scansioni di sicurezza (OWASP ZAP) e test end-to-end (Playwright) su staging ad ogni push. I risultati sono salvati su Supabase Storage e visibili nell\'app dal pannello test (solo superadmin).',
+    overallStatus: 'active',
+    overallLabel: 'In corso + bloccato',
+    pct: 57,
+    phases: [
+      {name:'Analisi',   status:'done',    label:'Completata'},
+      {name:'Database',  status:'blocked', label:'Azione Andrea'},
+      {name:'Backend',   status:'done',    label:'Completato'},
+      {name:'Design',    status:'skip',    label:'Non richiesto'},
+      {name:'Frontend',  status:'done',    label:'Completato'},
+      {name:'Test',      status:'pending', label:'In attesa'},
+      {name:'Validazione',status:'pending',label:'In attesa'},
+    ],
+    notes:[
+      {type:'ok',  icon:'✓', text:'Edge Fn get-test-status — legge test-status.json dallo Storage, verifica superadmin'},
+      {type:'ok',  icon:'✓', text:'Playwright smoke test: T-E2E-001/002/003 (login, dashboard)'},
+      {type:'blk', icon:'⚠', text:'File CI (dast.yml, e2e.yml, script Python, SQL) pronti in docs/progetto/pending-f-test/ — Andrea deve copiarli manualmente (vedi ISTRUZIONI.md)'},
+      {type:'info',icon:'→', text:'Frontend (Blocco 3): sezione "Stato CI" in test_panel.dart in corso'},
+    ]
+  }
+];
+
+/* ──────── RENDER LIST VIEW ──────── */
+function renderList() {
+  document.getElementById('view-list').innerHTML = FEATURES.map((f,i) => {
+    const segs = f.phases.map(p => `<div class="seg ${p.status}"></div>`).join('');
+    return `
+    <div class="list-card" onclick="showDetail(${i})">
+      <div class="lc-top">
+        <div class="lc-meta">
+          <span class="lc-id">${f.id}</span>
+          <span class="lc-title">${f.title}</span>
+          <span class="lc-req">${f.desc}</span>
+        </div>
+        <div class="pill ${f.overallStatus}">
+          <span class="pill-dot"></span>${f.overallLabel}
+        </div>
+      </div>
+      <div class="lc-bottom">
+        <div class="pb-wrap">
+          <div class="pb-nums"><span>Avanzamento</span><span>${f.pct}%</span></div>
+          <div class="pb-track">${segs}</div>
+        </div>
+        <span class="lc-arrow">›</span>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+/* ──────── RENDER DETAIL VIEW ──────── */
+function showDetail(i) {
+  const f = FEATURES[i];
+  const segs = f.phases.map(p => `<div class="seg ${p.status}"></div>`).join('');
+
+  const phaseIcons = {done:'✓', active:'●', pending:'○', blocked:'⚠', skip:'—'};
+
+  const phaseRows = f.phases
+    .filter(p => p.status !== 'skip')
+    .map(p => `
+    <div class="phase-row ${p.status}">
+      <span class="phase-icon">${phaseIcons[p.status]||'○'}</span>
+      <span class="phase-name">${p.name}</span>
+      <span class="phase-label">${p.label}</span>
+    </div>`).join('');
+
+  const notes = f.notes.map(n =>
+    `<div class="note ${n.type}"><span class="note-ic">${n.icon}</span><span>${n.text}</span></div>`
+  ).join('');
+
+  document.getElementById('view-detail').innerHTML = `
+    <button class="back-btn" onclick="closeDetail()">‹ Torna alla lista</button>
+    <div class="detail-card">
+      <div class="det-header">
+        <div class="det-meta">
+          <span class="det-id">${f.id}</span>
+          <span class="det-title">${f.title}</span>
+          <span class="det-desc">${f.desc}</span>
+        </div>
+        <div class="pill ${f.overallStatus}">
+          <span class="pill-dot"></span>${f.overallLabel}
+        </div>
+      </div>
+
+      <div>
+        <div class="det-section-title">Richiesta</div>
+        <div class="req-box">${f.request}</div>
+      </div>
+
+      <div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+          <div class="det-section-title" style="margin-bottom:0">Avanzamento — ${f.pct}%</div>
+        </div>
+        <div class="pb-track" style="height:10px;margin-bottom:12px">${segs}</div>
+        <div class="phase-list">${phaseRows}</div>
+      </div>
+
+      <div>
+        <div class="det-section-title">Note e stato corrente</div>
+        <div class="note-list">${notes}</div>
+      </div>
+    </div>`;
+
+  setView('detail');
+}
+
+function closeDetail() {
+  setView('list');
+}
+
+/* ──────── RENDER KANBAN VIEW ──────── */
+// Colonne = stati di avanzamento del task (non le fasi interne)
+const KB_COLS = [
+  { id: 'backlog',    label: 'Da fare',       color: 'var(--pending)', dot: '#b0b09a' },
+  { id: 'active',     label: 'In corso',      color: 'var(--active)',  dot: 'var(--active)' },
+  { id: 'blocked',    label: 'Bloccato',      color: 'var(--blocked)', dot: 'var(--blocked)' },
+  { id: 'review',     label: 'In test / QA',  color: '#9c6fe4',        dot: '#9c6fe4' },
+  { id: 'validated',  label: 'Validato',      color: '#0097a7',        dot: '#0097a7' },
+  { id: 'released',   label: 'Rilasciato',    color: 'var(--done)',    dot: 'var(--done)' },
+];
+
+function featureKbCol(f) {
+  // Mappa lo stato complessivo del feature alla colonna Kanban
+  const allPhases = f.phases.filter(p => p.status !== 'skip');
+  const anyBlocked = allPhases.some(p => p.status === 'blocked');
+  const inTest     = allPhases.some(p => p.name === 'Test'        && p.status === 'active');
+  const inValidate = allPhases.some(p => p.name === 'Validazione' && p.status === 'active');
+  const allDone    = allPhases.every(p => p.status === 'done');
+  const released   = f.pct === 100 && f.overallStatus === 'done';
+
+  if (released)   return 'released';
+  if (allDone)    return 'validated';
+  if (inValidate) return 'validated';
+  if (inTest)     return 'review';
+  if (anyBlocked && !allPhases.some(p => p.status === 'active')) return 'blocked';
+  if (f.overallStatus === 'active' || allPhases.some(p => p.status === 'active')) return 'active';
+  return 'backlog';
+}
+
+function renderKanban() {
+  const board = document.getElementById('kanban-board');
+
+  const cols = KB_COLS.map(col => {
+    const items = FEATURES.filter(f => featureKbCol(f) === col.id);
+
+    const cards = items.map(f => {
+      const idx = FEATURES.indexOf(f);
+      const mini = f.phases.map(p => `<div class="kb-mseg ${p.status}"></div>`).join('');
+      // Fase attiva corrente
+      const activePhase = f.phases.find(p => p.status === 'active' || p.status === 'blocked');
+      const phaseTag = activePhase
+        ? `<span class="kb-phase-tag ${activePhase.status}">${activePhase.name}</span>`
+        : '';
+      // Blocco alert
+      const blocked = f.phases.some(p => p.status === 'blocked');
+      const blockAlert = blocked
+        ? `<div class="kb-block-alert">⚠ Azione Andrea</div>`
+        : '';
+
+      return `
+      <div class="kb-card" onclick="showDetail(${idx})">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:6px">
+          <span class="kb-cid">${f.id}</span>
+          ${phaseTag}
+        </div>
+        <span class="kb-ctitle">${f.title}</span>
+        <div style="display:flex;align-items:center;gap:6px;margin-top:2px">
+          <div class="kb-minibar" style="flex:1">${mini}</div>
+          <span style="font-size:10px;font-weight:700;color:var(--fg2)">${f.pct}%</span>
+        </div>
+        ${blockAlert}
+      </div>`;
+    }).join('');
+
+    const cnt = items.length;
+    const colAccent = col.color;
+
+    return `
+    <div class="kb-col">
+      <div class="kb-hdr" style="border-bottom-color:${colAccent}20">
+        <div style="display:flex;align-items:center;gap:6px">
+          <span style="width:8px;height:8px;border-radius:50%;background:${col.dot};flex-shrink:0;display:inline-block"></span>
+          <span>${col.label}</span>
+        </div>
+        ${cnt ? `<span class="kb-cnt">${cnt}</span>` : ''}
+      </div>
+      ${cards || '<div style="font-size:11px;color:var(--fg2);text-align:center;padding:10px 0;opacity:.35">—</div>'}
+    </div>`;
+  }).join('');
+
+  board.innerHTML = cols;
+}
+
+/* ──────── VIEW TOGGLE ──────── */
+function setView(v) {
+  document.getElementById('view-list').style.display   = v==='list'   ? 'flex'  : 'none';
+  document.getElementById('view-kanban').style.display = v==='kanban' ? 'block' : 'none';
+  document.getElementById('view-detail').style.display = v==='detail' ? 'block' : 'none';
+  document.getElementById('legend').style.display      = v==='detail' ? 'none'  : 'flex';
+  document.getElementById('btn-list').classList.toggle('on',    v==='list');
+  document.getElementById('btn-kanban').classList.toggle('on',  v==='kanban');
+  if (v==='kanban') renderKanban();
+}
+
+function toggleTheme() {
+  const r = document.documentElement;
+  r.setAttribute('data-theme', r.getAttribute('data-theme')==='dark' ? 'light' : 'dark');
+}
+
+renderList();
+</script>
