@@ -1,0 +1,77 @@
+# Catalogo oggetti — Avanza
+
+Ogni oggetto del progetto è registrato qui: nome, categoria, percorso, scopo e dove è usato.
+Aggiornare a ogni nuovo oggetto o modifica significativa.
+
+---
+
+## Flutter — Modelli (`lib/models/`)
+
+| Nome | Percorso | Scopo | Usato in |
+|------|----------|-------|----------|
+| `Task` | `lib/models/task.dart` | Modello dati del task (con campi `taskCode`, `taskNumber`, `githubBranch?`, `githubPrNumber?`) | Ovunque nel frontend |
+| `Project` | `lib/models/project.dart` | Modello dati del progetto (con `nextTaskNumber`) | Home, project page, firestore_service |
+
+---
+
+## Flutter — Widget (`lib/widgets/`)
+
+| Nome | Percorso | Scopo | Usato in |
+|------|----------|-------|----------|
+| `TaskCodeBadge` | `lib/widgets/task_code_badge.dart` | Badge compatto che mostra il codice univoco di un task (es. "T-3"); si nasconde se vuoto | `task_card.dart`, `kanban_board.dart`, `edit_task_page.dart`, `task_detail_page.dart` |
+| `KanbanBoard` | `lib/widgets/kanban_board.dart` | Board kanban con colonne per status | `project_page.dart` |
+| `TaskCard` | `lib/widgets/task_card.dart` | Card compatta per un task nella lista/kanban | `kanban_board.dart` |
+| `PhaseRow` | `lib/widgets/phase_row.dart` | Riga singola fase di un task | `task_detail_page.dart`, `edit_task_page.dart` |
+| `ProgressBar` | `lib/widgets/progress_bar.dart` | Barra di avanzamento percentuale | `task_card.dart`, `task_detail_page.dart` |
+| `StatusPill` | `lib/widgets/status_pill.dart` | Pillola colorata per lo status del task | `task_card.dart`, `task_detail_page.dart` |
+| `EmptyState` | `lib/widgets/empty_state.dart` | Schermata vuota con messaggio e icona | `project_page.dart`, `home_page.dart` |
+
+---
+
+## Flutter — Pagine (`lib/pages/`)
+
+| Nome | Percorso | Scopo | Usato in |
+|------|----------|-------|----------|
+| `HomePage` | `lib/pages/home_page.dart` | Lista dei progetti | `app.dart` |
+| `ProjectPage` | `lib/pages/project_page.dart` | Dettaglio progetto con kanban | `app.dart` |
+| `TaskDetailPage` | `lib/pages/task_detail_page.dart` | Dettaglio task (sola lettura cliente) | `app.dart` |
+| `EditTaskPage` | `lib/pages/admin/edit_task_page.dart` | Form creazione/modifica task | `project_page.dart` |
+| `EditProjectPage` | `lib/pages/admin/edit_project_page.dart` | Form creazione/modifica progetto | `home_page.dart` |
+| `CostsPage` | `lib/pages/admin/costs_page.dart` | Riepilogo costi e ore per progetto | `app.dart` |
+| `LoginPage` | `lib/pages/login_page.dart` | Login con email/password | `app.dart` |
+| `ClientAccessPage` | `lib/pages/client_access_page.dart` | Accesso cliente via token | `app.dart` |
+
+---
+
+## Flutter — Servizi e provider (`lib/services/`, `lib/providers/`)
+
+| Nome | Percorso | Scopo | Usato in |
+|------|----------|-------|----------|
+| `FirestoreService` | `lib/services/firestore_service.dart` | Accesso CRUD a Firestore (progetti, task, fasi, note) | Pagine e provider |
+| `AuthService` | `lib/services/auth_service.dart` | Autenticazione Firebase (login, logout, stato) | `auth_provider.dart` |
+| `AuthProvider` | `lib/providers/auth_provider.dart` | Provider ChangeNotifier per lo stato di autenticazione | `app.dart` |
+
+---
+
+## Flutter — Core (`lib/core/`)
+
+| Nome | Percorso | Scopo | Usato in |
+|------|----------|-------|----------|
+| `AppTheme` | `lib/core/theme.dart` | Tema Material3 (light/dark, colori, tipografia) | `main.dart` |
+| `AppConstants` | `lib/core/constants.dart` | Costanti applicative (statusOrder, colori status, ecc.) | Widget, pagine |
+
+---
+
+## Cloud Functions Firebase (`functions/src/`)
+
+| Nome | Percorso | Scopo | Usato in |
+|------|----------|-------|----------|
+| `githubWebhook` | `functions/src/githubWebhook.ts` | Handler HTTP Gen 2 — orchestra la verifica HMAC e il routing degli eventi GitHub | `functions/src/index.ts` |
+| `index` (entry point) | `functions/src/index.ts` | Esporta `githubWebhook` come Firebase Cloud Function | Deploy Firebase |
+| `verifySignature` | `functions/src/lib/hmac.ts` | Verifica la firma X-Hub-Signature-256 con `timingSafeEqual` (anti timing-attack) | `githubWebhook.ts` |
+| `resolveProject` | `functions/src/lib/projectResolver.ts` | Trova il progetto Firestore che corrisponde all'URL GitHub del repository | `githubWebhook.ts` |
+| `resolveTask` | `functions/src/lib/taskResolver.ts` | Trova il task in una subcollection Firestore dato il `taskCode` | `githubWebhook.ts` |
+| `routeEvent` | `functions/src/lib/eventRouter.ts` | Trasforma l'evento GitHub (push / pull_request / pull_request_review) in un `DesiredUpdate` | `githubWebhook.ts` |
+| `buildUpdate` | `functions/src/lib/taskUpdater.ts` | Costruisce l'aggiornamento Firestore applicando la logica di avanzamento (no retrocessione, idempotenza note) | `githubWebhook.ts` |
+| `writeUpdate` | `functions/src/lib/firestoreWriter.ts` | Esegue la transazione atomica su Firestore (status + fasi + nota) | `githubWebhook.ts` |
+| Interfacce condivise | `functions/src/lib/types.ts` | Tipi TypeScript condivisi tra i moduli Cloud Function (`GithubEvent`, `DesiredUpdate`, ecc.) | Tutti i moduli `lib/` |
