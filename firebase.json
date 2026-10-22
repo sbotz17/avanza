@@ -1,1 +1,20 @@
-{"flutter":{"platforms":{"dart":{"lib/firebase_options.dart":{"projectId":"avanza-b62d7","configurations":{"web":"1:1056213871855:web:cd0ccef78efee576297f1a"}}}}}}
+{
+  "hosting": {
+    "public": "build/web",
+    "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
+    "rewrites": [
+      {
+        "source": "**",
+        "destination": "/index.html"
+      }
+    ],
+    "headers": [
+      {
+        "source": "**/*.@(js|css)",
+        "headers": [
+          { "key": "Cache-Control", "value": "max-age=31536000" }
+        ]
+      }
+    ]
+  }
+}
