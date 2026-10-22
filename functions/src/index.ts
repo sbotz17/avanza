@@ -21,6 +21,7 @@ export const githubWebhook = onRequest(
   {
     region: 'us-central1',
     secrets: ['GITHUB_WEBHOOK_SECRET'],
+    serviceAccount: 'firebase-adminsdk-fbsvc@avanza-b62d7.iam.gserviceaccount.com',
   },
   githubWebhookHandler
 );
