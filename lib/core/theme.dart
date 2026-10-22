@@ -31,7 +31,11 @@ ThemeData buildLightTheme() {
         color: kFgLight,
       ),
     ),
-    textTheme: GoogleFonts.interTextTheme(base.textTheme).copyWith(
+    textTheme: base.textTheme.apply(
+      fontFamily: GoogleFonts.inter().fontFamily,
+      bodyColor: kFgLight,
+      displayColor: kFgLight,
+    ).copyWith(
       bodyMedium: GoogleFonts.inter(color: kFgLight, fontSize: 14),
       bodySmall: GoogleFonts.inter(color: kFg2Light, fontSize: 12),
     ),
@@ -89,7 +93,11 @@ ThemeData buildDarkTheme() {
         color: kFgDark,
       ),
     ),
-    textTheme: GoogleFonts.interTextTheme(base.textTheme).copyWith(
+    textTheme: base.textTheme.apply(
+      fontFamily: GoogleFonts.inter().fontFamily,
+      bodyColor: kFgDark,
+      displayColor: kFgDark,
+    ).copyWith(
       bodyMedium: GoogleFonts.inter(color: kFgDark, fontSize: 14),
       bodySmall: GoogleFonts.inter(color: kFg2Dark, fontSize: 12),
     ),
