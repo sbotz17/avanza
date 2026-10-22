@@ -9,6 +9,7 @@ import '../widgets/status_pill.dart';
 import '../widgets/progress_bar.dart';
 import '../widgets/phase_row.dart';
 import '../widgets/empty_state.dart';
+import '../widgets/task_code_badge.dart';
 
 class TaskDetailPage extends StatelessWidget {
   final String projectId;
@@ -69,7 +70,21 @@ class TaskDetailPage extends StatelessWidget {
               icon: const Icon(Icons.arrow_back),
               onPressed: () => context.go('/project/$projectId'),
             ),
-            title: Text(task.title),
+            title: task.taskCode.isEmpty
+                ? Text(task.title)
+                : Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Flexible(
+                        child: Text(
+                          task.title,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      TaskCodeBadge(taskCode: task.taskCode),
+                    ],
+                  ),
             actions: [
               if (isAdmin)
                 IconButton(

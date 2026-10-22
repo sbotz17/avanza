@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import '../../services/firestore_service.dart';
 import '../../models/task.dart';
 import '../../core/constants.dart';
+import '../../widgets/task_code_badge.dart';
 
 class EditTaskPage extends StatefulWidget {
   final String projectId;
@@ -144,7 +145,16 @@ class _EditTaskPageState extends State<EditTaskPage> {
           icon: const Icon(Icons.arrow_back),
           onPressed: () => context.go('/project/${widget.projectId}'),
         ),
-        title: Text(_isNew ? 'Nuovo task' : 'Modifica task'),
+        title: _isNew || (_existingTask?.taskCode ?? '').isEmpty
+            ? Text(_isNew ? 'Nuovo task' : 'Modifica task')
+            : Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text('Modifica task'),
+                  const SizedBox(width: 8),
+                  TaskCodeBadge(taskCode: _existingTask!.taskCode),
+                ],
+              ),
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),

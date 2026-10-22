@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../models/task.dart';
 import '../core/constants.dart';
 import 'progress_bar.dart';
+import 'task_code_badge.dart';
 
 class KanbanBoard extends StatelessWidget {
   final List<Task> tasks;
@@ -189,6 +190,10 @@ class _KanbanCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            if (task.taskCode.isNotEmpty) ...[
+              TaskCodeBadge(taskCode: task.taskCode),
+              const SizedBox(height: 3),
+            ],
             Text(
               task.title,
               style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),

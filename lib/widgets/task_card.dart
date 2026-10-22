@@ -3,6 +3,7 @@ import '../models/task.dart';
 import '../core/constants.dart';
 import 'status_pill.dart';
 import 'progress_bar.dart';
+import 'task_code_badge.dart';
 
 class TaskCard extends StatelessWidget {
   final Task task;
@@ -45,12 +46,23 @@ class TaskCard extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        task.title,
-                        style: const TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w700,
-                        ),
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          if (task.taskCode.isNotEmpty) ...[
+                            TaskCodeBadge(taskCode: task.taskCode),
+                            const SizedBox(width: 6),
+                          ],
+                          Expanded(
+                            child: Text(
+                              task.title,
+                              style: const TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                       if (task.description.isNotEmpty) ...[
                         const SizedBox(height: 3),
