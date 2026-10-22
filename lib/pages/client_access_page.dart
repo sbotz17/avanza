@@ -106,7 +106,7 @@ class _ClientAccessPageState extends State<ClientAccessPage> {
                       fontSize: 24,
                       fontWeight: FontWeight.w300,
                       letterSpacing: 8,
-                      color: fg2.withOpacity(0.4),
+                      color: fg2.withValues(alpha: 0.4),
                     ),
                     counterText: '',
                   ),

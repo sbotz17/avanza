@@ -125,7 +125,7 @@ class _KanbanColumn extends StatelessWidget {
               child: Center(
                 child: Text(
                   '—',
-                  style: TextStyle(fontSize: 11, color: fg2.withOpacity(0.4)),
+                  style: TextStyle(fontSize: 11, color: fg2.withValues(alpha: 0.4)),
                 ),
               ),
             )
@@ -181,7 +181,7 @@ class _KanbanCard extends StatelessWidget {
           border: Border.all(color: borderColor),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(isDark ? 0.25 : 0.06),
+              color: Colors.black.withValues(alpha: isDark ? 0.25 : 0.06),
               blurRadius: 4,
             ),
           ],

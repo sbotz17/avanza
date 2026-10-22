@@ -239,7 +239,7 @@ class _TaskCostCard extends StatelessWidget {
         border: Border.all(
           color: overBudget
               ? (isDark ? kBlockedColorDark : kBlockedColor)
-                  .withOpacity(0.5)
+                  .withValues(alpha: 0.5)
               : (isDark ? kBorderDark : kBorderLight),
         ),
       ),

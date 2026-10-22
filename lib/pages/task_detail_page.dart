@@ -96,7 +96,7 @@ class TaskDetailPage extends StatelessWidget {
                     boxShadow: [
                       BoxShadow(
                         color: Colors.black
-                            .withOpacity(isDark ? 0.25 : 0.05),
+                            .withValues(alpha: isDark ? 0.25 : 0.05),
                         blurRadius: 8,
                         offset: const Offset(0, 2),
                       ),
