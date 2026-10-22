@@ -1,0 +1,10 @@
+{
+  "progetto": "avanza-b62d7",
+  "piattaforma": "firebase",
+  "hosting_url": "https://avanza-b62d7.web.app",
+  "ramo_produzione": "main",
+  "deploy_live_solo_da": ["main"],
+  "deploy_preview_da": ["claude/epic-galileo-e9a406", "fix/*", "feature/*"],
+  "backup_firestore": "non configurato",
+  "note": "Aggiornare 'backup_firestore' con il bucket GCS quando attivato l'export automatico Firestore."
+}

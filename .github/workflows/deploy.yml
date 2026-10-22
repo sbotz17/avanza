@@ -1,0 +1,82 @@
+name: Deploy Avanza Web
+
+on:
+  push:
+    branches: [main, claude/epic-galileo-e9a406]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      checks: write
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Analyze
+        run: flutter analyze --no-fatal-infos
+
+      - name: Build web
+        run: flutter build web --release --base-href /
+
+      # Produzione (live): solo dal ramo main
+      - name: Deploy to Firebase Hosting (live)
+        if: github.ref == 'refs/heads/main'
+        uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          repoToken: ${{ secrets.GITHUB_TOKEN }}
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          channelId: live
+          projectId: avanza-b62d7
+
+      # Anteprima (preview): da rami di sviluppo e pull request
+      - name: Deploy to Firebase Hosting (preview)
+        if: github.ref != 'refs/heads/main'
+        uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          repoToken: ${{ secrets.GITHUB_TOKEN }}
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          channelId: preview
+          expires: 7d
+          projectId: avanza-b62d7
+        env:
+          FIREBASE_CLI_PREVIEWS: hostingchannels
+
+      # Cloud Functions: solo da main, dopo validazione Andrea
+      - name: Setup Node.js
+        if: github.ref == 'refs/heads/main'
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Functions dependencies
+        if: github.ref == 'refs/heads/main'
+        run: npm ci
+        working-directory: functions
+
+      - name: Build Functions
+        if: github.ref == 'refs/heads/main'
+        run: npm run build
+        working-directory: functions
+
+      - name: Deploy Cloud Functions
+        if: github.ref == 'refs/heads/main'
+        run: |
+          echo '${{ secrets.FIREBASE_SERVICE_ACCOUNT }}' > /tmp/sa.json
+          GOOGLE_APPLICATION_CREDENTIALS=/tmp/sa.json \
+            npx firebase-tools deploy --only functions --project avanza-b62d7 --non-interactive
+          rm /tmp/sa.json
+        # Requires FIREBASE_SERVICE_ACCOUNT to have roles/cloudfunctions.developer
+        # and the GITHUB_WEBHOOK_SECRET to exist in Firebase Secret Manager
