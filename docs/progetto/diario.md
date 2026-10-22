@@ -2,6 +2,39 @@
 
 ---
 
+## 2026-10-22 — Correzione R-2: spinner infinito al caricamento
+
+**Autore**: risolutore-bug
+**Branch**: `claude/epic-galileo-e9a406`
+
+### Causa
+
+Due bug distinti causavano lo spinner di caricamento a non fermarsi mai.
+
+**Bug 1** — `lib/providers/auth_provider.dart`: `signIn()` catturava solo `FirebaseAuthException`. Qualsiasi altra eccezione (errore di rete, `PlatformException`, ecc.) lasciava `_loading = true` per sempre; lo spinner sul pulsante login non si fermava.
+
+**Bug 2** — `lib/pages/home_page.dart`: `HomePage` era `StatelessWidget` con `FirestoreService()` e lo stream creati dentro `build()`. Ogni `AuthProvider.notifyListeners()` (es. aggiornamento token Firebase ogni ora) causava un rebuild, un nuovo stream, e il `StreamBuilder` resettava a `ConnectionState.waiting` mostrando di nuovo lo spinner sulla homepage.
+
+### Correzione
+
+- `AuthProvider.signIn()`: aggiunto `catch (_)` e spostata la logica di reset in `finally`, garantendo `_loading = false` in tutti i percorsi di uscita (successo, `FirebaseAuthException`, qualsiasi altra eccezione).
+- `AuthService`: estratta interfaccia astratta `AuthServiceBase` per consentire l'iniezione di stub nei test unitari senza Firebase. `AuthService` implementa `AuthServiceBase`.
+- `AuthProvider`: costruttore modificato per accettare `AuthServiceBase?` (retrocompatibile: di default usa `AuthService()`).
+- `HomePage`: convertito in `StatefulWidget`; `FirestoreService` e stream creati una sola volta in `didChangeDependencies()` tramite `_stream ??= ...`. Ogni rebuild successivo riusa lo stesso oggetto stream: lo spinner non compare più a ogni notifica.
+
+### File modificati
+
+- `lib/providers/auth_provider.dart`
+- `lib/services/auth_service.dart`
+- `lib/pages/home_page.dart`
+- `test/auth_provider_test.dart` (nuovo — 4 test unitari)
+
+### Esito test
+
+9 test totali (4 nuovi + 5 preesistenti): tutti verdi.
+
+---
+
 ## 2026-10-22 — Cloud Function githubWebhook (blocco B)
 
 **Autore**: sviluppatore-backend

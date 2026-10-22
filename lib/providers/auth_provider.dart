@@ -3,7 +3,7 @@ import 'package:flutter/foundation.dart';
 import '../services/auth_service.dart';
 
 class AuthProvider extends ChangeNotifier {
-  final AuthService _authService = AuthService();
+  final AuthServiceBase _authService;
 
   User? _user;
   bool _loading = false;
@@ -14,7 +14,9 @@ class AuthProvider extends ChangeNotifier {
   bool get loading => _loading;
   String? get error => _error;
 
-  AuthProvider() {
+  // [R-2] authService è iniettabile per consentire i test unitari senza Firebase.
+  AuthProvider({AuthServiceBase? authService})
+      : _authService = authService ?? AuthService() {
     _authService.authStateChanges.listen((user) {
       _user = user;
       notifyListeners();
@@ -27,14 +29,19 @@ class AuthProvider extends ChangeNotifier {
     notifyListeners();
     try {
       await _authService.signIn(email, password);
-      _loading = false;
-      notifyListeners();
       return true;
     } on FirebaseAuthException catch (e) {
       _error = _mapError(e.code);
+      return false;
+    } catch (_) {
+      // [R-2] Qualsiasi altra eccezione (es. errore di rete non-Firebase)
+      // veniva silenziata lasciando _loading = true indefinitamente.
+      _error = 'Errore di accesso. Riprova.';
+      return false;
+    } finally {
+      // Garantisce che _loading torni false in tutti i percorsi.
       _loading = false;
       notifyListeners();
-      return false;
     }
   }
 

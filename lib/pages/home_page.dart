@@ -8,8 +8,35 @@ import '../core/constants.dart';
 import '../widgets/empty_state.dart';
 import 'admin/edit_project_page.dart';
 
-class HomePage extends StatelessWidget {
+// [R-2] Convertito in StatefulWidget: FirestoreService e lo stream sono creati
+// una sola volta in didChangeDependencies() invece che ad ogni build().
+// Prima della correzione, HomePage era StatelessWidget e creava una nuova
+// istanza di FirestoreService() e un nuovo Stream ad ogni build(); StreamBuilder
+// riceveva ogni volta un oggetto stream diverso e resettava a
+// ConnectionState.waiting, mostrando lo spinner di caricamento a ogni
+// notifica di AuthProvider (es. aggiornamento token).
+class HomePage extends StatefulWidget {
   const HomePage({super.key});
+
+  @override
+  State<HomePage> createState() => _HomePageState();
+}
+
+class _HomePageState extends State<HomePage> {
+  final _service = FirestoreService();
+  Stream<List<Project>>? _stream;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Crea lo stream una sola volta, quando l'utente è disponibile.
+    if (_stream == null) {
+      final uid = context.read<AuthProvider>().user?.uid;
+      if (uid != null) {
+        _stream = _service.projectsStream(uid);
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -21,7 +48,9 @@ class HomePage extends StatelessWidget {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
-    final service = FirestoreService();
+    // Se per qualsiasi motivo lo stream non è ancora inizializzato
+    // (es. didChangeDependencies non aveva ancora l'utente), lo crea ora.
+    _stream ??= _service.projectsStream(auth.user!.uid);
 
     return Scaffold(
       appBar: AppBar(
@@ -38,7 +67,7 @@ class HomePage extends StatelessWidget {
         ],
       ),
       body: StreamBuilder<List<Project>>(
-        stream: service.projectsStream(auth.user!.uid),
+        stream: _stream,
         builder: (context, snap) {
           if (snap.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
@@ -57,7 +86,7 @@ class HomePage extends StatelessWidget {
               title: 'Nessun progetto',
               subtitle: 'Crea il primo progetto per iniziare.',
               action: FilledButton.icon(
-                onPressed: () => _addProject(context, auth.user!.uid, service),
+                onPressed: () => _addProject(context, auth.user!.uid),
                 icon: const Icon(Icons.add),
                 label: const Text('Nuovo progetto'),
                 style: FilledButton.styleFrom(
@@ -70,27 +99,26 @@ class HomePage extends StatelessWidget {
             padding: const EdgeInsets.all(16),
             itemCount: projects.length,
             itemBuilder: (context, i) =>
-                _ProjectCard(project: projects[i], service: service),
+                _ProjectCard(project: projects[i], service: _service),
           );
         },
       ),
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _addProject(context, auth.user!.uid, service),
+        onPressed: () => _addProject(context, auth.user!.uid),
         icon: const Icon(Icons.add),
         label: const Text('Nuovo progetto'),
       ),
     );
   }
 
-  void _addProject(
-      BuildContext context, String ownerId, FirestoreService service) {
+  void _addProject(BuildContext context, String ownerId) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (_) => EditProjectSheet(
         ownerId: ownerId,
-        service: service,
+        service: _service,
       ),
     );
   }
