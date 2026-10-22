@@ -59,6 +59,8 @@ class Task {
   final int order;
   final String taskCode; // es. "T-1" — identificatore breve unico nel progetto
   final int taskNumber; // numero progressivo usato per generare taskCode
+  final String? githubBranch; // ultimo branch GitHub associato (es. "feature/T-3-login"), null se non associato
+  final int? githubPrNumber; // numero ultima PR GitHub associata (es. 42), null se non associata
   final DateTime createdAt;
   final DateTime updatedAt;
 
@@ -77,6 +79,8 @@ class Task {
     required this.order,
     this.taskCode = '',
     this.taskNumber = 0,
+    this.githubBranch,
+    this.githubPrNumber,
     required this.createdAt,
     required this.updatedAt,
   });
@@ -102,6 +106,8 @@ class Task {
       order: (d['order'] as int?) ?? 0,
       taskCode: d['taskCode'] as String? ?? '',
       taskNumber: (d['taskNumber'] as int?) ?? 0,
+      githubBranch: d['githubBranch'] as String?,
+      githubPrNumber: d['githubPrNumber'] as int?,
       createdAt: (d['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       updatedAt: (d['updatedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
     );
@@ -120,6 +126,8 @@ class Task {
         'order': order,
         'taskCode': taskCode,
         'taskNumber': taskNumber,
+        'githubBranch': githubBranch,
+        'githubPrNumber': githubPrNumber,
         'createdAt': Timestamp.fromDate(createdAt),
         'updatedAt': Timestamp.fromDate(updatedAt),
       };
@@ -151,6 +159,10 @@ class Task {
     int? order,
     String? taskCode,
     int? taskNumber,
+    // Nullable GitHub fields: pass a wrapped value (Object?) to allow
+    // explicitly setting to null. Not required for the core Flutter UI.
+    String? githubBranch,
+    int? githubPrNumber,
   }) =>
       Task(
         id: id,
@@ -167,6 +179,8 @@ class Task {
         order: order ?? this.order,
         taskCode: taskCode ?? this.taskCode,
         taskNumber: taskNumber ?? this.taskNumber,
+        githubBranch: githubBranch ?? this.githubBranch,
+        githubPrNumber: githubPrNumber ?? this.githubPrNumber,
         createdAt: createdAt,
         updatedAt: DateTime.now(),
       );
