@@ -13,7 +13,7 @@ ThemeData buildLightTheme() {
       onSurface: kFgLight,
       outline: kBorderLight,
     ),
-    cardTheme: const CardTheme(
+    cardTheme: const CardThemeData(
       color: kCardLight,
       elevation: 0,
       shape: RoundedRectangleBorder(
@@ -71,7 +71,7 @@ ThemeData buildDarkTheme() {
       onSurface: kFgDark,
       outline: kBorderDark,
     ),
-    cardTheme: const CardTheme(
+    cardTheme: const CardThemeData(
       color: kCardDark,
       elevation: 0,
       shape: RoundedRectangleBorder(
