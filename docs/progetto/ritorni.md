@@ -21,6 +21,27 @@
 
 ---
 
+### R-3 — Logout al refresh della pagina (Flutter web)
+
+- Data: 2026-10-22
+- Esito verifica: confermato
+- Gravità: alta (gli utenti vengono slogati a ogni F5 e devono reinserire le credenziali)
+- Area: autenticazione / routing web
+- Descrizione: Aggiornare la pagina su Flutter web (F5 o reload del browser) causa il logout invece di ripristinare la sessione autenticata.
+- Atteso: dopo il refresh la sessione viene ripristinata da localStorage e l'utente rimane autenticato e sulla stessa pagina.
+- Passi per riprodurre: 1. Fare login su https://avanza-b62d7.web.app. 2. Premere F5. 3. L'app reindirizza a `/login` invece di ripristinare la sessione.
+- Origine: Andrea
+- Ambiente di segnalazione: produzione
+- Urgente (corsia hotfix): no
+- Causa: `AuthProvider` non aveva un flag `_initializing`. Su Flutter web, Firebase ripristina la sessione da `localStorage` in modo asincrono: nell'istante subito dopo il refresh, `_user` è `null` e `isLoggedIn = false`, anche per un utente autenticato. `HomePage.build()` vedeva `isLoggedIn == false` e schedulava immediatamente `context.go('/login')` via `addPostFrameCallback`, prima che Firebase potesse emettere il primo evento `authStateChanges` con l'utente ripristinato.
+- Correzione: (1) `AuthProvider`: aggiunto `_initializing = true` (diventa `false` al primo evento `authStateChanges`); aggiunto getter `isInitializing`. (2) `HomePage`: aggiunto controllo `if (auth.isInitializing)` prima del redirect a `/login` — mostra solo lo spinner mentre Firebase carica, senza fare redirect.
+- File toccati: `lib/providers/auth_provider.dart`, `lib/pages/home_page.dart`, `test/auth_provider_test.dart` (3 nuovi test)
+- Stato: IN TEST
+- Note / storico:
+  - 2026-10-22: Confermato per analisi statica del codice. Causa individuata in `AuthProvider` (mancanza del flag `_initializing`) e `HomePage` (redirect immediato senza aspettare Firebase). Fix applicato su `claude/epic-galileo-e9a406`. 12 test totali (7 unitari + 5 widget): tutti verdi.
+
+---
+
 ### R-2 — Spinner di caricamento infinito
 
 - Data: 2026-10-22

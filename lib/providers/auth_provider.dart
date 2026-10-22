@@ -7,11 +7,20 @@ class AuthProvider extends ChangeNotifier {
 
   User? _user;
   bool _loading = false;
+  // [R-3] true finché Firebase non ha emesso il primo evento authStateChanges.
+  // Su Flutter web, Firebase ripristina la sessione da localStorage in modo
+  // asincrono: _user è null nell'istante in cui AuthProvider viene costruito,
+  // ma questo non significa che l'utente non sia autenticato — significa solo
+  // che stiamo ancora aspettando la risposta di Firebase.
+  bool _initializing = true;
   String? _error;
 
   User? get user => _user;
   bool get isLoggedIn => _user != null;
   bool get loading => _loading;
+  // [R-3] Espone lo stato di inizializzazione: true mentre Firebase sta
+  // ripristinando la sessione, false dopo il primo evento authStateChanges.
+  bool get isInitializing => _initializing;
   String? get error => _error;
 
   // [R-2] authService è iniettabile per consentire i test unitari senza Firebase.
@@ -19,6 +28,7 @@ class AuthProvider extends ChangeNotifier {
       : _authService = authService ?? AuthService() {
     _authService.authStateChanges.listen((user) {
       _user = user;
+      _initializing = false; // [R-3] Firebase ha risposto: la sessione è nota
       notifyListeners();
     });
   }

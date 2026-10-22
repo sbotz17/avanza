@@ -34,7 +34,7 @@ class _StubAuthService implements AuthServiceBase {
   @override
   Future<UserCredential> signIn(String email, String password) async {
     // ignore: only_throw_errors
-    if (_throwOnSignIn != null) throw _throwOnSignIn!;
+    if (_throwOnSignIn != null) throw _throwOnSignIn;
     throw UnimplementedError('signIn non implementato nello stub');
   }
 }

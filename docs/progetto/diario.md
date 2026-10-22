@@ -2,6 +2,32 @@
 
 ---
 
+## 2026-10-22 — Correzione R-3: logout al refresh della pagina (Flutter web)
+
+**Autore**: risolutore-bug
+**Branch**: `claude/epic-galileo-e9a406`
+
+### Causa
+
+Su Flutter web, Firebase Auth ripristina la sessione da `localStorage` in modo asincrono. `AuthProvider` non aveva un flag `_initializing`: nell'istante subito dopo il refresh della pagina, `_user = null` e `isLoggedIn = false` anche per un utente autenticato. `HomePage.build()` leggeva `isLoggedIn == false` e schedulava immediatamente `context.go('/login')` via `addPostFrameCallback`, prima che Firebase emettesse il primo evento `authStateChanges` con l'utente ripristinato.
+
+### Correzione
+
+- `AuthProvider`: aggiunto `bool _initializing = true` (diventa `false` al primo evento `authStateChanges`); aggiunto getter pubblico `isInitializing`. Modificato il listener per impostare `_initializing = false` prima di `notifyListeners()`.
+- `HomePage`: aggiunto `if (auth.isInitializing) return spinner` prima del check `if (!auth.isLoggedIn)`. Mentre Firebase carica, viene mostrato solo lo spinner senza eseguire il redirect — quando Firebase risponde con l'utente ripristinato, `notifyListeners()` fa ricostruire il widget e l'utente rimane autenticato.
+
+### File modificati
+
+- `lib/providers/auth_provider.dart`
+- `lib/pages/home_page.dart`
+- `test/auth_provider_test.dart` (3 nuovi test per R-3)
+
+### Esito test
+
+12 test totali (7 unitari + 5 widget): tutti verdi. Nessuna regressione.
+
+---
+
 ## 2026-10-22 — Correzione R-2: spinner infinito al caricamento
 
 **Autore**: risolutore-bug

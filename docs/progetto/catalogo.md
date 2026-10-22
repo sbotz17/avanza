@@ -48,7 +48,8 @@ Aggiornare a ogni nuovo oggetto o modifica significativa.
 | Nome | Percorso | Scopo | Usato in |
 |------|----------|-------|----------|
 | `FirestoreService` | `lib/services/firestore_service.dart` | Accesso CRUD a Firestore (progetti, task, fasi, note) | Pagine e provider |
-| `AuthService` | `lib/services/auth_service.dart` | Autenticazione Firebase (login, logout, stato) | `auth_provider.dart` |
+| `AuthServiceBase` | `lib/services/auth_service.dart` | Interfaccia astratta per l'autenticazione; consente l'iniezione di stub nei test senza Firebase | `auth_provider.dart`, `test/auth_provider_test.dart` |
+| `AuthService` | `lib/services/auth_service.dart` | Implementazione concreta di `AuthServiceBase` tramite Firebase Auth | `auth_provider.dart` |
 | `AuthProvider` | `lib/providers/auth_provider.dart` | Provider ChangeNotifier per lo stato di autenticazione | `app.dart` |
 
 ---

@@ -43,6 +43,13 @@ class _HomePageState extends State<HomePage> {
     final auth = context.watch<AuthProvider>();
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
+    // [R-3] Su Flutter web, Firebase ripristina la sessione da localStorage
+    // in modo asincrono: nell'istante subito dopo il refresh della pagina,
+    // isLoggedIn è false anche per un utente autenticato. Aspettiamo il
+    // primo evento authStateChanges prima di decidere se fare redirect.
+    if (auth.isInitializing) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
     if (!auth.isLoggedIn) {
       WidgetsBinding.instance.addPostFrameCallback((_) => context.go('/login'));
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
