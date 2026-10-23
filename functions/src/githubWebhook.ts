@@ -2,6 +2,7 @@ import { Request } from 'firebase-functions/v2/https';
 import { Response } from 'express';
 import { getApps, initializeApp } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
+import { SecretManagerServiceClient } from '@google-cloud/secret-manager';
 import { verifySignature } from './lib/hmac';
 import { resolveProject } from './lib/projectResolver';
 import { routeEvent } from './lib/eventRouter';
@@ -13,6 +14,20 @@ import { TaskSnapshot } from './lib/types';
 // Initialize Firebase Admin once at module load (idempotent).
 if (getApps().length === 0) {
   initializeApp();
+}
+
+// Cache the secret to avoid repeated Secret Manager calls.
+let cachedWebhookSecret: string | null = null;
+
+async function getWebhookSecret(): Promise<string> {
+  if (cachedWebhookSecret) return cachedWebhookSecret;
+  const projectId = process.env.GOOGLE_CLOUD_PROJECT ?? 'avanza-b62d7';
+  const client = new SecretManagerServiceClient();
+  const [version] = await client.accessSecretVersion({
+    name: `projects/${projectId}/secrets/GITHUB_WEBHOOK_SECRET/versions/latest`,
+  });
+  cachedWebhookSecret = version.payload?.data?.toString() ?? '';
+  return cachedWebhookSecret;
 }
 
 /**
@@ -37,10 +52,17 @@ export async function githubWebhookHandler(req: Request, res: Response): Promise
 
   // 2. Verify HMAC signature
   const signature = req.headers['x-hub-signature-256'] as string | undefined;
-  const secret = process.env.GITHUB_WEBHOOK_SECRET;
+  let secret: string;
+  try {
+    secret = await getWebhookSecret();
+  } catch (err) {
+    console.error('[githubWebhook] Failed to load GITHUB_WEBHOOK_SECRET:', err);
+    res.status(500).json({ error: 'internal error' });
+    return;
+  }
 
   if (!secret) {
-    console.error('[githubWebhook] GITHUB_WEBHOOK_SECRET is not set');
+    console.error('[githubWebhook] GITHUB_WEBHOOK_SECRET is empty');
     res.status(500).json({ error: 'internal error' });
     return;
   }
