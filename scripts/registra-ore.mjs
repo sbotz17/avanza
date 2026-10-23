@@ -28,11 +28,14 @@ async function findProject() {
     if (!doc.exists) throw new Error(`Progetto ${pid} non trovato.`);
     return doc;
   }
+  // Il progetto si sceglie dall'indirizzo GitHub passato (github_url) oppure, se
+  // assente, da quello del repository in cui gira il workflow.
+  const wanted = (env('GITHUB_URL') || repoUrl).toLowerCase().replace(/\/$/, '');
   const snap = await db.collection('projects').get();
   const matches = snap.docs.filter(
-    (d) => String(d.get('githubUrl') ?? '').toLowerCase().replace(/\/$/, '') === repoUrl,
+    (d) => String(d.get('githubUrl') ?? '').toLowerCase().replace(/\/$/, '') === wanted,
   );
-  if (matches.length === 0) throw new Error(`Nessun progetto con githubUrl ${repoUrl}.`);
+  if (matches.length === 0) throw new Error(`Nessun progetto con githubUrl ${wanted}.`);
   if (matches.length > 1) {
     const list = matches.map((d) => `${d.id} (${d.get('name')})`).join(', ');
     throw new Error(`Piu' progetti con lo stesso indirizzo GitHub: ${list}. Indica project_id.`);
@@ -118,6 +121,7 @@ async function importaTask() {
   const titles = new Set(existing.docs.map((d) => d.get('title')));
   const PH = ['Analisi', 'Database', 'Backend', 'Design', 'Frontend', 'Test', 'Validazione'];
   const LABEL = { done: 'Completato', active: 'In corso', pending: 'In attesa', skip: 'Non necessaria', blocked: 'Bloccato' };
+  const codici = [];
   let created = 0;
   for (const [i, it] of items.entries()) {
     if (titles.has(it.title)) continue;
@@ -144,10 +148,12 @@ async function importaTask() {
       });
       tx.set(project.ref.collection('taskCosts').doc(taskRef.id), { estimatedHours: 0, actualHours: 0, hourlyRate: 0 });
       tx.update(project.ref, { nextTaskNumber: n + 1, updatedAt: now });
+      codici.push(`T-${n} ${it.title}`);
     });
     created++;
   }
   console.log(`Task creati: ${created} (gia' presenti: ${items.length - created}).`);
+  for (const c of codici) console.log(`  ${c}`);
 }
 
 // Sola lettura: elenca i progetti con proprietario, codice cliente e task.

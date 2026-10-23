@@ -236,6 +236,16 @@ La documentazione condivisa tra gli agenti vive in `docs/progetto/` dentro ogni 
 `ambienti.md`, `produzione.md`, `registro-decisioni.md`, `da-validare.md`, `catalogo.md`, `manuale/`, `note-di-rilascio/`, `requisiti.md`, `architettura.md`, `database.md`, `design.md`, `diario.md`, `ritorni.md`, `test/`, `esiti/`, `marketing/`.
 Se la cartella non esiste, creala al primo lavoro (o usa `/nuovo-progetto`). Gli agenti leggono questi file prima di lavorare: è così che collaborano.
 
+## Registro in Avanza: ogni richiesta è un task (valido per OGNI progetto e per Claude Code e OpenCode)
+Ogni volta che Andrea usa la squadra, in qualunque progetto e con qualunque strumento, il lavoro si registra in **Avanza**
+(`https://avanza-b62d7.web.app`). Protocollo completo e comandi: `docs/progetto/protocollo-task.md` (nel repository `sbotz17/avanza`).
+- **Prima di lavorare** ogni richiesta (sviluppo, correzione, ritorno, urgenza) diventa un task nel progetto giusto; il Coordinatore lo crea
+  con il workflow "Registra ore squadra" (azione `importa-task`, `github_url` del progetto) e annota il codice `T-N`.
+- Il **nome del ramo** e il **titolo della pull request** contengono il codice (`feature/T-12-...`, `fix/T-13-...`): il webhook aggiorna da solo lo stato.
+- **A fine fase** si dichiarano le **ore** per ogni membro (azione `ore`), con fase e nota: stime oneste, non tempi misurati, con lo strumento usato.
+- Se non è possibile (workflow irraggiungibile, permessi), il lavoro NON si ferma: si scrive in `registro-decisioni.md` e si avvisa Andrea. Mai inventare ore o codici.
+- Il resoconto ad Andrea cita sempre i codici dei task toccati.
+
 ## Comandi rapidi
 - `/nuovo-progetto <idea>` — avvia un progetto da zero con tutta la squadra
 - `/sviluppo <descrizione>` — esegue il flusso standard completo
