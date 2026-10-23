@@ -7,7 +7,7 @@
 | Firebase project | `avanza-b62d7` |
 | Hosting URL | https://avanza-b62d7.web.app |
 | Cloud Functions | `githubWebhook` — **deployata** (gen2, `us-central1`, Node.js 22, via `gcloud` in CI) |
-| Firestore | `us-central1`, dati reali degli utenti |
+| Firestore | database `(default)`, regione `eur3`, creato il 2026-10-23 con il workflow "Setup Firestore". Contiene solo il progetto di prova del test E2E: nessun dato reale. Esiste anche un database vuoto `avanza`, non usato |
 | Auth | Firebase Auth email/password |
 
 ## Stato attuale (2026-10-23)
@@ -16,7 +16,7 @@
 Nota: il badge taskCode è una nuova funzionalità non ancora formalmente validata da Andrea (vedi `da-validare.md`), ma è già in produzione perché la CI deployava da `claude/epic-galileo-e9a406` a `channelId: live`. Le correzioni R-2 (spinner infinito) e R-3 (logout al refresh) sono anch'esse già in produzione.
 
 **Cloud Functions**: deployata il 2026-10-23 (CI run #44, step "Deploy Cloud Functions" riuscito). Il deploy usa `gcloud functions deploy --gen2` e non `firebase-tools`, che avrebbe richiesto il ruolo Cloud Functions Admin. Il segreto `GITHUB_WEBHOOK_SECRET` è letto a runtime da Secret Manager.
-Non ancora verificato: risposta HTTP della funzione e configurazione dei webhook GitHub sui repository.
+Verificato il 2026-10-23: la funzione risponde, i webhook GitHub sono configurati e il test E2E (workflow "E2E Webhook") è verde: un branch con `T-1` nel nome aggiunge la nota al task e lo porta a "active" su Firestore.
 
 ## Requisiti IAM per deploy Cloud Functions
 
@@ -40,7 +40,9 @@ Avanza usa Firebase/Firestore — i backup automatici di Firestore non sono atti
 | 2026-10-22 | Deploy Flutter web (CI automatica) | OK | Branch `claude/epic-galileo-e9a406` → live. Include badge taskCode, R-2, R-3 |
 | 2026-10-22 | Deploy Cloud Functions | FALLITO (IAM mancanti) | La CI ha tentato ma mancano i ruoli IAM sul service account |
 | 2026-10-23 | Deploy Cloud Functions (firebase-tools, run #37 e #40) | FALLITO | Prima API Cloud Billing, poi permesso `cloudfunctions.functions.setIamPolicy` |
-| 2026-10-23 | Deploy Cloud Functions `githubWebhook` (gcloud, run #44) | OK | Gen2, Node.js 22, `--allow-unauthenticated`; la firma HMAC protegge l'endpoint. Risposta HTTP non verificata |
+| 2026-10-23 | Deploy Cloud Functions `githubWebhook` (gcloud, run #44) | OK | Gen2, Node.js 22, `--allow-unauthenticated`; la firma HMAC protegge l'endpoint |
+| 2026-10-23 | Creazione database Firestore `(default)`, regole e indici (workflow Setup Firestore, run #2) | OK | Il database non esisteva: prima l'app non poteva salvare dati. Regione `eur3` (definitiva). Ruoli aggiunti al service account: Cloud Datastore Owner, Firebase Rules Admin. Il primo tentativo (run #1) era fallito per permessi mancanti |
+| 2026-10-23 | Test E2E webhook -> Firestore (run #5) | OK | Utente di prova dedicato; il test crea progetto e task `T-1` di prova e cancella il branch al termine |
 
 ## Piano di rollback
 
