@@ -29,6 +29,31 @@ class _FailingAuthService implements AuthServiceBase {
       throw FirebaseAuthException(code: 'wrong-password');
 }
 
+/// Accesso riuscito: il completer permette di far finire l'accesso DOPO che il
+/// router ha già smontato la pagina di accesso (come succede con il cambio di sessione).
+class _FakeCredential extends Fake implements UserCredential {}
+
+class _ControlledAuthService implements AuthServiceBase {
+  final signInGate = Completer<UserCredential>();
+  void Function()? onSignInStarted;
+  @override
+  Stream<User?> get authStateChanges => const Stream.empty();
+  @override
+  User? get currentUser => null;
+  @override
+  bool get isLoggedIn => false;
+  @override
+  Future<void> signOut() async {}
+  @override
+  Future<UserCredential> createAccount(String email, String password) =>
+      signInGate.future;
+  @override
+  Future<UserCredential> signIn(String email, String password) {
+    onSignInStarted?.call();
+    return signInGate.future;
+  }
+}
+
 void main() {
   group('RememberEmailService', () {
     setUp(() => SharedPreferences.setMockInitialValues({}));
@@ -132,6 +157,84 @@ void main() {
       expect(find.text('Email o password non corretti.'), findsOneWidget);
       final prefs = await SharedPreferences.getInstance();
       expect(prefs.getKeys(), isEmpty);
+    });
+
+    // Monta la pagina di accesso dentro un "router" finto che la sostituisce
+    // appena parte l'accesso (come go_router al cambio di sessione).
+    Future<(_ControlledAuthService, ValueNotifier<bool>)> pumpLoginWithRouter(
+        WidgetTester tester) async {
+      tester.view.physicalSize = const Size(900, 1400);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      final service = _ControlledAuthService();
+      final showLogin = ValueNotifier<bool>(true);
+      addTearDown(showLogin.dispose);
+      service.onSignInStarted = () => showLogin.value = false;
+      await tester.pumpWidget(
+        ChangeNotifierProvider<app.AuthProvider>(
+          create: (_) => app.AuthProvider(authService: service),
+          child: MaterialApp(
+            home: ValueListenableBuilder<bool>(
+              valueListenable: showLogin,
+              builder: (_, visible, __) =>
+                  visible ? const LoginPage() : const Scaffold(body: Text('Home')),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      return (service, showLogin);
+    }
+
+    testWidgets(
+        'accesso riuscito con casella spuntata: salva l\'email anche se la pagina '
+        'di accesso e gia stata smontata dal router', (tester) async {
+      SharedPreferences.setMockInitialValues({});
+      final (service, _) = await pumpLoginWithRouter(tester);
+      await tester.tap(find.byType(CheckboxListTile));
+      await tester.enterText(find.byType(TextFormField).at(0), ' mario@esempio.it ');
+      await tester.enterText(find.byType(TextFormField).at(1), 'segretissima');
+      await tester.tap(find.widgetWithText(FilledButton, 'Accedi'));
+      await tester.pump(); // l'accesso parte e il router smonta la pagina
+      expect(find.byType(LoginPage), findsNothing);
+      expect(await RememberEmailService().load(), isNull); // accesso ancora in corso
+      service.signInGate.complete(_FakeCredential());
+      await tester.pumpAndSettle();
+      expect(await RememberEmailService().load(), 'mario@esempio.it');
+      final prefs = await SharedPreferences.getInstance();
+      expect(prefs.getKeys(), {RememberEmailService.storageKey}); // mai la password
+    });
+
+    testWidgets('accesso riuscito con casella NON spuntata: non salva nulla',
+        (tester) async {
+      SharedPreferences.setMockInitialValues({});
+      final (service, _) = await pumpLoginWithRouter(tester);
+      await tester.enterText(find.byType(TextFormField).at(0), 'mario@esempio.it');
+      await tester.enterText(find.byType(TextFormField).at(1), 'segretissima');
+      await tester.tap(find.widgetWithText(FilledButton, 'Accedi'));
+      await tester.pump();
+      service.signInGate.complete(_FakeCredential());
+      await tester.pumpAndSettle();
+      final prefs = await SharedPreferences.getInstance();
+      expect(prefs.getKeys(), isEmpty);
+    });
+
+    testWidgets('accesso riuscito senza casella cancella un\'email salvata prima',
+        (tester) async {
+      SharedPreferences.setMockInitialValues(
+          {RememberEmailService.storageKey: 'vecchia@esempio.it'});
+      final (service, _) = await pumpLoginWithRouter(tester);
+      // la casella parte spuntata (email salvata): la tolgo -> cancella subito
+      await tester.tap(find.byType(CheckboxListTile));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextFormField).at(0), 'mario@esempio.it');
+      await tester.enterText(find.byType(TextFormField).at(1), 'segretissima');
+      await tester.tap(find.widgetWithText(FilledButton, 'Accedi'));
+      await tester.pump();
+      service.signInGate.complete(_FakeCredential());
+      await tester.pumpAndSettle();
+      expect(await RememberEmailService().load(), isNull);
     });
   });
 }
