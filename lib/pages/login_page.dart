@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
 import '../core/constants.dart';
 
+/// Accesso unico: email e password. Dopo l'accesso l'app mostra le pagine in
+/// base al ruolo (admin: tutto; cliente: solo i progetti collegati).
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
 
@@ -15,20 +16,29 @@ class _LoginPageState extends State<LoginPage> {
   final _formKey = GlobalKey<FormState>();
   final _emailCtrl = TextEditingController();
   final _passCtrl = TextEditingController();
+  final _confirmCtrl = TextEditingController();
   bool _obscure = true;
+  bool _register = false;
 
   @override
   void dispose() {
     _emailCtrl.dispose();
     _passCtrl.dispose();
+    _confirmCtrl.dispose();
     super.dispose();
   }
 
+  // Dopo l'accesso non si naviga a mano: il router reagisce al cambio di
+  // sessione e porta ogni ruolo alla sua pagina.
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
     final auth = context.read<AuthProvider>();
-    final ok = await auth.signIn(_emailCtrl.text.trim(), _passCtrl.text);
-    if (ok && mounted) context.go('/home');
+    final email = _emailCtrl.text.trim();
+    if (_register) {
+      await auth.register(email, _passCtrl.text);
+    } else {
+      await auth.signIn(email, _passCtrl.text);
+    }
   }
 
   @override
@@ -47,21 +57,12 @@ class _LoginPageState extends State<LoginPage> {
               mainAxisAlignment: MainAxisAlignment.center,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // Logo / title
                 Column(
                   children: [
-                    Container(
-                      width: 56,
-                      height: 56,
-                      decoration: BoxDecoration(
-                        color: isDark ? kActiveBgDark : kActiveBg,
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      child: Icon(
-                        Icons.rocket_launch_rounded,
-                        color: isDark ? kActiveColorDark : kActiveColor,
-                        size: 28,
-                      ),
+                    Image.asset(
+                      'assets/images/logo.png',
+                      width: 80,
+                      height: 80,
                     ),
                     const SizedBox(height: 16),
                     const Text(
@@ -70,14 +71,14 @@ class _LoginPageState extends State<LoginPage> {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      'Monitor sviluppo in tempo reale',
+                      _register
+                          ? 'Crea il tuo account cliente'
+                          : 'Accedi con la tua email',
                       style: TextStyle(fontSize: 14, color: fg2),
                     ),
                   ],
                 ),
-                const SizedBox(height: 40),
-
-                // Form admin
+                const SizedBox(height: 32),
                 Form(
                   key: _formKey,
                   child: Column(
@@ -86,6 +87,7 @@ class _LoginPageState extends State<LoginPage> {
                       TextFormField(
                         controller: _emailCtrl,
                         keyboardType: TextInputType.emailAddress,
+                        autofillHints: const [AutofillHints.email],
                         decoration: const InputDecoration(
                           labelText: 'Email',
                           prefixIcon: Icon(Icons.email_outlined),
@@ -97,6 +99,11 @@ class _LoginPageState extends State<LoginPage> {
                       TextFormField(
                         controller: _passCtrl,
                         obscureText: _obscure,
+                        autofillHints: [
+                          _register
+                              ? AutofillHints.newPassword
+                              : AutofillHints.password,
+                        ],
                         decoration: InputDecoration(
                           labelText: 'Password',
                           prefixIcon: const Icon(Icons.lock_outlined),
@@ -109,8 +116,23 @@ class _LoginPageState extends State<LoginPage> {
                         ),
                         validator: (v) =>
                             v == null || v.isEmpty ? 'Inserisci la password' : null,
-                        onFieldSubmitted: (_) => _submit(),
+                        onFieldSubmitted: (_) => _register ? null : _submit(),
                       ),
+                      if (_register) ...[
+                        const SizedBox(height: 12),
+                        TextFormField(
+                          controller: _confirmCtrl,
+                          obscureText: _obscure,
+                          decoration: const InputDecoration(
+                            labelText: 'Ripeti la password',
+                            prefixIcon: Icon(Icons.lock_outlined),
+                          ),
+                          validator: (v) => v != _passCtrl.text
+                              ? 'Le due password non coincidono'
+                              : null,
+                          onFieldSubmitted: (_) => _submit(),
+                        ),
+                      ],
                       if (auth.error != null) ...[
                         const SizedBox(height: 8),
                         Text(
@@ -139,42 +161,36 @@ class _LoginPageState extends State<LoginPage> {
                                   color: Colors.white,
                                 ),
                               )
-                            : const Text(
-                                'Accedi come admin',
-                                style: TextStyle(
+                            : Text(
+                                _register ? 'Crea account' : 'Accedi',
+                                style: const TextStyle(
                                     fontSize: 15, fontWeight: FontWeight.w600),
                               ),
                       ),
                     ],
                   ),
                 ),
-
-                // Divider
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 20),
-                  child: Row(
-                    children: [
-                      Expanded(child: Divider(color: fg2.withValues(alpha: 0.3))),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 12),
-                        child: Text('oppure', style: TextStyle(color: fg2, fontSize: 12)),
-                      ),
-                      Expanded(child: Divider(color: fg2.withValues(alpha: 0.3))),
-                    ],
+                const SizedBox(height: 16),
+                TextButton(
+                  onPressed: auth.loading
+                      ? null
+                      : () => setState(() => _register = !_register),
+                  child: Text(
+                    _register
+                        ? 'Hai già un account? Accedi'
+                        : 'Sei un cliente e non hai un account? Registrati',
                   ),
                 ),
-
-                // Client access button
-                OutlinedButton.icon(
-                  onPressed: () => context.go('/client'),
-                  icon: const Icon(Icons.link_rounded),
-                  label: const Text('Accedi con codice progetto'),
-                  style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    side: BorderSide(color: isDark ? kBorderDark : kBorderLight),
-                    foregroundColor: isDark ? kFgDark : kFgLight,
+                if (_register)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: Text(
+                      'Dopo la registrazione inserisci il codice progetto che ti '
+                      'ha dato il tuo referente: resterà collegato al tuo account.',
+                      style: TextStyle(fontSize: 12, color: fg2),
+                      textAlign: TextAlign.center,
+                    ),
                   ),
-                ),
               ],
             ),
           ),

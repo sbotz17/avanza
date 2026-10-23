@@ -12,12 +12,10 @@ import '../widgets/empty_state.dart';
 
 class ProjectPage extends StatefulWidget {
   final String projectId;
-  final bool clientMode;
 
   const ProjectPage({
     super.key,
     required this.projectId,
-    this.clientMode = false,
   });
 
   @override
@@ -31,7 +29,7 @@ class _ProjectPageState extends State<ProjectPage> {
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthProvider>();
-    final isAdmin = !widget.clientMode && auth.isLoggedIn;
+    final isAdmin = auth.isAdmin;
 
     return StreamBuilder<Project?>(
       stream: _service.projectStream(widget.projectId),
@@ -50,7 +48,7 @@ class _ProjectPageState extends State<ProjectPage> {
                 leading: IconButton(
                   icon: const Icon(Icons.arrow_back),
                   onPressed: () =>
-                      isAdmin ? context.go('/home') : context.go('/client'),
+                      isAdmin ? context.go('/home') : context.go('/client-home'),
                 ),
                 title: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,

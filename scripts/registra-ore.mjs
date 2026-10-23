@@ -6,6 +6,7 @@ import path from 'node:path';
 const require = createRequire(path.resolve('functions/package.json'));
 const { initializeApp, getApps } = require('firebase-admin/app');
 const { getFirestore, FieldValue, Timestamp } = require('firebase-admin/firestore');
+const { getAuth } = require('firebase-admin/auth');
 
 const env = (k, d = '') => (process.env[k] ?? d).trim();
 const action = env('ACTION');
@@ -107,6 +108,18 @@ async function addHours() {
   console.log(`Registrate ${hours}h di ${member.get('name')} su ${taskCode} (${phase}).`);
 }
 
+// Assegna il ruolo admin a un utente (per email). Il ruolo si assegna solo da qui o
+// dalla console: le regole Firestore impediscono ai client di auto-promuoversi.
+async function setAdmin(email) {
+  if (!email) throw new Error('Indica email.');
+  const user = await getAuth().getUserByEmail(email);
+  await db.collection('users').doc(user.uid).set(
+    { email: user.email ?? email, role: 'admin', createdAt: Timestamp.now() },
+    { merge: true },
+  );
+  console.log(`Ruolo admin assegnato a ${user.uid}.`);
+}
+
 // Sposta le tariffe/ore dai documenti task (pubblici) al documento riservato
 // taskCosts e crea i documenti clientAccess mancanti. Idempotente: i valori
 // vengono copiati prima di rimuovere i campi dal task.
@@ -114,7 +127,9 @@ async function migra() {
   const projects = await db.collection('projects').get();
   let accessi = 0;
   let spostati = 0;
+  const owners = new Set();
   for (const project of projects.docs) {
+    owners.add(project.get('ownerId'));
     const code = String(project.get('clientCode') ?? '').toUpperCase();
     if (code) {
       const ref = db.collection('clientAccess').doc(code);
@@ -145,14 +160,30 @@ async function migra() {
       spostati++;
     }
   }
-  console.log(`Migrazione: ${spostati} task ripuliti dai costi, ${accessi} accessi cliente creati.`);
+  let admin = 0;
+  for (const uid of owners) {
+    if (!uid) continue;
+    const ref = db.collection('users').doc(uid);
+    if (!(await ref.get()).exists) {
+      let email = '';
+      try {
+        email = (await getAuth().getUser(uid)).email ?? '';
+      } catch {}
+      await ref.set({ email, role: 'admin', createdAt: Timestamp.now() });
+      admin++;
+    }
+  }
+  console.log(
+    `Migrazione: ${spostati} task ripuliti dai costi, ${accessi} accessi cliente creati, ${admin} proprietari impostati admin.`,
+  );
 }
 
 try {
   if (action === 'migra') await migra();
+  else if (action === 'admin') await setAdmin(env('EMAIL'));
   else if (action === 'membro') await upsertMember();
   else if (action === 'ore') await addHours();
-  else throw new Error(`Azione sconosciuta: "${action}" (usa "membro", "ore" o "migra").`);
+  else throw new Error(`Azione sconosciuta: "${action}" (usa "membro", "ore", "migra" o "admin").`);
 } catch (e) {
   console.error(`FALLITO: ${e.message}`);
   process.exit(1);

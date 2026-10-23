@@ -14,19 +14,17 @@ import '../widgets/task_code_badge.dart';
 class TaskDetailPage extends StatelessWidget {
   final String projectId;
   final String taskId;
-  final bool clientMode;
 
   const TaskDetailPage({
     super.key,
     required this.projectId,
     required this.taskId,
-    this.clientMode = false,
   });
 
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthProvider>();
-    final isAdmin = !clientMode && auth.isLoggedIn;
+    final isAdmin = auth.isAdmin;
     final service = FirestoreService();
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final fg2 = isDark ? kFg2Dark : kFg2Light;

@@ -4,8 +4,11 @@ on:
   workflow_dispatch:
     inputs:
       action:
-        description: 'membro (crea/aggiorna un membro), ore (registra ore) oppure migra (sposta i costi dai task al documento riservato)'
+        description: 'membro (crea/aggiorna un membro), ore (registra ore) migra (sposta i costi dai task al documento riservato e imposta admin i proprietari) oppure admin (assegna il ruolo admin a una email)'
         default: 'ore'
+      email:
+        description: 'Email dell utente, solo per action=admin (assegna il ruolo admin)'
+        default: ''
       project_id:
         description: 'ID del progetto (facoltativo: altrimenti si cerca per indirizzo GitHub)'
         default: ''
@@ -60,6 +63,7 @@ jobs:
         run: node scripts/registra-ore.mjs
         env:
           ACTION: ${{ inputs.action }}
+          EMAIL: ${{ inputs.email }}
           PROJECT_ID: ${{ inputs.project_id }}
           MEMBER: ${{ inputs.member }}
           TASK_CODE: ${{ inputs.task_code }}
