@@ -108,6 +108,20 @@ async function addHours() {
   console.log(`Registrate ${hours}h di ${member.get('name')} su ${taskCode} (${phase}).`);
 }
 
+// Sola lettura: elenca i progetti con proprietario, codice cliente e task.
+async function stato() {
+  const projects = await db.collection('projects').get();
+  console.log(`Progetti: ${projects.size}`);
+  for (const p of projects.docs) {
+    const tasks = await p.ref.collection('tasks').get();
+    const codes = tasks.docs.map((t) => `${t.get('taskCode') || '-'}:${t.get('status')}`).join(', ');
+    console.log(`- ${p.get('name')} (${p.id}) owner=${p.get('ownerId')} url=${p.get('githubUrl')} task=${tasks.size}${codes ? ` [${codes}]` : ''}`);
+  }
+  const users = await db.collection('users').get();
+  console.log(`Utenti con ruolo: ${users.size}`);
+  for (const u of users.docs) console.log(`- ${u.id} ${u.get('email')} ruolo=${u.get('role')}`);
+}
+
 // Assegna il ruolo admin a un utente (per email). Il ruolo si assegna solo da qui o
 // dalla console: le regole Firestore impediscono ai client di auto-promuoversi.
 async function setAdmin(email) {
@@ -235,6 +249,7 @@ async function migra() {
 try {
   if (action === 'migra') await migra();
   else if (action === 'admin') await setAdmin(env('EMAIL'));
+  else if (action === 'stato') await stato();
   else if (action === 'crea-progetto') await creaProgetto();
   else if (action === 'elimina-prova') await eliminaProva();
   else if (action === 'membro') await upsertMember();
