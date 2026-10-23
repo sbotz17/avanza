@@ -3,8 +3,17 @@
   "piattaforma": "firebase",
   "hosting_url": "https://avanza-b62d7.web.app",
   "ramo_produzione": "main",
+  "ramo_test": "staging",
+  "progetto_test": "avanza-test",
   "deploy_live_solo_da": ["main"],
-  "deploy_preview_da": ["claude/epic-galileo-e9a406", "fix/*", "feature/*"],
+  "_marcatori": "La guardia considera 'produzione' ogni comando che nomina il progetto avanza-b62d7, oppure un comando firebase/gcloud di scrittura che NON indica esplicitamente il progetto di test (senza --project si usa il progetto predefinito, cioe' la produzione).",
+  "marcatori": [
+    "avanza-b62d7",
+    "\\bfirebase\\s+(deploy|hosting:channel:deploy|firestore:delete|functions:delete|hosting:disable)\\b(?![^\\n;|&]*(--project|-P)[ =]+(avanza-test|test)\\b)",
+    "\\bgcloud\\s+(functions|run|firestore|projects|secrets|iam)\\s+[^\\n;|&]*(deploy|delete|import|create|update|destroy)\\b(?![^\\n;|&]*--project[ =]+avanza-test\\b)"
+  ],
+  "cartella_backup": "gs://<BUCKET_BACKUP_FIRESTORE>/avanza",
+  "validita_backup_minuti": 30,
   "backup_firestore": "non configurato",
-  "note": "Aggiornare 'backup_firestore' con il bucket GCS quando attivato l'export automatico Firestore."
+  "note": "Quando Andrea crea il bucket di backup: variabile GitHub BUCKET_BACKUP_FIRESTORE e PRODUZIONE_CONTROLLI_COMPLETI=true (vedi .github/README-CI.md)."
 }

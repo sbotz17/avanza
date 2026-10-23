@@ -1,0 +1,111 @@
+# Promozione da staging a main (produzione). Quando una modifica entra in staging, questo flusso apre o aggiorna UNA pull request
+# "staging -> main" con il riepilogo di cio' che staging ha in piu' di main e la classificazione (correzione o nuovo sviluppo).
+# NON fonde nulla: la fusione la fa Andrea (o la CI con la sua approvazione), come richiesto dalla protezione del ramo main.
+# Se e' uno sviluppo, avvisa Andrea su WhatsApp. Gira solo con la variabile SQUADRA_CI_ATTIVA = si (di default no).
+# Richiede nelle impostazioni del repository: Actions > General > "Allow GitHub Actions to create and approve pull requests".
+name: promozione
+on:
+  push:
+    branches: [staging]
+
+concurrency:
+  group: promozione
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  promozione:
+    if: vars.SQUADRA_CI_ATTIVA == 'si'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      REPO: ${{ github.repository }}
+      AVVISI_URL: ${{ secrets.AVVISI_URL }}
+      AVVISI_TOKEN: ${{ secrets.AVVISI_TOKEN }}
+      AVVISI_NUMERO: ${{ secrets.AVVISI_NUMERO }}
+      AVVISI_PERMETTI_HTTP: ${{ vars.AVVISI_PERMETTI_HTTP }}
+      AVVISI_PROGETTO: ${{ vars.NOME_PROGETTO || 'Avanza' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Blocco di emergenza
+        env:
+          BLOCCO_VAR: ${{ vars.BLOCCO_SQUADRA }}
+        run: |
+          if [ "$BLOCCO_VAR" = "ATTIVO" ]; then echo "BLOCCO_SQUADRA attivo: promozione sospesa"; exit 1; fi
+          if [ -f BLOCCO-SQUADRA.md ] && head -n1 BLOCCO-SQUADRA.md | grep -qi '^ATTIVO'; then echo "BLOCCO-SQUADRA.md attivo"; exit 1; fi
+
+      - name: C'e' qualcosa da promuovere?
+        id: diff
+        run: |
+          git fetch origin main
+          N=$(git rev-list --count origin/main..HEAD)
+          echo "n=$N" >> "$GITHUB_OUTPUT"
+          if [ "$N" = "0" ]; then echo "staging e main coincidono: niente da promuovere"; fi
+
+      - name: Raccogli le pull request entrate in staging e non ancora in produzione
+        if: steps.diff.outputs.n != '0'
+        run: |
+          : > /tmp/lista.jsonl; senza=0
+          for c in $(git rev-list --no-merges origin/main..HEAD); do
+            gh api "repos/$REPO/commits/$c/pulls" > /tmp/p.json
+            if [ "$(jq length /tmp/p.json)" -eq 0 ]; then senza=1; fi
+            jq -c '.[] | {numero:.number, ramo:.head.ref, etichette:[.labels[].name], titolo:.title, corpo:(.body // "")}' /tmp/p.json >> /tmp/lista.jsonl
+          done
+          jq -s --argjson s "$senza" '{commit_senza_pr:$s, pr:(unique_by(.numero))}' /tmp/lista.jsonl > /tmp/richieste.json
+          jq -c '.pr[] | {numero, ramo, etichette}' /tmp/richieste.json
+
+      - name: Classifica correzione o sviluppo
+        if: steps.diff.outputs.n != '0'
+        id: c
+        run: python3 .claude/scripts/classifica-modifica.py origin/main /tmp/richieste.json .claude/zone-protette.json | tee /tmp/classifica.txt
+
+      - name: Apri o aggiorna la pull request staging -> main
+        if: steps.diff.outputs.n != '0'
+        env:
+          TIPO: ${{ steps.c.outputs.tipo }}
+          MOTIVO: ${{ steps.c.outputs.motivo }}
+        run: |
+          {
+            echo "## Promozione staging -> produzione"
+            echo
+            echo "**Tipo: $TIPO**"
+            if [ "$TIPO" = "correzione" ]; then
+              echo "Sono solo correzioni verificate: dopo i controlli si puo' unire."
+            else
+              echo "Contiene un **nuovo sviluppo** (motivo: $MOTIVO): va provato sul sito di test e validato da Andrea prima di unire."
+            fi
+            echo
+            echo "### Cosa cambia rispetto alla produzione"
+            git log origin/main..HEAD --no-merges --pretty='- %s (%h)' | head -50
+            echo
+            echo "### Pull request incluse"
+            jq -r '.pr[] | "- #\(.numero) \(.titolo) [\(.ramo)]"' /tmp/richieste.json
+            echo
+            echo "Dopo la fusione, rilascio-produzione.yml pubblica in produzione (ambiente GitHub \`produzione\`)."
+            echo "_Aperta in automatico da promozione.yml. La fusione resta di Andrea._"
+          } > /tmp/corpo.md
+          TITOLO="Promozione staging -> main ($TIPO)"
+          gh label create "promozione" --color 5319e7 --description "Promozione da staging a produzione" 2>/dev/null || true
+          gh label create "tipo:$TIPO" --color 0e8a16 2>/dev/null || true
+          ESISTENTE=$(gh pr list --base main --head staging --state open --json number --jq '.[0].number // empty')
+          if [ -n "$ESISTENTE" ]; then
+            gh pr edit "$ESISTENTE" --title "$TITOLO" --body-file /tmp/corpo.md --add-label "promozione,tipo:$TIPO" \
+              || echo "::warning::Pull request di promozione non aggiornata"
+            echo "Aggiornata la pull request #$ESISTENTE"
+          else
+            gh pr create --base main --head staging --title "$TITOLO" --body-file /tmp/corpo.md --label "promozione,tipo:$TIPO" \
+              || echo "::warning::Non riesco ad aprire la pull request di promozione: abilita 'Allow GitHub Actions to create and approve pull requests' (Settings > Actions > General) oppure aprila a mano da staging a main."
+          fi
+
+      - name: Avviso WhatsApp se e' uno sviluppo
+        if: steps.diff.outputs.n != '0' && steps.c.outputs.tipo == 'sviluppo'
+        run: |
+          python3 .claude/scripts/avvisa-whatsapp.py da_validare "Staging contiene uno sviluppo: provalo sul sito di test, poi approva la promozione su GitHub."

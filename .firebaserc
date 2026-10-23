@@ -1,5 +1,7 @@
 {
   "projects": {
-    "default": "avanza-b62d7"
+    "default": "avanza-b62d7",
+    "prod": "avanza-b62d7",
+    "test": "avanza-test"
   }
 }

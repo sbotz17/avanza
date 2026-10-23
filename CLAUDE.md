@@ -193,12 +193,12 @@ compatibilità con le versioni vecchie (solo aggiunte), e backup del database Fi
 
 ## Regola d'oro dei dati (vale sempre, prima di ogni altra cosa)
 1. **Nessun dato esistente viene alterato o perso.** Le modifiche ai dati reali sono solo aggiunte; ciò che esiste non si modifica né si cancella.
-2. **Backup verificato PRIMA di OGNI modifica** ai dati di produzione (e di qualsiasi database con dati reali), anche piccola: `.claude/scripts/backup-db.sh` (o `/backup`) lo verifica,
+2. **Backup verificato PRIMA di OGNI modifica** ai dati di produzione (e di qualsiasi database con dati reali), anche piccola: `.claude/scripts/backup-firestore.sh` (o `/backup`) lo verifica,
    ne registra checksum e posizione e lo rende di sola lettura. Un backup vecchio o non verificato non vale.
 3. **I backup non si cancellano mai**, né si sovrascrivono. Nessun agente può farlo, in nessun caso.
 4. **Cancellare è un limite invalicabile**: mai da parte della squadra. Si archivia o si disattiva (campo "attivo/eliminato il"). Se una cancellazione reale sembra necessaria,
    la squadra prepara l'elenco esatto dei record, il motivo, il backup e la prova su copia, scrive la decisione in sospeso e la esegue solo Andrea.
-5. **Ripristino istantaneo e provato**: per ogni sviluppo che tocca i dati, prima di operare si prova il ripristino del backup su una copia (`ripristina-db.sh --verifica`) e si ottiene "IDENTICO"
+5. **Ripristino istantaneo e provato**: per ogni sviluppo che tocca i dati, prima di operare si prova il ripristino del backup su una copia (`ripristina-firestore.sh --verifica`) e si ottiene "IDENTICO"
    (impronta: tabelle, righe e hash del contenuto, calcolata prima e dopo il backup per garantirne la coerenza); si annota il tempo. Il backup va conservato anche in un secondo luogo: nella CI un bucket Google Cloud con blocco di conservazione (nessuno può cancellarlo), più un backup verificato ogni notte (`backup-giornaliero.yml`).
    Il ripristino del database di produzione: per Firestore di produzione (`avanza-b62d7`) è SEMPRE una decisione di Andrea (l'importazione sovrascrive i documenti esistenti); la squadra prepara analisi, backup scelto, prova su copia IDENTICO e passi, e lo avvisa subito.
    Per altri database la squadra può usare `/ripristina` solo se i dati risultano alterati o mancanti in modo verificato, esiste una copia di sicurezza dello stato attuale e la prova su copia è IDENTICO. Dopo il ripristino si verifica di nuovo "IDENTICO".

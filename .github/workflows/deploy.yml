@@ -1,100 +1,159 @@
+# Ambiente di TEST (ramo `staging`) e anteprime delle pull request. Mai sulla produzione.
+#  - push su staging -> pubblica sul progetto di test (avanza-test) SOLO se esiste il segreto FIREBASE_SERVICE_ACCOUNT_TEST
+#    e l'app ha la configurazione di test (lib/firebase_options_test.dart): altrimenti non pubblica nulla, per non far usare
+#    al sito di test i dati di produzione;
+#  - pull request -> anteprima sul progetto di test, con le stesse condizioni (mai sul progetto di produzione).
+# La produzione si pubblica con rilascio-produzione.yml (push su main). Leggi .github/README-CI.md.
 name: Deploy Avanza Web
 
 on:
   push:
-    branches: [main, claude/epic-galileo-e9a406]
+    branches: [staging]
   pull_request:
-    branches: [main]
+    branches: [staging, main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-test-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
-  build-and-deploy:
+  controlli:
+    if: github.event_name == 'push'
+    uses: ./.github/workflows/ci.yml
+
+  deploy-test:
+    needs: controlli
+    if: github.event_name == 'push' && github.ref == 'refs/heads/staging'
     runs-on: ubuntu-latest
-    permissions:
-      checks: write
-      contents: read
-      pull-requests: write
+    env:
+      SA_TEST: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_TEST }}
+      PROGETTO: ${{ vars.PROGETTO_FIREBASE_TEST || 'avanza-test' }}
     steps:
       - uses: actions/checkout@v4
 
+      - name: Il progetto di test e' configurato?
+        id: cfg
+        run: |
+          if [ -z "$SA_TEST" ]; then
+            echo "::notice::Progetto di test NON configurato (manca il segreto FIREBASE_SERVICE_ACCOUNT_TEST): niente deploy di test."
+            echo "pronto=no" >> "$GITHUB_OUTPUT"
+          elif [ ! -f lib/firebase_options_test.dart ]; then
+            echo "::warning::Manca lib/firebase_options_test.dart: l'app non sa ancora collegarsi al progetto di test. Il deploy di test NON parte, altrimenti il sito di test userebbe i dati di PRODUZIONE."
+            echo "pronto=no" >> "$GITHUB_OUTPUT"
+          else
+            echo "pronto=si" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Setup Flutter
+        if: steps.cfg.outputs.pronto == 'si'
         uses: subosito/flutter-action@v2
         with:
           channel: 'stable'
           cache: true
 
-      - name: Install dependencies
-        run: flutter pub get
+      - name: Build web per il progetto di test
+        if: steps.cfg.outputs.pronto == 'si'
+        run: |
+          flutter pub get
+          flutter build web --release --base-href / --pwa-strategy=none --dart-define=APP_ENV=test
 
-      - name: Analyze
-        run: flutter analyze --no-fatal-infos
-
-      - name: Build web
-        run: flutter build web --release --base-href / --pwa-strategy=none
-
-      # Produzione (live): solo dal ramo main
-      - name: Deploy to Firebase Hosting (live)
-        if: github.ref == 'refs/heads/main'
+      - name: Deploy Hosting (progetto di test)
+        if: steps.cfg.outputs.pronto == 'si'
         uses: FirebaseExtended/action-hosting-deploy@v0
         with:
           repoToken: ${{ secrets.GITHUB_TOKEN }}
-          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_TEST }}
           channelId: live
-          projectId: avanza-b62d7
+          projectId: ${{ env.PROGETTO }}
 
-      # Anteprima (preview): da rami di sviluppo e pull request
-      - name: Deploy to Firebase Hosting (preview)
-        if: github.ref != 'refs/heads/main'
-        uses: FirebaseExtended/action-hosting-deploy@v0
-        with:
-          repoToken: ${{ secrets.GITHUB_TOKEN }}
-          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
-          channelId: preview
-          expires: 7d
-          projectId: avanza-b62d7
-        env:
-          FIREBASE_CLI_PREVIEWS: hostingchannels
+      - name: Regole e indici Firestore (progetto di test)
+        if: steps.cfg.outputs.pronto == 'si'
+        run: |
+          printf '%s' "$SA_TEST" > /tmp/sa-test.json
+          GOOGLE_APPLICATION_CREDENTIALS=/tmp/sa-test.json npx --yes firebase-tools@latest deploy --only firestore --project "$PROGETTO" --non-interactive
+          rm -f /tmp/sa-test.json
 
-      # Cloud Functions: solo da main, dopo validazione Andrea
       - name: Setup Node.js
-        if: github.ref == 'refs/heads/main'
+        if: steps.cfg.outputs.pronto == 'si'
         uses: actions/setup-node@v4
         with:
           node-version: '22'
 
-      - name: Install Functions dependencies
-        if: github.ref == 'refs/heads/main'
-        run: npm ci
+      - name: Build funzione
+        if: steps.cfg.outputs.pronto == 'si'
+        run: npm ci && npm run build
         working-directory: functions
 
-      - name: Build Functions
-        if: github.ref == 'refs/heads/main'
-        run: npm run build
-        working-directory: functions
-
-      # gcloud al posto di firebase-tools: quest'ultimo pretende il permesso
-      # cloudfunctions.functions.setIamPolicy (ruolo Cloud Functions Admin),
-      # mentre gcloud rende pubblica la funzione tramite Cloud Run (run.invoker).
-      - name: Authenticate to Google Cloud
-        if: github.ref == 'refs/heads/main'
+      - name: Authenticate to Google Cloud (test)
+        if: steps.cfg.outputs.pronto == 'si'
         uses: google-github-actions/auth@v2
         with:
-          credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_TEST }}
 
       - name: Setup gcloud
-        if: github.ref == 'refs/heads/main'
+        if: steps.cfg.outputs.pronto == 'si'
         uses: google-github-actions/setup-gcloud@v2
 
-      - name: Deploy Cloud Functions
-        if: github.ref == 'refs/heads/main'
+      - name: Deploy funzione (progetto di test)
+        if: steps.cfg.outputs.pronto == 'si'
         run: |
+          SA_EMAIL=$(printf '%s' "$SA_TEST" | jq -r .client_email)
           gcloud functions deploy githubWebhook \
-            --gen2 \
-            --region=us-central1 \
-            --runtime=nodejs22 \
-            --trigger-http \
-            --allow-unauthenticated \
-            --service-account=firebase-adminsdk-fbsvc@avanza-b62d7.iam.gserviceaccount.com \
-            --source=functions \
-            --entry-point=githubWebhook \
-            --project=avanza-b62d7 \
-            --quiet
+            --gen2 --region=us-central1 --runtime=nodejs22 --trigger-http --allow-unauthenticated \
+            --service-account="$SA_EMAIL" \
+            --set-env-vars=GOOGLE_CLOUD_PROJECT="$PROGETTO" \
+            --source=functions --entry-point=githubWebhook --project="$PROGETTO" --quiet
+
+  # ---------------------------------------------------------------------------
+  # ANTEPRIMA delle pull request: SOLO sul progetto di test (mai sulla produzione), solo se configurato e non da fork.
+  # ---------------------------------------------------------------------------
+  anteprima:
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    permissions:
+      checks: write
+      contents: read
+      pull-requests: write
+    env:
+      SA_TEST: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_TEST }}
+      PROGETTO: ${{ vars.PROGETTO_FIREBASE_TEST || 'avanza-test' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Il progetto di test e' configurato?
+        id: cfg
+        run: |
+          if [ -z "$SA_TEST" ] || [ ! -f lib/firebase_options_test.dart ]; then
+            echo "::notice::Anteprima non disponibile: progetto di test o configurazione di test dell'app mancanti. Nessuna anteprima sulla produzione."
+            echo "pronto=no" >> "$GITHUB_OUTPUT"
+          else
+            echo "pronto=si" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Setup Flutter
+        if: steps.cfg.outputs.pronto == 'si'
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
+
+      - name: Build web per il progetto di test
+        if: steps.cfg.outputs.pronto == 'si'
+        run: |
+          flutter pub get
+          flutter build web --release --base-href / --pwa-strategy=none --dart-define=APP_ENV=test
+
+      - name: Anteprima (canale di test)
+        if: steps.cfg.outputs.pronto == 'si'
+        uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          repoToken: ${{ secrets.GITHUB_TOKEN }}
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_TEST }}
+          channelId: pr-${{ github.event.number }}
+          expires: 7d
+          projectId: ${{ env.PROGETTO }}
+        env:
+          FIREBASE_CLI_PREVIEWS: hostingchannels
