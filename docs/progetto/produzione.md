@@ -6,18 +6,17 @@
 |---|---|
 | Firebase project | `avanza-b62d7` |
 | Hosting URL | https://avanza-b62d7.web.app |
-| Cloud Functions | `githubWebhook` — **non ancora deployata** (in attesa validazione Andrea) |
+| Cloud Functions | `githubWebhook` — **deployata** (gen2, `us-central1`, Node.js 22, via `gcloud` in CI) |
 | Firestore | `us-central1`, dati reali degli utenti |
 | Auth | Firebase Auth email/password |
 
-## Stato attuale (2026-10-22)
+## Stato attuale (2026-10-23)
 
 **Flutter web (Hosting)**: in produzione — versione con badge taskCode (T-N) visibile.
 Nota: il badge taskCode è una nuova funzionalità non ancora formalmente validata da Andrea (vedi `da-validare.md`), ma è già in produzione perché la CI deployava da `claude/epic-galileo-e9a406` a `channelId: live`. Le correzioni R-2 (spinner infinito) e R-3 (logout al refresh) sono anch'esse già in produzione.
 
-**Cloud Functions**: NON in produzione. Il deploy richiede:
-1. Ruoli IAM aggiuntivi sul service account (vedi sotto)
-2. Segreto `GITHUB_WEBHOOK_SECRET` in Firebase Secret Manager
+**Cloud Functions**: deployata il 2026-10-23 (CI run #44, step "Deploy Cloud Functions" riuscito). Il deploy usa `gcloud functions deploy --gen2` e non `firebase-tools`, che avrebbe richiesto il ruolo Cloud Functions Admin. Il segreto `GITHUB_WEBHOOK_SECRET` è letto a runtime da Secret Manager.
+Non ancora verificato: risposta HTTP della funzione e configurazione dei webhook GitHub sui repository.
 
 ## Requisiti IAM per deploy Cloud Functions
 
@@ -40,6 +39,8 @@ Avanza usa Firebase/Firestore — i backup automatici di Firestore non sono atti
 |---|---|---|---|
 | 2026-10-22 | Deploy Flutter web (CI automatica) | OK | Branch `claude/epic-galileo-e9a406` → live. Include badge taskCode, R-2, R-3 |
 | 2026-10-22 | Deploy Cloud Functions | FALLITO (IAM mancanti) | La CI ha tentato ma mancano i ruoli IAM sul service account |
+| 2026-10-23 | Deploy Cloud Functions (firebase-tools, run #37 e #40) | FALLITO | Prima API Cloud Billing, poi permesso `cloudfunctions.functions.setIamPolicy` |
+| 2026-10-23 | Deploy Cloud Functions `githubWebhook` (gcloud, run #44) | OK | Gen2, Node.js 22, `--allow-unauthenticated`; la firma HMAC protegge l'endpoint. Risposta HTTP non verificata |
 
 ## Piano di rollback
 
