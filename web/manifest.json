@@ -1,11 +1,12 @@
 {
-    "name": "avanza",
-    "short_name": "avanza",
+    "name": "Avanza",
+    "short_name": "Avanza",
     "start_url": ".",
+    "id": "/",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "background_color": "#F2F2ED",
+    "theme_color": "#1A6BE8",
+    "description": "Avanza: stato di avanzamento lavori dei progetti.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [
