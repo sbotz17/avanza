@@ -2,50 +2,82 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Accesso cliente: il codice cliente è l'ID del documento. Si può leggere
-    // un documento solo conoscendo il codice (get), mai elencare i codici.
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    // Admin = utente con users/{uid}.role == 'admin' (assegnato solo da console/script)
+    function isAdmin() {
+      return signedIn() &&
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    function isProjectOwner(projectId) {
+      return signedIn() &&
+        get(/databases/$(database)/documents/projects/$(projectId)).data.ownerId == request.auth.uid;
+    }
+
+    // Il cliente vede un progetto solo dopo averlo collegato al suo account con il codice
+    function isLinkedClient(projectId) {
+      return signedIn() &&
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)/clientProjects/$(projectId));
+    }
+
+    // Profilo utente: ognuno legge solo il proprio. Un nuovo utente nasce sempre
+    // come cliente e non può cambiare il proprio ruolo.
+    match /users/{uid} {
+      allow read: if signedIn() && request.auth.uid == uid;
+      allow create: if signedIn() && request.auth.uid == uid && request.resource.data.role == 'client';
+      allow update, delete: if false;
+
+      // Progetti collegati al cliente tramite codice. Il collegamento è valido solo
+      // se il codice esiste ed è quello di quel progetto.
+      match /clientProjects/{projectId} {
+        allow read: if signedIn() && request.auth.uid == uid;
+        allow create: if signedIn() && request.auth.uid == uid &&
+          get(/databases/$(database)/documents/clientAccess/$(request.resource.data.code)).data.projectId == projectId;
+        allow delete: if signedIn() && request.auth.uid == uid;
+        allow update: if false;
+      }
+    }
+
+    // Codice progetto -> progetto. Solo lettura per ID da utenti autenticati, mai elenco.
     match /clientAccess/{code} {
-      allow get: if true;
+      allow get: if signedIn();
       allow list: if false;
-      allow create: if request.auth != null && request.resource.data.ownerId == request.auth.uid;
-      allow update, delete: if request.auth != null && resource.data.ownerId == request.auth.uid;
+      allow create: if isAdmin() && request.resource.data.ownerId == request.auth.uid;
+      allow update, delete: if signedIn() && resource.data.ownerId == request.auth.uid;
     }
 
     match /projects/{projectId} {
-      // Un progetto si apre solo conoscendo il suo ID (non indovinabile, preso
-      // dal codice cliente). L'elenco è consentito solo al proprietario:
-      // nessuno può enumerare i progetti degli altri.
-      allow get: if true;
-      allow list: if request.auth != null && resource.data.ownerId == request.auth.uid;
-      allow create: if request.auth != null && request.resource.data.ownerId == request.auth.uid;
-      allow update, delete: if request.auth != null && resource.data.ownerId == request.auth.uid;
+      allow get: if signedIn() && (resource.data.ownerId == request.auth.uid || isLinkedClient(projectId));
+      allow list: if signedIn() && resource.data.ownerId == request.auth.uid;
+      allow create: if isAdmin() && request.resource.data.ownerId == request.auth.uid;
+      allow update, delete: if signedIn() && resource.data.ownerId == request.auth.uid;
 
-      // Task: stato e dettaglio leggibili dal cliente (conosce l'ID progetto),
-      // scrittura solo del proprietario. Qui NON ci sono costi né tariffe.
+      // Task: stato e dettaglio per proprietario e clienti collegati. Nessun costo qui.
       match /tasks/{taskId} {
-        allow read: if true;
-        allow write: if request.auth != null &&
-          get(/databases/$(database)/documents/projects/$(projectId)).data.ownerId == request.auth.uid;
+        allow read: if isProjectOwner(projectId) || isLinkedClient(projectId);
+        allow write: if isProjectOwner(projectId);
       }
 
-      // Stime, ore reali e tariffe del task: solo admin (proprietario)
+      // Stime, ore reali e tariffe: solo admin (proprietario)
       match /taskCosts/{taskId} {
-        allow read, write: if request.auth != null &&
-          get(/databases/$(database)/documents/projects/$(projectId)).data.ownerId == request.auth.uid;
+        allow read, write: if isProjectOwner(projectId);
       }
 
       // Registro ore: solo admin (contiene tariffe e costi)
       match /timeEntries/{entryId} {
-        allow read, write: if request.auth != null &&
-          get(/databases/$(database)/documents/projects/$(projectId)).data.ownerId == request.auth.uid;
+        allow read, write: if isProjectOwner(projectId);
       }
     }
 
     // Membri della squadra con tariffe: solo admin
     match /teamMembers/{memberId} {
-      allow read: if request.auth != null && resource.data.ownerId == request.auth.uid;
-      allow create: if request.auth != null && request.resource.data.ownerId == request.auth.uid;
-      allow update, delete: if request.auth != null && resource.data.ownerId == request.auth.uid;
+      allow read: if signedIn() && resource.data.ownerId == request.auth.uid;
+      allow create: if isAdmin() && request.resource.data.ownerId == request.auth.uid;
+      allow update, delete: if signedIn() && resource.data.ownerId == request.auth.uid;
     }
   }
 }

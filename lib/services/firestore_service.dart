@@ -31,16 +31,57 @@ class FirestoreService {
       .snapshots()
       .map((s) => s.docs.map(Project.fromFirestore).toList());
 
-  // Accesso cliente: il codice è l'ID di un documento in `clientAccess`
-  // (lettura solo per ID, mai elenco), che indica il progetto da aprire.
-  Future<Project?> projectByClientCode(String code) async {
-    final access =
-        await _db.collection('clientAccess').doc(code.trim().toUpperCase()).get();
+  // ── UTENTI E ACCESSO CLIENTE ──────────────────────────────────────────────
+
+  /// Ruolo dell'utente (`users/{uid}`). Al primo accesso senza documento
+  /// viene creato come `client`: l'admin si assegna solo da console/script.
+  Future<String> resolveRole(String uid, String email) async {
+    final ref = _db.collection('users').doc(uid);
+    final doc = await ref.get();
+    if (doc.exists) return (doc.data()?['role'] as String?) ?? 'client';
+    await ref.set({
+      'email': email,
+      'role': 'client',
+      'createdAt': FieldValue.serverTimestamp(),
+    });
+    return 'client';
+  }
+
+  /// Progetti collegati a un cliente (ID dei progetti).
+  Stream<List<String>> linkedProjectIdsStream(String uid) => _db
+      .collection('users')
+      .doc(uid)
+      .collection('clientProjects')
+      .snapshots()
+      .map((s) => s.docs.map((d) => d.id).toList());
+
+  /// Collega un progetto all'utente tramite il codice progetto (primo accesso).
+  /// Restituisce il progetto, oppure null se il codice non esiste.
+  Future<Project?> linkProjectByCode(String uid, String code) async {
+    final clean = code.trim().toUpperCase();
+    final access = await _db.collection('clientAccess').doc(clean).get();
     if (!access.exists) return null;
     final projectId = access.data()?['projectId'] as String?;
     if (projectId == null || projectId.isEmpty) return null;
+    await _db
+        .collection('users')
+        .doc(uid)
+        .collection('clientProjects')
+        .doc(projectId)
+        .set({
+      'code': clean,
+      'projectId': projectId,
+      'linkedAt': FieldValue.serverTimestamp(),
+    });
     return getProject(projectId);
   }
+
+  Future<void> unlinkProject(String uid, String projectId) => _db
+      .collection('users')
+      .doc(uid)
+      .collection('clientProjects')
+      .doc(projectId)
+      .delete();
 
   Future<Project> createProject({
     required String ownerId,
