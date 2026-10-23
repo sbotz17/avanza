@@ -2,6 +2,6 @@
   "projects": {
     "default": "avanza-b62d7",
     "prod": "avanza-b62d7",
-    "test": "avanza-test"
+    "test": "avanza-test-c33ef"
   }
 }

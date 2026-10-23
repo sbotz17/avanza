@@ -74,3 +74,10 @@ Dettaglio e stato di ogni punto: `registro-decisioni.md` (decisioni in sospeso).
 ## Note
 - Nessun ambiente Supabase né Vercel: il progetto usa esclusivamente Firebase e GitHub.
 - Il progetto Firebase di test non esiste ancora: tutto ciò che lo riguarda è "da creare" o "da definire".
+
+
+## Ambiente di test creato (2026-10-23)
+- Progetto Firebase di test: `avanza-test-c33ef` (Blaze, Auth email/password, Firestore `(default)` in eur3), creato da Andrea.
+- Segreto GitHub `FIREBASE_SERVICE_ACCOUNT_TEST` e variabile `PROGETTO_FIREBASE_TEST=avanza-test-c33ef` impostati da Andrea.
+- L'app usa la configurazione di test con `--dart-define=APP_ENV=test` (`lib/firebase_options_test.dart`, scelta in `lib/main.dart`); senza il define usa la produzione. `.firebaserc` alias `test` allineato.
+- Ancora da verificare: primo deploy di test dal ramo `staging` e regole Firestore sul progetto di test.
