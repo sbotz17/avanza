@@ -5,6 +5,7 @@ import '../../services/firestore_service.dart';
 import '../../models/project.dart';
 import '../../models/task.dart';
 import '../../core/constants.dart';
+import 'time_report.dart';
 
 class CostsPage extends StatelessWidget {
   final String projectId;
@@ -152,6 +153,8 @@ class CostsPage extends StatelessWidget {
                           fg2: fg2,
                         ),
                       ),
+
+                    TimeReportSection(projectId: projectId, tasks: tasks),
                   ],
                 ),
               );

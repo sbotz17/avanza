@@ -82,3 +82,35 @@ I task creati prima dell'introduzione di questi campi hanno `taskCode = ''` e `t
 ## Retrocompatibilita'
 
 Tutti i campi aggiunti successivamente (`nextTaskNumber`, `taskCode`, `taskNumber`) sono **opzionali** lato lettura: i `fromFirestore` usano il pattern `as Type? ?? defaultValue`, quindi le versioni vecchie dell'app continuano a funzionare senza modifiche e i documenti pre-esistenti non hanno bisogno di migrazione immediata.
+
+---
+
+### `teamMembers/{memberId}`
+
+Membri della squadra (agenti e persone) con tariffe. Solo il proprietario legge e scrive.
+
+| Campo | Tipo | Note |
+|---|---|---|
+| `ownerId` | String | UID del proprietario |
+| `name` | String | Nome del membro |
+| `kind` | String | `agent` o `person` |
+| `role` | String | Ruolo (analista, dba, tester...) |
+| `costRate` | Number | Costo orario interno |
+| `billRate` | Number | Tariffa di vendita oraria |
+| `active` | Boolean | Se `false` non compare nel dialogo "Registra ore" |
+| `createdAt` | Timestamp | Data creazione |
+
+### `projects/{projectId}/timeEntries/{entryId}`
+
+Registro ore. Solo il proprietario del progetto legge e scrive. Vedi `docs/progetto/requisiti-costi.md`.
+
+| Campo | Tipo | Note |
+|---|---|---|
+| `taskId`, `taskCode` | String | Task a cui si riferiscono le ore |
+| `memberId`, `memberName` | String | Membro che ha lavorato |
+| `phase` | String | Fase (Analisi, Database, ...) |
+| `hours` | Number | Ore lavorate |
+| `costRate`, `billRate` | Number | Tariffe congelate alla registrazione |
+| `date` | Timestamp | Data della registrazione |
+| `note` | String | Nota facoltativa |
+| `source` | String | `manual` (app) o `squad` (workflow) |

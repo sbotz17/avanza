@@ -1,0 +1,73 @@
+name: Registra ore squadra
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: 'membro (crea/aggiorna un membro) oppure ore (registra ore)'
+        default: 'ore'
+      project_id:
+        description: 'ID del progetto (facoltativo: altrimenti si cerca per indirizzo GitHub)'
+        default: ''
+      member:
+        description: 'Nome del membro (es. analista)'
+        default: ''
+      task_code:
+        description: 'Codice task (es. T-1), solo per action=ore'
+        default: ''
+      phase:
+        description: 'Fase (Analisi, Database, Backend, Design, Frontend, Test, Validazione), solo per ore'
+        default: ''
+      hours:
+        description: 'Ore, solo per action=ore'
+        default: ''
+      note:
+        description: 'Nota (facoltativa)'
+        default: ''
+      kind:
+        description: 'agent o person, solo per action=membro'
+        default: 'agent'
+      role:
+        description: 'Ruolo, solo per action=membro'
+        default: ''
+      cost_rate:
+        description: 'Costo orario interno, solo per action=membro'
+        default: '0'
+      bill_rate:
+        description: 'Tariffa di vendita oraria, solo per action=membro'
+        default: '0'
+
+jobs:
+  registra:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install dependencies
+        run: npm ci
+        working-directory: functions
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+
+      - name: Registra
+        run: node scripts/registra-ore.mjs
+        env:
+          ACTION: ${{ inputs.action }}
+          PROJECT_ID: ${{ inputs.project_id }}
+          MEMBER: ${{ inputs.member }}
+          TASK_CODE: ${{ inputs.task_code }}
+          PHASE: ${{ inputs.phase }}
+          HOURS: ${{ inputs.hours }}
+          NOTE: ${{ inputs.note }}
+          KIND: ${{ inputs.kind }}
+          ROLE: ${{ inputs.role }}
+          COST_RATE: ${{ inputs.cost_rate }}
+          BILL_RATE: ${{ inputs.bill_rate }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
