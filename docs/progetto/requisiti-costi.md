@@ -9,15 +9,17 @@ preventivo (stime), costi reali per fatturare e produttività di ogni elemento d
 - **Costo**: ore x tariffa del membro; si distinguono costo reale e importo da fatturare, quindi il margine.
 
 ## Ruoli e visibilità (richiesta di Andrea, 2026-10-23)
-- **Cliente** (accede con il codice cliente): vede solo lo stato dei task e il loro dettaglio. Niente costi, tariffe, ore, squadra.
-- **Admin** (proprietario, accede con email e password): vede tutto.
-- Implementazione (le regole Firestore sono l'unica difesa vera: nascondere i pulsanti nell'interfaccia non basta):
-  - le stime, le ore reali e le tariffe stanno in `projects/{p}/taskCosts/{taskId}`, leggibile solo dall'admin;
-  - il documento `tasks` contiene solo stato e dettaglio ed è l'unico leggibile dal cliente;
-  - il codice cliente è l'ID di un documento `clientAccess/{codice}` che indica il progetto: si legge solo per ID, non si può elencare;
-  - l'elenco dei progetti è consentito solo al proprietario: nessuno può enumerare i progetti degli altri;
+- **Un solo login** (email e password). Dopo l'accesso il ruolo (`users/{uid}.role`) decide cosa si vede.
+- **Admin**: vede tutto. Il ruolo si assegna solo da script (workflow "Registra ore squadra", azione `admin`) o da console: le regole impediscono ai client di auto-promuoversi.
+- **Cliente**: si registra dalla pagina di accesso; al primo accesso inserisce il **codice progetto**, che resta legato al suo account (`users/{uid}/clientProjects/{projectId}`) e non va reinserito. Vede solo i suoi progetti e, per ognuno, stato e dettaglio dei task. Niente costi, tariffe, ore, squadra.
+- Il vecchio accesso anonimo con solo codice è **rimosso**: non esiste più alcun accesso senza account.
+- Implementazione (le regole Firestore sono l'unica difesa vera: nascondere i pulsanti nell'interfaccia non basta; il router protegge comunque le pagine admin):
+  - stime, ore reali e tariffe stanno in `projects/{p}/taskCosts/{taskId}`, leggibile solo dall'admin;
+  - il documento `tasks` contiene solo stato e dettaglio: lo leggono proprietario e clienti collegati;
+  - il codice progetto è l'ID di `clientAccess/{codice}` (lettura solo per ID, solo utenti autenticati, mai elenco); il collegamento è valido solo se il codice corrisponde al progetto (verificato dalle regole);
+  - l'elenco dei progetti è consentito solo al proprietario;
   - `teamMembers` e `timeEntries` sono solo admin.
-- Limite residuo: il documento del progetto resta leggibile da chi ne conosce l'ID (serve al cliente) e contiene anche `githubUrl` e `ownerId`.
+- Limiti noti: il codice progetto ha 6 caratteri e un utente registrato potrebbe provare a indovinarlo (rischio basso, si può allungare); l'admin non può ancora scollegare un cliente da un progetto (si scollega solo il cliente); il documento del progetto contiene anche `githubUrl` e `ownerId` ed è leggibile ai clienti collegati.
 
 ## Dati
 - `teamMembers/{id}`: `ownerId`, `name`, `kind` (`agent`|`person`), `role`, `costRate`, `billRate`, `active`, `createdAt`.
