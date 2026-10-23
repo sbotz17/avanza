@@ -60,6 +60,26 @@ service cloud.firestore {
       match /tasks/{taskId} {
         allow read: if isProjectOwner(projectId) || isLinkedClient(projectId);
         allow write: if isProjectOwner(projectId);
+
+        // Chat dell'admin con la squadra sul task: SOLO admin proprietario, mai i clienti.
+        // Il client può solo creare domande ('admin' / 'domanda'); le risposte
+        // della squadra le scrive solo l'Admin SDK (script), che non passa dalle regole.
+        // Nessun update né delete dal client.
+        match /chat/{messageId} {
+          allow read: if isAdmin() && isProjectOwner(projectId);
+          allow create: if isAdmin() && isProjectOwner(projectId) &&
+            request.resource.data.keys().hasOnly(['from', 'text', 'authorUid', 'authorName', 'createdAt', 'kind']) &&
+            request.resource.data.from == 'admin' &&
+            request.resource.data.kind == 'domanda' &&
+            request.resource.data.authorUid == request.auth.uid &&
+            request.resource.data.authorName is string &&
+            request.resource.data.authorName.size() <= 200 &&
+            request.resource.data.text is string &&
+            request.resource.data.text.size() >= 1 &&
+            request.resource.data.text.size() <= 2000 &&
+            request.resource.data.createdAt == request.time;
+          allow update, delete: if false;
+        }
       }
 
       // Stime, ore reali e tariffe: solo admin (proprietario)

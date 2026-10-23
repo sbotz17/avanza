@@ -2,6 +2,26 @@
 
 ---
 
+## 2026-10-23 — T-11 e T-12: ricorda email al login e chat dell'admin con la squadra
+
+**Autore**: sviluppatore-frontend / sviluppatore-backend (Claude Code)
+**Branch**: `claude/epic-galileo-e9a406`
+
+### T-11 — "Ricorda email su questo dispositivo"
+- `lib/services/remember_email.dart` (`RememberEmailService`): salva/legge/cancella solo l'email con `shared_preferences` (nuova dipendenza in `pubspec.yaml`); errori dello spazio locale ignorati.
+- `lib/pages/login_page.dart`: casella sotto la password; email precompilata se salvata; casella tolta = valore cancellato subito; salvataggio solo dopo accesso/registrazione riusciti. La persistenza della sessione non è stata toccata.
+- Test: `test/remember_email_test.dart` (servizio e pagina di accesso con stub, anche "accesso fallito: non salva nulla").
+
+### T-12 — Chat dell'admin con la squadra
+- Modello `lib/models/chat_message.dart` (`ChatMessage`, `canShowTaskChat`), widget `lib/widgets/task_chat.dart` (lista in tempo reale, bolle admin/squadra, riquadro "Stato attuale" da dati del task, testo fisso dopo l'invio), metodi `chatStream`/`sendChatQuestion` in `FirestoreService`, integrazione in `task_detail_page.dart` solo per admin e task non `validated`/`released`.
+- `firestore.rules`: sottocollezione `chat` dentro `tasks/{taskId}`, solo admin proprietario; creazione solo domande dell'admin, nessun update/delete. Controllo `.claude/scripts/controlla-regole.py`: REGOLE OK.
+- `scripts/registra-ore.mjs`: azioni `domande` (sola lettura) e `rispondi`. Modifica del workflow `registra-ore.yml` NON fatta (zona protetta): testo da applicare in `docs/progetto/protocollo-task.md`.
+- Test: `test/chat_message_test.dart` (modello, regola di visibilità, riquadro stato).
+- Documenti aggiornati: `docs/database.md`, `catalogo.md`, `requisiti.md`, `da-validare.md`, `registro-decisioni.md`, `protocollo-task.md`.
+- Verifiche (Flutter stable 3.47.8 scaricato nell'ambiente): `flutter analyze` senza nuovi problemi (restano 6 "info" già presenti), `flutter test` 34/34 verdi, `flutter build web --release --pwa-strategy=none` riuscita, `node --check scripts/registra-ore.mjs` OK. Non provate: la chat con Firestore reale/emulatore e le azioni `domande`/`rispondi` sul database. `pubspec.lock` non rigenerato (era già disallineato dal `pubspec.yaml`): lo aggiorna `flutter pub get` in CI.
+
+---
+
 ## 2026-10-22 — R-3: aggiunti test mancanti isInitializing
 
 **Autore**: risolutore-bug

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
+import '../services/remember_email.dart';
 import '../core/constants.dart';
 
 /// Accesso unico: email e password. Dopo l'accesso l'app mostra le pagine in
@@ -17,8 +18,32 @@ class _LoginPageState extends State<LoginPage> {
   final _emailCtrl = TextEditingController();
   final _passCtrl = TextEditingController();
   final _confirmCtrl = TextEditingController();
+  final _rememberService = RememberEmailService();
   bool _obscure = true;
   bool _register = false;
+  // [T-11] "Ricorda email su questo dispositivo": si salva SOLO l'email, mai la password.
+  bool _remember = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadRememberedEmail();
+  }
+
+  Future<void> _loadRememberedEmail() async {
+    final saved = await _rememberService.load();
+    if (!mounted || saved == null) return;
+    // Non sovrascrive ciò che l'utente ha già iniziato a scrivere.
+    if (_emailCtrl.text.isEmpty) _emailCtrl.text = saved;
+    setState(() => _remember = true);
+  }
+
+  Future<void> _onRememberChanged(bool? value) async {
+    final remember = value ?? false;
+    setState(() => _remember = remember);
+    // Se la casella viene tolta, il valore salvato si cancella subito.
+    if (!remember) await _rememberService.clear();
+  }
 
   @override
   void dispose() {
@@ -34,11 +59,11 @@ class _LoginPageState extends State<LoginPage> {
     if (!_formKey.currentState!.validate()) return;
     final auth = context.read<AuthProvider>();
     final email = _emailCtrl.text.trim();
-    if (_register) {
-      await auth.register(email, _passCtrl.text);
-    } else {
-      await auth.signIn(email, _passCtrl.text);
-    }
+    final ok = _register
+        ? await auth.register(email, _passCtrl.text)
+        : await auth.signIn(email, _passCtrl.text);
+    // L'email si salva solo dopo un accesso riuscito (mai la password).
+    if (ok) await _rememberService.apply(remember: _remember, email: email);
   }
 
   @override
@@ -144,7 +169,19 @@ class _LoginPageState extends State<LoginPage> {
                           textAlign: TextAlign.center,
                         ),
                       ],
-                      const SizedBox(height: 16),
+                      const SizedBox(height: 4),
+                      CheckboxListTile(
+                        value: _remember,
+                        onChanged: auth.loading ? null : _onRememberChanged,
+                        title: const Text(
+                          'Ricorda email su questo dispositivo',
+                          style: TextStyle(fontSize: 13),
+                        ),
+                        controlAffinity: ListTileControlAffinity.leading,
+                        contentPadding: EdgeInsets.zero,
+                        dense: true,
+                      ),
+                      const SizedBox(height: 8),
                       FilledButton(
                         onPressed: auth.loading ? null : _submit,
                         style: FilledButton.styleFrom(
