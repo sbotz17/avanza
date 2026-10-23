@@ -59,7 +59,7 @@ jobs:
         if: github.ref == 'refs/heads/main'
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
 
       - name: Install Functions dependencies
         if: github.ref == 'refs/heads/main'
@@ -71,12 +71,30 @@ jobs:
         run: npm run build
         working-directory: functions
 
+      # gcloud al posto di firebase-tools: quest'ultimo pretende il permesso
+      # cloudfunctions.functions.setIamPolicy (ruolo Cloud Functions Admin),
+      # mentre gcloud rende pubblica la funzione tramite Cloud Run (run.invoker).
+      - name: Authenticate to Google Cloud
+        if: github.ref == 'refs/heads/main'
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+
+      - name: Setup gcloud
+        if: github.ref == 'refs/heads/main'
+        uses: google-github-actions/setup-gcloud@v2
+
       - name: Deploy Cloud Functions
         if: github.ref == 'refs/heads/main'
         run: |
-          echo '${{ secrets.FIREBASE_SERVICE_ACCOUNT }}' > /tmp/sa.json
-          GOOGLE_APPLICATION_CREDENTIALS=/tmp/sa.json \
-            npx firebase-tools deploy --only functions --project avanza-b62d7 --non-interactive
-          rm /tmp/sa.json
-        # Requires FIREBASE_SERVICE_ACCOUNT to have roles/cloudfunctions.developer
-        # and the GITHUB_WEBHOOK_SECRET to exist in Firebase Secret Manager
+          gcloud functions deploy githubWebhook \
+            --gen2 \
+            --region=us-central1 \
+            --runtime=nodejs22 \
+            --trigger-http \
+            --allow-unauthenticated \
+            --service-account=firebase-adminsdk-fbsvc@avanza-b62d7.iam.gserviceaccount.com \
+            --source=functions \
+            --entry-point=githubWebhook \
+            --project=avanza-b62d7 \
+            --quiet
