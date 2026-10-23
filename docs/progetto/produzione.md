@@ -43,6 +43,12 @@ Avanza usa Firebase/Firestore — i backup automatici di Firestore non sono atti
 | 2026-10-23 | Deploy Cloud Functions `githubWebhook` (gcloud, run #44) | OK | Gen2, Node.js 22, `--allow-unauthenticated`; la firma HMAC protegge l'endpoint |
 | 2026-10-23 | Creazione database Firestore `(default)`, regole e indici (workflow Setup Firestore, run #2) | OK | Il database non esisteva: prima l'app non poteva salvare dati. Regione `eur3` (definitiva). Ruoli aggiunti al service account: Cloud Datastore Owner, Firebase Rules Admin. Il primo tentativo (run #1) era fallito per permessi mancanti |
 | 2026-10-23 | Test E2E webhook -> Firestore (run #5) | OK | Utente di prova dedicato; il test crea progetto e task `T-1` di prova e cancella il branch al termine |
+| 2026-10-23 | Funzione costi in produzione (PR #10) | OK | Squadra (agenti e persone), registro ore, report preventivo/costo reale/da fatturare/margine/produttività. Requisiti in `docs/progetto/requisiti-costi.md` |
+| 2026-10-23 | Correzione sicurezza accessi (PR #11) | OK | Costi, tariffe e ore spostati in `taskCosts` (solo admin); accesso cliente tramite `clientAccess` (lettura solo per ID); elenco progetti solo al proprietario. Prima i costi erano leggibili da chiunque e tutti i progetti erano elencabili |
+| 2026-10-23 | Pubblicazione regole Firestore (Setup Firestore run #4) | OK | Regole strette per clienti: solo stato e dettaglio dei task |
+| 2026-10-23 | Migrazione costi e accessi cliente (Registra ore squadra, azione `migra`, run #13) | OK | 1 task ripulito dai costi e 1 accesso cliente creato: solo dati di prova. I valori sono copiati e verificati prima di essere tolti dal task |
+| 2026-10-23 | Creazione 12 membri agenti della squadra | OK | Tariffe a zero: le inserisce Andrea dalla pagina Squadra |
+| 2026-10-23 | Test E2E webhook dopo le regole strette (run #6) | OK | Il test crea anche l'accesso cliente; webhook e Firestore funzionano con le nuove regole |
 
 ## Piano di rollback
 
