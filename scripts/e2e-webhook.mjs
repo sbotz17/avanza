@@ -1,23 +1,34 @@
 // Test end-to-end del webhook GitHub -> Cloud Function -> Firestore.
-// Variabili: TEST_USER_EMAIL, TEST_USER_PASSWORD, GITHUB_TOKEN, GITHUB_REPOSITORY, GITHUB_SHA.
-const API_KEY = process.env.FIREBASE_API_KEY;
-const PROJECT = 'avanza-b62d7';
-const TASK_CODE = process.env.TASK_CODE || 'T-1';
+// Lavora sul progetto reale del repository con un task TEMPORANEO (codice T-9xxx),
+// che viene cancellato alla fine insieme al branch di prova. Non tocca i task veri.
+import { createRequire } from 'node:module';
+import path from 'node:path';
+
+const require = createRequire(path.resolve('functions/package.json'));
+const { initializeApp, getApps } = require('firebase-admin/app');
+const { getFirestore, Timestamp } = require('firebase-admin/firestore');
+
 const REPO = process.env.GITHUB_REPOSITORY;
+const TASK_CODE = process.env.TASK_CODE || 'T-9001';
 const REPO_URL = `https://github.com/${REPO}`.toLowerCase();
 const BRANCH = `test/${TASK_CODE}-e2e-${process.env.GITHUB_RUN_ID || Date.now()}`;
-const DOCS = `https://firestore.googleapis.com/v1/projects/${PROJECT}/databases/(default)/documents`;
 
-const need = ['FIREBASE_API_KEY', 'TEST_USER_EMAIL', 'TEST_USER_PASSWORD', 'GITHUB_TOKEN', 'GITHUB_REPOSITORY', 'GITHUB_SHA'];
-for (const k of need) {
+for (const k of ['GITHUB_TOKEN', 'GITHUB_REPOSITORY', 'GITHUB_SHA']) {
   if (!process.env[k]) {
     console.error(`Variabile mancante: ${k}`);
     process.exit(2);
   }
 }
+if (!/^T-9\d{3}$/.test(TASK_CODE)) {
+  console.error('Il codice del task di prova deve essere del tipo T-9xxx, per non toccare i task veri.');
+  process.exit(2);
+}
 
-const gh = (path, init = {}) =>
-  fetch(`https://api.github.com/repos/${REPO}${path}`, {
+if (getApps().length === 0) initializeApp({ projectId: 'avanza-b62d7' });
+const db = getFirestore();
+
+const gh = (p, init = {}) =>
+  fetch(`https://api.github.com/repos/${REPO}${p}`, {
     ...init,
     headers: {
       Authorization: `Bearer ${process.env.GITHUB_TOKEN}`,
@@ -26,142 +37,67 @@ const gh = (path, init = {}) =>
     },
   });
 
-async function signIn() {
-  const res = await fetch(
-    `https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${API_KEY}`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        email: process.env.TEST_USER_EMAIL,
-        password: process.env.TEST_USER_PASSWORD,
-        returnSecureToken: true,
-      }),
-    },
-  );
-  const body = await res.json();
-  if (!res.ok) throw new Error(`Login fallito: ${body?.error?.message ?? res.status}`);
-  return { token: body.idToken, uid: body.localId };
-}
-
-async function runQuery(parent, token, structuredQuery) {
-  const res = await fetch(`${DOCS}${parent}:runQuery`, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ structuredQuery }),
-  });
-  const body = await res.json();
-  if (!res.ok) throw new Error(`Query Firestore fallita (${res.status}): ${JSON.stringify(body)}`);
-  return body.filter((r) => r.document).map((r) => r.document);
-}
-
-async function createDoc(parent, token, fields) {
-  const res = await fetch(`${DOCS}${parent}`, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ fields }),
-  });
-  const body = await res.json();
-  if (!res.ok) throw new Error(`Creazione documento fallita (${res.status}): ${JSON.stringify(body)}`);
-  return body;
-}
-
-const str = (f) => f?.stringValue ?? null;
-const noteTexts = (doc) =>
-  (doc.fields.notes?.arrayValue?.values ?? []).map((v) => str(v.mapValue?.fields?.text));
+let taskRef = null;
+let branchCreated = false;
 
 async function main() {
-  const { token, uid } = await signIn();
-  console.log('Login utente di prova: OK');
-
-  const projects = await runQuery('', token, {
-    from: [{ collectionId: 'projects' }],
-    where: { fieldFilter: { field: { fieldPath: 'ownerId' }, op: 'EQUAL', value: { stringValue: uid } } },
-  });
-  let project = projects.find(
-    (p) => (str(p.fields.githubUrl) ?? '').toLowerCase().replace(/\/$/, '') === REPO_URL,
+  const snap = await db.collection('projects').get();
+  const matches = snap.docs.filter(
+    (d) => String(d.get('githubUrl') ?? '').toLowerCase().replace(/\/$/, '') === REPO_URL,
   );
-  if (!project) {
-    console.log('Progetto di prova assente: lo creo');
-    const now = new Date().toISOString();
-    const code = Array.from({ length: 6 }, () => 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'[Math.floor(Math.random() * 32)]).join('');
-    project = await createDoc('/projects', token, {
-      name: { stringValue: 'Avanza (progetto di prova E2E)' },
-      description: { stringValue: 'Creato dal test automatico del webhook' },
-      githubUrl: { stringValue: `https://github.com/${REPO}` },
-      clientCode: { stringValue: code },
-      ownerId: { stringValue: uid },
-      nextTaskNumber: { integerValue: '2' },
-      createdAt: { timestampValue: now },
-      updatedAt: { timestampValue: now },
-    });
-    await createDoc(`/clientAccess?documentId=${code}`, token, {
-      projectId: { stringValue: project.name.split('/').pop() },
-      ownerId: { stringValue: uid },
-      createdAt: { timestampValue: now },
-    });
+  if (matches.length === 0) throw new Error(`Nessun progetto con githubUrl ${REPO_URL}: crealo prima.`);
+  if (matches.length > 1) {
+    throw new Error(`Piu' progetti con lo stesso indirizzo GitHub (${matches.length}): il webhook non saprebbe quale usare.`);
   }
-  const projectPath = `/${project.name.split('/documents/')[1]}`;
-  console.log(`Progetto trovato: ${str(project.fields.name)}`);
+  const project = matches[0];
+  console.log(`Progetto: ${project.get('name')}`);
 
-  let tasks = await runQuery(projectPath, token, {
-    from: [{ collectionId: 'tasks' }],
-    where: { fieldFilter: { field: { fieldPath: 'taskCode' }, op: 'EQUAL', value: { stringValue: TASK_CODE } } },
-    limit: 1,
+  const used = await project.ref.collection('tasks').where('taskCode', '==', TASK_CODE).limit(1).get();
+  if (!used.empty) throw new Error(`Il codice ${TASK_CODE} e' gia' usato nel progetto: scegline un altro.`);
+
+  const now = Timestamp.now();
+  taskRef = project.ref.collection('tasks').doc();
+  await taskRef.set({
+    title: 'Test automatico E2E (temporaneo)',
+    description: 'Creato dal test del webhook e cancellato al termine.',
+    clientRequest: '',
+    status: 'backlog',
+    phases: ['Analisi', 'Database', 'Backend', 'Design', 'Frontend', 'Test', 'Validazione'].map((name) => ({
+      name,
+      status: 'pending',
+      label: 'In attesa',
+    })),
+    notes: [],
+    order: 9999,
+    taskCode: TASK_CODE,
+    taskNumber: 9999,
+    createdAt: now,
+    updatedAt: now,
   });
-  if (tasks.length === 0) {
-    console.log(`Task ${TASK_CODE} assente: lo creo`);
-    const now = new Date().toISOString();
-    const phase = (name) => ({
-      mapValue: { fields: { name: { stringValue: name }, status: { stringValue: 'pending' }, label: { stringValue: 'In attesa' } } },
-    });
-    const num = Number(TASK_CODE.replace(/\D/g, '')) || 1;
-    tasks = [
-      await createDoc(`${projectPath}/tasks`, token, {
-        title: { stringValue: 'Task di prova E2E' },
-        description: { stringValue: 'Creato dal test automatico del webhook' },
-        clientRequest: { stringValue: '' },
-        status: { stringValue: 'backlog' },
-        phases: {
-          arrayValue: { values: ['Analisi', 'Database', 'Backend', 'Design', 'Frontend', 'Test', 'Validazione'].map(phase) },
-        },
-        notes: { arrayValue: { values: [] } },
-        order: { integerValue: '0' },
-        taskCode: { stringValue: TASK_CODE },
-        taskNumber: { integerValue: String(num) },
-        createdAt: { timestampValue: now },
-        updatedAt: { timestampValue: now },
-      }),
-    ];
-  }
-  const taskPath = `/${tasks[0].name.split('/documents/')[1]}`;
-  console.log(`Task ${TASK_CODE} trovato`);
+  console.log(`Task temporaneo ${TASK_CODE} creato`);
 
   const created = await gh('/git/refs', {
     method: 'POST',
     body: JSON.stringify({ ref: `refs/heads/${BRANCH}`, sha: process.env.GITHUB_SHA }),
   });
   if (!created.ok) throw new Error(`Creazione branch fallita (${created.status}): ${await created.text()}`);
+  branchCreated = true;
   console.log(`Branch di prova creato: ${BRANCH}`);
 
   const expectedNote = `[gh] Branch ${BRANCH} creato`;
-  let ok = false;
   let last = null;
-  for (let i = 0; i < 18 && !ok; i++) {
+  for (let i = 0; i < 18; i++) {
     await new Promise((r) => setTimeout(r, 5000));
-    const res = await fetch(`https://firestore.googleapis.com/v1/projects/${PROJECT}/databases/(default)/documents${taskPath}`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    last = await res.json();
-    if (res.ok && noteTexts(last).includes(expectedNote) && str(last.fields.githubBranch) === BRANCH) ok = true;
+    last = (await taskRef.get()).data();
+    const notes = (last?.notes ?? []).map((n) => n.text);
+    if (notes.includes(expectedNote) && last.githubBranch === BRANCH) {
+      console.log(`OK: nota "${expectedNote}" presente, stato task = ${last.status}`);
+      return;
+    }
   }
-  if (!ok) {
-    throw new Error(
-      `Il task non e' stato aggiornato entro 90 secondi. Stato: ${str(last?.fields?.status)}, ` +
-        `branch: ${str(last?.fields?.githubBranch)}. Controlla Recent Deliveries del webhook.`,
-    );
-  }
-  console.log(`OK: nota "${expectedNote}" presente, stato task = ${str(last.fields.status)}`);
+  throw new Error(
+    `Il task non e' stato aggiornato entro 90 secondi (stato: ${last?.status}). Controlla Recent Deliveries del webhook.`,
+  );
 }
 
 let failed = false;
@@ -171,7 +107,13 @@ try {
   failed = true;
   console.error(`FALLITO: ${e.message}`);
 } finally {
-  const del = await gh(`/git/refs/heads/${BRANCH}`, { method: 'DELETE' });
-  console.log(`Pulizia branch di prova: ${del.status === 204 ? 'fatta' : `stato ${del.status}`}`);
+  if (branchCreated) {
+    const del = await gh(`/git/refs/heads/${BRANCH}`, { method: 'DELETE' });
+    console.log(`Pulizia branch di prova: ${del.status === 204 ? 'fatta' : `stato ${del.status}`}`);
+  }
+  if (taskRef) {
+    await taskRef.delete();
+    console.log('Pulizia task temporaneo: fatta');
+  }
 }
 process.exit(failed ? 1 : 0);

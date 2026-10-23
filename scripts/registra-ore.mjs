@@ -120,6 +120,60 @@ async function setAdmin(email) {
   console.log(`Ruolo admin assegnato a ${user.uid}.`);
 }
 
+// Crea un progetto reale per il proprietario indicato (email), con il suo codice
+// cliente e il documento clientAccess. Non crea duplicati: se esiste gia' un progetto
+// dello stesso proprietario con lo stesso indirizzo GitHub, non fa nulla.
+async function creaProgetto() {
+  const email = env('EMAIL');
+  const name = env('PROJECT_NAME');
+  const githubUrl = env('GITHUB_URL');
+  if (!email || !name || !githubUrl) throw new Error('Servono email, project_name e github_url.');
+  const owner = await getAuth().getUserByEmail(email);
+  await setAdmin(email);
+  const norm = (u) => u.toLowerCase().replace(/\/$/, '');
+  const existing = await db.collection('projects').where('ownerId', '==', owner.uid).get();
+  const dup = existing.docs.find((d) => norm(String(d.get('githubUrl') ?? '')) === norm(githubUrl));
+  if (dup) {
+    console.log(`Progetto gia' presente (${dup.id}), nessuna modifica. Codice cliente: ${dup.get('clientCode')}`);
+    return;
+  }
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let code = '';
+  for (let i = 0; i < 6; i++) code += chars[Math.floor(Math.random() * chars.length)];
+  const now = Timestamp.now();
+  const ref = db.collection('projects').doc();
+  const batch = db.batch();
+  batch.set(ref, {
+    name,
+    description: env('PROJECT_DESCRIPTION'),
+    githubUrl,
+    clientCode: code,
+    ownerId: owner.uid,
+    nextTaskNumber: 1,
+    createdAt: now,
+    updatedAt: now,
+  });
+  batch.set(db.collection('clientAccess').doc(code), { projectId: ref.id, ownerId: owner.uid, createdAt: now });
+  await batch.commit();
+  console.log(`Progetto creato: ${name} (${ref.id}). Codice cliente: ${code}`);
+}
+
+// Elimina SOLO il progetto di prova del test automatico (nome esatto) con i suoi dati.
+async function eliminaProva() {
+  const NOME = 'Avanza (progetto di prova E2E)';
+  const snap = await db.collection('projects').where('name', '==', NOME).get();
+  if (snap.empty) {
+    console.log('Nessun progetto di prova da eliminare.');
+    return;
+  }
+  for (const project of snap.docs) {
+    const code = String(project.get('clientCode') ?? '').toUpperCase();
+    await db.recursiveDelete(project.ref);
+    if (code) await db.collection('clientAccess').doc(code).delete();
+    console.log(`Eliminato il progetto di prova ${project.id} e i suoi dati.`);
+  }
+}
+
 // Sposta le tariffe/ore dai documenti task (pubblici) al documento riservato
 // taskCosts e crea i documenti clientAccess mancanti. Idempotente: i valori
 // vengono copiati prima di rimuovere i campi dal task.
@@ -181,9 +235,11 @@ async function migra() {
 try {
   if (action === 'migra') await migra();
   else if (action === 'admin') await setAdmin(env('EMAIL'));
+  else if (action === 'crea-progetto') await creaProgetto();
+  else if (action === 'elimina-prova') await eliminaProva();
   else if (action === 'membro') await upsertMember();
   else if (action === 'ore') await addHours();
-  else throw new Error(`Azione sconosciuta: "${action}" (usa "membro", "ore", "migra" o "admin").`);
+  else throw new Error(`Azione sconosciuta: "${action}" (usa "membro", "ore", "migra", "admin", "crea-progetto" o "elimina-prova").`);
 } catch (e) {
   console.error(`FALLITO: ${e.message}`);
   process.exit(1);

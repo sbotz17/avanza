@@ -54,6 +54,10 @@ Avanza usa Firebase/Firestore — i backup automatici di Firestore non sono atti
 | 2026-10-23 | Ruolo admin assegnato ad Andrea (azione `admin`, run #14 dal branch) e ai proprietari dei progetti (`migra`, run #15) | OK | Il ruolo admin si assegna solo da script/console: i client non possono auto-promuoversi |
 | 2026-10-23 | Logo di Avanza nella pagina di accesso, favicon.ico e icone web (PR #13) | OK | Prima: razzo generico e `/favicon.ico` mancante (il sito rispondeva con HTML) |
 | 2026-10-23 | Test E2E webhook con i ruoli (run #7) | OK | L'utente di prova viene reso admin dal workflow prima del test |
+| 2026-10-23 | Eliminato il progetto di prova del test (Registra ore squadra, azione `elimina-prova`, run #16) | OK | Cancellato solo il progetto con il nome esatto del test e i suoi dati (`recursiveDelete`), su richiesta di Andrea. Erano solo dati di prova |
+| 2026-10-23 | Progetti reali collegati ai repository | OK | **Avanza** (`https://github.com/sbotz17/avanza`, creato da Andrea nell'app) e **Volty** (`https://github.com/sbotz17/volty-flutter`, creato con l'azione `crea-progetto`, run #18), entrambi intestati all'account admin di Andrea; webhook GitHub già configurati |
+| 2026-10-23 | Test E2E riscritto | OK | Non usa più un utente e un progetto di prova (si sarebbero sovrapposti al progetto reale con lo stesso indirizzo GitHub): crea un task temporaneo `T-9xxx` nel progetto reale, verifica la nota sul task e cancella task e branch |
+| 2026-10-23 | Versione web senza service worker (`--pwa-strategy=none`) e cache `no-cache` per js/css/html/json | OK | Un utente vedeva ancora la vecchia versione: il browser conservava una copia (cache di un anno sui file JavaScript con nome fisso e service worker). In incognito vedeva la versione nuova, quindi il server era corretto |
 
 ## Piano di rollback
 

@@ -29,7 +29,7 @@ jobs:
         run: flutter analyze --no-fatal-infos
 
       - name: Build web
-        run: flutter build web --release --base-href /
+        run: flutter build web --release --base-href / --pwa-strategy=none
 
       # Produzione (live): solo dal ramo main
       - name: Deploy to Firebase Hosting (live)
