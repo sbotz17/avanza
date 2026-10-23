@@ -4,10 +4,19 @@ on:
   workflow_dispatch:
     inputs:
       action:
-        description: 'membro (crea/aggiorna un membro), ore (registra ore) migra (sposta i costi dai task al documento riservato e imposta admin i proprietari) oppure admin (assegna il ruolo admin a una email)'
+        description: 'membro (crea/aggiorna un membro), ore (registra ore) migra (sposta i costi dai task al documento riservato e imposta admin i proprietari) admin (assegna il ruolo admin a una email), crea-progetto (crea un progetto reale per l email) oppure elimina-prova (elimina il progetto di prova del test)'
         default: 'ore'
       email:
         description: 'Email dell utente, solo per action=admin (assegna il ruolo admin)'
+        default: ''
+      project_name:
+        description: 'Nome del progetto, solo per action=crea-progetto'
+        default: ''
+      project_description:
+        description: 'Descrizione del progetto, solo per action=crea-progetto'
+        default: ''
+      github_url:
+        description: 'Indirizzo GitHub del repository (es. https://github.com/sbotz17/avanza), solo per action=crea-progetto'
         default: ''
       project_id:
         description: 'ID del progetto (facoltativo: altrimenti si cerca per indirizzo GitHub)'
@@ -65,6 +74,9 @@ jobs:
           ACTION: ${{ inputs.action }}
           EMAIL: ${{ inputs.email }}
           PROJECT_ID: ${{ inputs.project_id }}
+          PROJECT_NAME: ${{ inputs.project_name }}
+          PROJECT_DESCRIPTION: ${{ inputs.project_description }}
+          GITHUB_URL: ${{ inputs.github_url }}
           MEMBER: ${{ inputs.member }}
           TASK_CODE: ${{ inputs.task_code }}
           PHASE: ${{ inputs.phase }}
