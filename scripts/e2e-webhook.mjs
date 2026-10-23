@@ -95,6 +95,11 @@ async function main() {
       createdAt: { timestampValue: now },
       updatedAt: { timestampValue: now },
     });
+    await createDoc(`/clientAccess?documentId=${code}`, token, {
+      projectId: { stringValue: project.name.split('/').pop() },
+      ownerId: { stringValue: uid },
+      createdAt: { timestampValue: now },
+    });
   }
   const projectPath = `/${project.name.split('/documents/')[1]}`;
   console.log(`Progetto trovato: ${str(project.fields.name)}`);
@@ -121,9 +126,6 @@ async function main() {
           arrayValue: { values: ['Analisi', 'Database', 'Backend', 'Design', 'Frontend', 'Test', 'Validazione'].map(phase) },
         },
         notes: { arrayValue: { values: [] } },
-        estimatedHours: { doubleValue: 0 },
-        actualHours: { doubleValue: 0 },
-        hourlyRate: { doubleValue: 0 },
         order: { integerValue: '0' },
         taskCode: { stringValue: TASK_CODE },
         taskNumber: { integerValue: String(num) },

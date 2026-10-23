@@ -8,11 +8,23 @@ preventivo (stime), costi reali per fatturare e produttività di ogni elemento d
 - **Ore**: dichiarate dalla squadra a fine fase. Sono stime oneste, **non tempi misurati**: gli agenti non hanno un cronometro affidabile.
 - **Costo**: ore x tariffa del membro; si distinguono costo reale e importo da fatturare, quindi il margine.
 
+## Ruoli e visibilità (richiesta di Andrea, 2026-10-23)
+- **Cliente** (accede con il codice cliente): vede solo lo stato dei task e il loro dettaglio. Niente costi, tariffe, ore, squadra.
+- **Admin** (proprietario, accede con email e password): vede tutto.
+- Implementazione (le regole Firestore sono l'unica difesa vera: nascondere i pulsanti nell'interfaccia non basta):
+  - le stime, le ore reali e le tariffe stanno in `projects/{p}/taskCosts/{taskId}`, leggibile solo dall'admin;
+  - il documento `tasks` contiene solo stato e dettaglio ed è l'unico leggibile dal cliente;
+  - il codice cliente è l'ID di un documento `clientAccess/{codice}` che indica il progetto: si legge solo per ID, non si può elencare;
+  - l'elenco dei progetti è consentito solo al proprietario: nessuno può enumerare i progetti degli altri;
+  - `teamMembers` e `timeEntries` sono solo admin.
+- Limite residuo: il documento del progetto resta leggibile da chi ne conosce l'ID (serve al cliente) e contiene anche `githubUrl` e `ownerId`.
+
 ## Dati
 - `teamMembers/{id}`: `ownerId`, `name`, `kind` (`agent`|`person`), `role`, `costRate`, `billRate`, `active`, `createdAt`.
 - `projects/{p}/timeEntries/{id}`: `taskId`, `taskCode`, `memberId`, `memberName`, `phase`, `hours`, `costRate`, `billRate`
   (congelate alla registrazione), `date`, `note`, `source` (`manual`|`squad`).
-- Ogni registrazione incrementa `actualHours` del task in modo atomico.
+- `projects/{p}/taskCosts/{taskId}`: `estimatedHours`, `actualHours`, `hourlyRate` (solo admin).
+- Ogni registrazione incrementa `actualHours` in `taskCosts` in modo atomico.
 - Accesso: solo il proprietario (contengono tariffe e costi). Regole in `firestore.rules`.
 
 ## Calcoli (pagina Costi sviluppo, sezione "Registro ore e produttività")

@@ -41,22 +41,19 @@ class CostsPage extends StatelessWidget {
                 return const Center(child: CircularProgressIndicator());
               }
 
-              final totalEstCost = tasks.fold<double>(
-                0,
-                (s, t) => s + t.estimatedCost,
-              );
-              final totalActCost = tasks.fold<double>(
-                0,
-                (s, t) => s + t.actualCost,
-              );
-              final totalEstH = tasks.fold<double>(
-                0,
-                (s, t) => s + t.estimatedHours,
-              );
-              final totalActH = tasks.fold<double>(
-                0,
-                (s, t) => s + t.actualHours,
-              );
+              return StreamBuilder<Map<String, TaskCost>>(
+                stream: service.taskCostsStream(projectId),
+                builder: (context, costSnap) {
+                  final costs = costSnap.data ?? const <String, TaskCost>{};
+                  TaskCost costOf(Task t) => costs[t.id] ?? const TaskCost();
+                  final totalEstCost =
+                      tasks.fold<double>(0, (s, t) => s + costOf(t).estimatedCost);
+                  final totalActCost =
+                      tasks.fold<double>(0, (s, t) => s + costOf(t).actualCost);
+                  final totalEstH =
+                      tasks.fold<double>(0, (s, t) => s + costOf(t).estimatedHours);
+                  final totalActH =
+                      tasks.fold<double>(0, (s, t) => s + costOf(t).actualHours);
 
               return SingleChildScrollView(
                 padding: const EdgeInsets.all(16),
@@ -148,15 +145,22 @@ class CostsPage extends StatelessWidget {
                       ...tasks.map(
                         (task) => _TaskCostCard(
                           task: task,
+                          cost: costOf(task),
                           isDark: isDark,
                           eur: eur,
                           fg2: fg2,
                         ),
                       ),
 
-                    TimeReportSection(projectId: projectId, tasks: tasks),
+                    TimeReportSection(
+                      projectId: projectId,
+                      tasks: tasks,
+                      costs: costs,
+                    ),
                   ],
                 ),
+              );
+                },
               );
             },
           );
@@ -217,12 +221,14 @@ class _SummaryCard extends StatelessWidget {
 
 class _TaskCostCard extends StatelessWidget {
   final Task task;
+  final TaskCost cost;
   final bool isDark;
   final NumberFormat eur;
   final Color fg2;
 
   const _TaskCostCard({
     required this.task,
+    required this.cost,
     required this.isDark,
     required this.eur,
     required this.fg2,
@@ -230,8 +236,8 @@ class _TaskCostCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final overBudget = task.actualHours > task.estimatedHours &&
-        task.estimatedHours > 0;
+    final overBudget = cost.actualHours > cost.estimatedHours &&
+        cost.estimatedHours > 0;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
@@ -258,12 +264,12 @@ class _TaskCostCard extends StatelessWidget {
             children: [
               _CostCell(
                 label: 'Ore stimate',
-                value: '${task.estimatedHours.toStringAsFixed(1)}h',
+                value: '${cost.estimatedHours.toStringAsFixed(1)}h',
                 fg2: fg2,
               ),
               _CostCell(
                 label: 'Ore reali',
-                value: '${task.actualHours.toStringAsFixed(1)}h',
+                value: '${cost.actualHours.toStringAsFixed(1)}h',
                 valueColor: overBudget
                     ? (isDark ? kBlockedColorDark : kBlockedColor)
                     : null,
@@ -271,17 +277,17 @@ class _TaskCostCard extends StatelessWidget {
               ),
               _CostCell(
                 label: 'Tariffa',
-                value: '${eur.format(task.hourlyRate)}/h',
+                value: '${eur.format(cost.hourlyRate)}/h',
                 fg2: fg2,
               ),
               _CostCell(
                 label: 'Costo stim.',
-                value: eur.format(task.estimatedCost),
+                value: eur.format(cost.estimatedCost),
                 fg2: fg2,
               ),
               _CostCell(
                 label: 'Costo reale',
-                value: eur.format(task.actualCost),
+                value: eur.format(cost.actualCost),
                 valueColor: overBudget
                     ? (isDark ? kBlockedColorDark : kBlockedColor)
                     : (isDark ? kDoneColorDark : kDoneColor),

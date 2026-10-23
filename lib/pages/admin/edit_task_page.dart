@@ -73,9 +73,10 @@ class _EditTaskPageState extends State<EditTaskPage> {
       _titleCtrl.text = task.title;
       _descCtrl.text = task.description;
       _requestCtrl.text = task.clientRequest;
-      _estHoursCtrl.text = task.estimatedHours.toString();
-      _actHoursCtrl.text = task.actualHours.toString();
-      _rateCtrl.text = task.hourlyRate.toString();
+      final cost = await _service.getTaskCost(widget.projectId, task.id);
+      _estHoursCtrl.text = cost.estimatedHours.toString();
+      _actHoursCtrl.text = cost.actualHours.toString();
+      _rateCtrl.text = cost.hourlyRate.toString();
       _status = task.status;
       _phases = List.from(task.phases);
       _notes = List.from(task.notes);
@@ -115,11 +116,17 @@ class _EditTaskPageState extends State<EditTaskPage> {
           status: _status,
           phases: _phases,
           notes: _notes,
-          estimatedHours: double.tryParse(_estHoursCtrl.text) ?? 0,
-          actualHours: double.tryParse(_actHoursCtrl.text) ?? 0,
-          hourlyRate: double.tryParse(_rateCtrl.text) ?? 0,
         );
         await _service.updateTask(updated);
+        await _service.saveTaskCost(
+          widget.projectId,
+          updated.id,
+          TaskCost(
+            estimatedHours: double.tryParse(_estHoursCtrl.text) ?? 0,
+            actualHours: double.tryParse(_actHoursCtrl.text) ?? 0,
+            hourlyRate: double.tryParse(_rateCtrl.text) ?? 0,
+          ),
+        );
       }
       if (mounted) context.go('/project/${widget.projectId}');
     } catch (e) {

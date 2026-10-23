@@ -2,31 +2,46 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Projects: owner can read/write; anyone can read by clientCode (queried client-side)
+    // Accesso cliente: il codice cliente è l'ID del documento. Si può leggere
+    // un documento solo conoscendo il codice (get), mai elencare i codici.
+    match /clientAccess/{code} {
+      allow get: if true;
+      allow list: if false;
+      allow create: if request.auth != null && request.resource.data.ownerId == request.auth.uid;
+      allow update, delete: if request.auth != null && resource.data.ownerId == request.auth.uid;
+    }
+
     match /projects/{projectId} {
-      allow read: if request.auth != null && resource.data.ownerId == request.auth.uid;
+      // Un progetto si apre solo conoscendo il suo ID (non indovinabile, preso
+      // dal codice cliente). L'elenco è consentito solo al proprietario:
+      // nessuno può enumerare i progetti degli altri.
+      allow get: if true;
+      allow list: if request.auth != null && resource.data.ownerId == request.auth.uid;
       allow create: if request.auth != null && request.resource.data.ownerId == request.auth.uid;
       allow update, delete: if request.auth != null && resource.data.ownerId == request.auth.uid;
 
-      // Allow unauthenticated read for client access (by clientCode)
-      // Client queries filter by clientCode, so expose read for public projects
-      allow read: if resource.data.keys().hasAll(['clientCode']);
-
-      // Tasks subcollection: same owner access + unauthenticated read (client view)
+      // Task: stato e dettaglio leggibili dal cliente (conosce l'ID progetto),
+      // scrittura solo del proprietario. Qui NON ci sono costi né tariffe.
       match /tasks/{taskId} {
-        allow read: if true; // clients access tasks read-only with projectId
+        allow read: if true;
         allow write: if request.auth != null &&
           get(/databases/$(database)/documents/projects/$(projectId)).data.ownerId == request.auth.uid;
       }
 
-      // Registro ore: solo il proprietario del progetto (contiene tariffe e costi)
+      // Stime, ore reali e tariffe del task: solo admin (proprietario)
+      match /taskCosts/{taskId} {
+        allow read, write: if request.auth != null &&
+          get(/databases/$(database)/documents/projects/$(projectId)).data.ownerId == request.auth.uid;
+      }
+
+      // Registro ore: solo admin (contiene tariffe e costi)
       match /timeEntries/{entryId} {
         allow read, write: if request.auth != null &&
           get(/databases/$(database)/documents/projects/$(projectId)).data.ownerId == request.auth.uid;
       }
     }
 
-    // Membri della squadra (agenti e persone) con tariffe: solo il proprietario
+    // Membri della squadra con tariffe: solo admin
     match /teamMembers/{memberId} {
       allow read: if request.auth != null && resource.data.ownerId == request.auth.uid;
       allow create: if request.auth != null && request.resource.data.ownerId == request.auth.uid;

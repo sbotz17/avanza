@@ -31,15 +31,15 @@ class FirestoreService {
       .snapshots()
       .map((s) => s.docs.map(Project.fromFirestore).toList());
 
-  // Find project by clientCode (public access)
+  // Accesso cliente: il codice è l'ID di un documento in `clientAccess`
+  // (lettura solo per ID, mai elenco), che indica il progetto da aprire.
   Future<Project?> projectByClientCode(String code) async {
-    final q = await _db
-        .collection('projects')
-        .where('clientCode', isEqualTo: code.toUpperCase())
-        .limit(1)
-        .get();
-    if (q.docs.isEmpty) return null;
-    return Project.fromFirestore(q.docs.first);
+    final access =
+        await _db.collection('clientAccess').doc(code.trim().toUpperCase()).get();
+    if (!access.exists) return null;
+    final projectId = access.data()?['projectId'] as String?;
+    if (projectId == null || projectId.isEmpty) return null;
+    return getProject(projectId);
   }
 
   Future<Project> createProject({
@@ -62,7 +62,14 @@ class FirestoreService {
       createdAt: now,
       updatedAt: now,
     );
-    await ref.set(project.toMap());
+    final batch = _db.batch();
+    batch.set(ref, project.toMap());
+    batch.set(_db.collection('clientAccess').doc(code), {
+      'projectId': ref.id,
+      'ownerId': ownerId,
+      'createdAt': Timestamp.fromDate(now),
+    });
+    await batch.commit();
     return project;
   }
 
@@ -78,9 +85,23 @@ class FirestoreService {
         .doc(projectId)
         .collection('tasks')
         .get();
+    final costs = await _db
+        .collection('projects')
+        .doc(projectId)
+        .collection('taskCosts')
+        .get();
+    final entries = await _db
+        .collection('projects')
+        .doc(projectId)
+        .collection('timeEntries')
+        .get();
+    final project = await getProject(projectId);
     final batch = _db.batch();
-    for (final doc in tasks.docs) {
+    for (final doc in [...tasks.docs, ...costs.docs, ...entries.docs]) {
       batch.delete(doc.reference);
+    }
+    if (project != null && project.clientCode.isNotEmpty) {
+      batch.delete(_db.collection('clientAccess').doc(project.clientCode));
     }
     batch.delete(_db.collection('projects').doc(projectId));
     await batch.commit();
@@ -141,9 +162,6 @@ class FirestoreService {
         status: 'backlog',
         phases: defaultPhases,
         notes: [],
-        estimatedHours: estimatedHours,
-        actualHours: 0,
-        hourlyRate: hourlyRate,
         order: nextOrder,
         taskCode: taskCode,
         taskNumber: taskNumber,
@@ -152,6 +170,10 @@ class FirestoreService {
       );
 
       txn.set(taskRef, task.toMap());
+      txn.set(
+        projectRef.collection('taskCosts').doc(taskRef.id),
+        TaskCost(estimatedHours: estimatedHours, hourlyRate: hourlyRate).toMap(),
+      );
       txn.update(projectRef, {
         'nextTaskNumber': currentNext + 1,
         'updatedAt': FieldValue.serverTimestamp(),
@@ -174,12 +196,40 @@ class FirestoreService {
         .update({'updatedAt': FieldValue.serverTimestamp()});
   }
 
-  Future<void> deleteTask(String projectId, String taskId) => _db
+  Future<void> deleteTask(String projectId, String taskId) async {
+    final projectRef = _db.collection('projects').doc(projectId);
+    final batch = _db.batch();
+    batch.delete(projectRef.collection('tasks').doc(taskId));
+    batch.delete(projectRef.collection('taskCosts').doc(taskId));
+    await batch.commit();
+  }
+
+  // ── COSTI TASK (solo admin) ───────────────────────────────────────────────
+
+  Stream<Map<String, TaskCost>> taskCostsStream(String projectId) => _db
       .collection('projects')
       .doc(projectId)
-      .collection('tasks')
-      .doc(taskId)
-      .delete();
+      .collection('taskCosts')
+      .snapshots()
+      .map((s) => {for (final d in s.docs) d.id: TaskCost.fromFirestore(d)});
+
+  Future<TaskCost> getTaskCost(String projectId, String taskId) async {
+    final doc = await _db
+        .collection('projects')
+        .doc(projectId)
+        .collection('taskCosts')
+        .doc(taskId)
+        .get();
+    return doc.exists ? TaskCost.fromFirestore(doc) : const TaskCost();
+  }
+
+  Future<void> saveTaskCost(String projectId, String taskId, TaskCost cost) =>
+      _db
+          .collection('projects')
+          .doc(projectId)
+          .collection('taskCosts')
+          .doc(taskId)
+          .set(cost.toMap());
 
   // ── TEAM ───────────────────────────────────────────────────────────────────
 
@@ -213,13 +263,14 @@ class FirestoreService {
   Future<void> addTimeEntry(TimeEntry e) async {
     final projectRef = _db.collection('projects').doc(e.projectId);
     final entryRef = projectRef.collection('timeEntries').doc();
-    final taskRef = projectRef.collection('tasks').doc(e.taskId);
+    final costRef = projectRef.collection('taskCosts').doc(e.taskId);
     final batch = _db.batch();
     batch.set(entryRef, e.toMap());
-    batch.update(taskRef, {
-      'actualHours': FieldValue.increment(e.hours),
-      'updatedAt': FieldValue.serverTimestamp(),
-    });
+    batch.set(
+      costRef,
+      {'actualHours': FieldValue.increment(e.hours)},
+      SetOptions(merge: true),
+    );
     await batch.commit();
   }
 

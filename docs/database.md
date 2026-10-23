@@ -114,3 +114,24 @@ Registro ore. Solo il proprietario del progetto legge e scrive. Vedi `docs/proge
 | `date` | Timestamp | Data della registrazione |
 | `note` | String | Nota facoltativa |
 | `source` | String | `manual` (app) o `squad` (workflow) |
+
+### `projects/{projectId}/taskCosts/{taskId}`
+
+Stime, ore reali e tariffa del task. **Solo il proprietario** legge e scrive: i clienti non devono vedere i costi.
+Sostituisce i campi `estimatedHours`, `actualHours`, `hourlyRate` che prima stavano nel documento `tasks` (leggibile da tutti).
+
+| Campo | Tipo | Note |
+|---|---|---|
+| `estimatedHours` | Number | Ore stimate (preventivo) |
+| `actualHours` | Number | Ore reali, incrementate dal registro ore |
+| `hourlyRate` | Number | Tariffa oraria del task (preventivo) |
+
+### `clientAccess/{codiceCliente}`
+
+Accesso del cliente: l'ID del documento è il codice cliente (6 caratteri). Lettura solo per ID (`get`), mai elenco.
+
+| Campo | Tipo | Note |
+|---|---|---|
+| `projectId` | String | Progetto che il cliente può aprire |
+| `ownerId` | String | UID del proprietario |
+| `createdAt` | Timestamp | Data creazione |
