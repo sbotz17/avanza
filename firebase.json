@@ -10,9 +10,9 @@
     ],
     "headers": [
       {
-        "source": "**/*.@(js|css)",
+        "source": "**/*.@(js|css|html|json)",
         "headers": [
-          { "key": "Cache-Control", "value": "max-age=31536000" }
+          { "key": "Cache-Control", "value": "no-cache" }
         ]
       }
     ]
