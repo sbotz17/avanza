@@ -98,18 +98,61 @@ async function addHours() {
     note: env('NOTE'),
     source: 'squad',
   });
-  batch.update(task.ref, {
-    actualHours: FieldValue.increment(hours),
-    updatedAt: FieldValue.serverTimestamp(),
-  });
+  batch.set(
+    project.ref.collection('taskCosts').doc(task.id),
+    { actualHours: FieldValue.increment(hours) },
+    { merge: true },
+  );
   await batch.commit();
   console.log(`Registrate ${hours}h di ${member.get('name')} su ${taskCode} (${phase}).`);
 }
 
+// Sposta le tariffe/ore dai documenti task (pubblici) al documento riservato
+// taskCosts e crea i documenti clientAccess mancanti. Idempotente: i valori
+// vengono copiati prima di rimuovere i campi dal task.
+async function migra() {
+  const projects = await db.collection('projects').get();
+  let accessi = 0;
+  let spostati = 0;
+  for (const project of projects.docs) {
+    const code = String(project.get('clientCode') ?? '').toUpperCase();
+    if (code) {
+      const ref = db.collection('clientAccess').doc(code);
+      if (!(await ref.get()).exists) {
+        await ref.set({
+          projectId: project.id,
+          ownerId: project.get('ownerId'),
+          createdAt: Timestamp.now(),
+        });
+        accessi++;
+      }
+    }
+    const tasks = await project.ref.collection('tasks').get();
+    for (const task of tasks.docs) {
+      const d = task.data();
+      const fields = ['estimatedHours', 'actualHours', 'hourlyRate'].filter((f) => f in d);
+      if (fields.length === 0) continue;
+      const costRef = project.ref.collection('taskCosts').doc(task.id);
+      const existing = await costRef.get();
+      const copy = {};
+      for (const f of fields) if (!existing.exists || !(f in existing.data())) copy[f] = d[f];
+      if (Object.keys(copy).length > 0) await costRef.set(copy, { merge: true });
+      const check = await costRef.get();
+      if (!fields.every((f) => f in check.data())) {
+        throw new Error(`Verifica fallita su ${project.id}/${task.id}: campi non copiati.`);
+      }
+      await task.ref.update(Object.fromEntries(fields.map((f) => [f, FieldValue.delete()])));
+      spostati++;
+    }
+  }
+  console.log(`Migrazione: ${spostati} task ripuliti dai costi, ${accessi} accessi cliente creati.`);
+}
+
 try {
-  if (action === 'membro') await upsertMember();
+  if (action === 'migra') await migra();
+  else if (action === 'membro') await upsertMember();
   else if (action === 'ore') await addHours();
-  else throw new Error(`Azione sconosciuta: "${action}" (usa "membro" o "ore").`);
+  else throw new Error(`Azione sconosciuta: "${action}" (usa "membro", "ore" o "migra").`);
 } catch (e) {
   console.error(`FALLITO: ${e.message}`);
   process.exit(1);

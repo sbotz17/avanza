@@ -53,9 +53,6 @@ class Task {
   final String status; // backlog | active | blocked | review | validated | released
   final List<TaskPhase> phases;
   final List<TaskNote> notes;
-  final double estimatedHours;
-  final double actualHours;
-  final double hourlyRate;
   final int order;
   final String taskCode; // es. "T-1" — identificatore breve unico nel progetto
   final int taskNumber; // numero progressivo usato per generare taskCode
@@ -73,9 +70,6 @@ class Task {
     required this.status,
     required this.phases,
     required this.notes,
-    required this.estimatedHours,
-    required this.actualHours,
-    required this.hourlyRate,
     required this.order,
     this.taskCode = '',
     this.taskNumber = 0,
@@ -100,9 +94,6 @@ class Task {
       notes: ((d['notes'] as List?)?.cast<Map<String, dynamic>>() ?? [])
           .map(TaskNote.fromMap)
           .toList(),
-      estimatedHours: (d['estimatedHours'] as num?)?.toDouble() ?? 0,
-      actualHours: (d['actualHours'] as num?)?.toDouble() ?? 0,
-      hourlyRate: (d['hourlyRate'] as num?)?.toDouble() ?? 0,
       order: (d['order'] as int?) ?? 0,
       taskCode: d['taskCode'] as String? ?? '',
       taskNumber: (d['taskNumber'] as int?) ?? 0,
@@ -120,9 +111,6 @@ class Task {
         'status': status,
         'phases': phases.map((p) => p.toMap()).toList(),
         'notes': notes.map((n) => n.toMap()).toList(),
-        'estimatedHours': estimatedHours,
-        'actualHours': actualHours,
-        'hourlyRate': hourlyRate,
         'order': order,
         'taskCode': taskCode,
         'taskNumber': taskNumber,
@@ -143,9 +131,6 @@ class Task {
   // Computed kanban column from status field
   String get kanbanCol => status;
 
-  double get estimatedCost => estimatedHours * hourlyRate;
-  double get actualCost => actualHours * hourlyRate;
-
   Task copyWith({
     String? title,
     String? description,
@@ -153,9 +138,6 @@ class Task {
     String? status,
     List<TaskPhase>? phases,
     List<TaskNote>? notes,
-    double? estimatedHours,
-    double? actualHours,
-    double? hourlyRate,
     int? order,
     String? taskCode,
     int? taskNumber,
@@ -173,9 +155,6 @@ class Task {
         status: status ?? this.status,
         phases: phases ?? this.phases,
         notes: notes ?? this.notes,
-        estimatedHours: estimatedHours ?? this.estimatedHours,
-        actualHours: actualHours ?? this.actualHours,
-        hourlyRate: hourlyRate ?? this.hourlyRate,
         order: order ?? this.order,
         taskCode: taskCode ?? this.taskCode,
         taskNumber: taskNumber ?? this.taskNumber,
@@ -184,4 +163,36 @@ class Task {
         createdAt: createdAt,
         updatedAt: DateTime.now(),
       );
+}
+
+/// Stime e ore reali di un task. Vivono in `projects/{p}/taskCosts/{taskId}`,
+/// un documento leggibile solo dall'admin: i clienti non devono vederli.
+class TaskCost {
+  final double estimatedHours;
+  final double actualHours;
+  final double hourlyRate;
+
+  const TaskCost({
+    this.estimatedHours = 0,
+    this.actualHours = 0,
+    this.hourlyRate = 0,
+  });
+
+  factory TaskCost.fromFirestore(DocumentSnapshot doc) {
+    final d = (doc.data() as Map<String, dynamic>?) ?? {};
+    return TaskCost(
+      estimatedHours: (d['estimatedHours'] as num?)?.toDouble() ?? 0,
+      actualHours: (d['actualHours'] as num?)?.toDouble() ?? 0,
+      hourlyRate: (d['hourlyRate'] as num?)?.toDouble() ?? 0,
+    );
+  }
+
+  Map<String, dynamic> toMap() => {
+        'estimatedHours': estimatedHours,
+        'actualHours': actualHours,
+        'hourlyRate': hourlyRate,
+      };
+
+  double get estimatedCost => estimatedHours * hourlyRate;
+  double get actualCost => actualHours * hourlyRate;
 }

@@ -14,11 +14,13 @@ import '../../services/firestore_service.dart';
 class TimeReportSection extends StatelessWidget {
   final String projectId;
   final List<Task> tasks;
+  final Map<String, TaskCost> costs;
 
   const TimeReportSection({
     super.key,
     required this.projectId,
     required this.tasks,
+    required this.costs,
   });
 
   @override
@@ -39,10 +41,10 @@ class TimeReportSection extends StatelessWidget {
           stream: service.timeEntriesStream(projectId),
           builder: (context, entSnap) {
             final entries = entSnap.data ?? [];
-            final stats = _computeStats(tasks, entries);
+            final stats = _computeStats(costs, entries);
             final margin = stats.billed - stats.cost;
-            final preventivo =
-                tasks.fold<double>(0, (s, t) => s + t.estimatedCost);
+            final preventivo = tasks.fold<double>(
+                0, (s, t) => s + (costs[t.id]?.estimatedCost ?? 0));
 
             return Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -221,9 +223,11 @@ class _Stats {
   final Map<String, _MemberStat> byMember = {};
 }
 
-_Stats _computeStats(List<Task> tasks, List<TimeEntry> entries) {
+_Stats _computeStats(Map<String, TaskCost> costs, List<TimeEntry> entries) {
   final stats = _Stats();
-  final estimateByTask = {for (final t in tasks) t.id: t.estimatedHours};
+  final estimateByTask = {
+    for (final e in costs.entries) e.key: e.value.estimatedHours,
+  };
   final hoursByTask = <String, double>{};
   final hoursByMemberTask = <String, double>{};
 

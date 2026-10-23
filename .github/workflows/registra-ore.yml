@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       action:
-        description: 'membro (crea/aggiorna un membro) oppure ore (registra ore)'
+        description: 'membro (crea/aggiorna un membro), ore (registra ore) oppure migra (sposta i costi dai task al documento riservato)'
         default: 'ore'
       project_id:
         description: 'ID del progetto (facoltativo: altrimenti si cerca per indirizzo GitHub)'
