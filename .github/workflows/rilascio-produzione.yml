@@ -150,6 +150,7 @@ jobs:
 
       - name: Avviso WhatsApp
         if: success()
+        continue-on-error: true
         run: python3 .claude/scripts/avvisa-whatsapp.py rilasciato "Rilascio in produzione completato."
 
   # ---------------------------------------------------------------------------
@@ -235,6 +236,7 @@ jobs:
 
       - name: Avviso WhatsApp
         if: always()
+        continue-on-error: true
         env:
           OK: ${{ steps.v.outputs.ok }}
           ESITO: ${{ job.status }}
