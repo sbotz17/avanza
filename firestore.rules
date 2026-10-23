@@ -18,6 +18,19 @@ service cloud.firestore {
         allow write: if request.auth != null &&
           get(/databases/$(database)/documents/projects/$(projectId)).data.ownerId == request.auth.uid;
       }
+
+      // Registro ore: solo il proprietario del progetto (contiene tariffe e costi)
+      match /timeEntries/{entryId} {
+        allow read, write: if request.auth != null &&
+          get(/databases/$(database)/documents/projects/$(projectId)).data.ownerId == request.auth.uid;
+      }
+    }
+
+    // Membri della squadra (agenti e persone) con tariffe: solo il proprietario
+    match /teamMembers/{memberId} {
+      allow read: if request.auth != null && resource.data.ownerId == request.auth.uid;
+      allow create: if request.auth != null && request.resource.data.ownerId == request.auth.uid;
+      allow update, delete: if request.auth != null && resource.data.ownerId == request.auth.uid;
     }
   }
 }

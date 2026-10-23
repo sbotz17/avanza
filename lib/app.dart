@@ -11,6 +11,7 @@ import 'pages/task_detail_page.dart';
 import 'pages/admin/edit_project_page.dart';
 import 'pages/admin/edit_task_page.dart';
 import 'pages/admin/costs_page.dart';
+import 'pages/admin/team_page.dart';
 
 final _router = GoRouter(
   initialLocation: '/login',
@@ -40,6 +41,10 @@ final _router = GoRouter(
       builder: (context, state) => EditProjectPage(
         projectId: state.pathParameters['projectId']!,
       ),
+    ),
+    GoRoute(
+      path: '/team',
+      builder: (context, state) => const TeamPage(),
     ),
     GoRoute(
       path: '/project/:projectId/costs',

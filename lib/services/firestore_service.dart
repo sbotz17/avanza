@@ -2,6 +2,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:uuid/uuid.dart';
 import '../models/project.dart';
 import '../models/task.dart';
+import '../models/team_member.dart';
+import '../models/time_entry.dart';
 import '../core/constants.dart';
 
 class FirestoreService {
@@ -178,6 +180,48 @@ class FirestoreService {
       .collection('tasks')
       .doc(taskId)
       .delete();
+
+  // ── TEAM ───────────────────────────────────────────────────────────────────
+
+  Stream<List<TeamMember>> teamMembersStream(String ownerId) => _db
+      .collection('teamMembers')
+      .where('ownerId', isEqualTo: ownerId)
+      .snapshots()
+      .map((s) {
+        final list = s.docs.map(TeamMember.fromFirestore).toList();
+        list.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+        return list;
+      });
+
+  Future<void> saveTeamMember(TeamMember m) {
+    final ref = _db.collection('teamMembers').doc(m.id.isEmpty ? null : m.id);
+    return ref.set(m.toMap());
+  }
+
+  // ── TIME ENTRIES ───────────────────────────────────────────────────────────
+
+  Stream<List<TimeEntry>> timeEntriesStream(String projectId) => _db
+      .collection('projects')
+      .doc(projectId)
+      .collection('timeEntries')
+      .orderBy('date', descending: true)
+      .snapshots()
+      .map((s) =>
+          s.docs.map((d) => TimeEntry.fromFirestore(d, projectId)).toList());
+
+  /// Registra le ore e aggiorna in modo atomico le ore reali del task.
+  Future<void> addTimeEntry(TimeEntry e) async {
+    final projectRef = _db.collection('projects').doc(e.projectId);
+    final entryRef = projectRef.collection('timeEntries').doc();
+    final taskRef = projectRef.collection('tasks').doc(e.taskId);
+    final batch = _db.batch();
+    batch.set(entryRef, e.toMap());
+    batch.update(taskRef, {
+      'actualHours': FieldValue.increment(e.hours),
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+    await batch.commit();
+  }
 
   // ── HELPERS ────────────────────────────────────────────────────────────────
 
