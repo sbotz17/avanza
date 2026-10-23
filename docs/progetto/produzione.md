@@ -49,6 +49,11 @@ Avanza usa Firebase/Firestore — i backup automatici di Firestore non sono atti
 | 2026-10-23 | Migrazione costi e accessi cliente (Registra ore squadra, azione `migra`, run #13) | OK | 1 task ripulito dai costi e 1 accesso cliente creato: solo dati di prova. I valori sono copiati e verificati prima di essere tolti dal task |
 | 2026-10-23 | Creazione 12 membri agenti della squadra | OK | Tariffe a zero: le inserisce Andrea dalla pagina Squadra |
 | 2026-10-23 | Test E2E webhook dopo le regole strette (run #6) | OK | Il test crea anche l'accesso cliente; webhook e Firestore funzionano con le nuove regole |
+| 2026-10-23 | Accesso unico con ruoli admin/cliente (PR #13) | OK | Un solo login; ruolo in `users/{uid}`; il cliente si registra e collega il codice progetto al proprio account (`users/{uid}/clientProjects`). Sessione persistente: il router ripristina la sessione e riporta alla pagina richiesta (prima si finiva sempre su `/login` aprendo dalla radice o dall'icona). Vecchio accesso anonimo con codice rimosso |
+| 2026-10-23 | Regole Firestore senza accesso anonimo (Setup Firestore run #5) | OK | Progetti e task solo a proprietario e clienti collegati; `clientAccess` leggibile solo da utenti autenticati, per ID |
+| 2026-10-23 | Ruolo admin assegnato ad Andrea (azione `admin`, run #14 dal branch) e ai proprietari dei progetti (`migra`, run #15) | OK | Il ruolo admin si assegna solo da script/console: i client non possono auto-promuoversi |
+| 2026-10-23 | Logo di Avanza nella pagina di accesso, favicon.ico e icone web (PR #13) | OK | Prima: razzo generico e `/favicon.ico` mancante (il sito rispondeva con HTML) |
+| 2026-10-23 | Test E2E webhook con i ruoli (run #7) | OK | L'utente di prova viene reso admin dal workflow prima del test |
 
 ## Piano di rollback
 

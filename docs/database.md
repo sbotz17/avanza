@@ -128,10 +128,30 @@ Sostituisce i campi `estimatedHours`, `actualHours`, `hourlyRate` che prima stav
 
 ### `clientAccess/{codiceCliente}`
 
-Accesso del cliente: l'ID del documento è il codice cliente (6 caratteri). Lettura solo per ID (`get`), mai elenco.
+Codice progetto: l'ID del documento è il codice (6 caratteri). Lettura solo per ID (`get`) e solo da utenti autenticati, mai elenco.
 
 | Campo | Tipo | Note |
 |---|---|---|
 | `projectId` | String | Progetto che il cliente può aprire |
 | `ownerId` | String | UID del proprietario |
 | `createdAt` | Timestamp | Data creazione |
+
+### `users/{uid}`
+
+Profilo e ruolo. Ognuno legge solo il proprio. Un nuovo utente nasce sempre `client`; il ruolo non è modificabile dai client (solo script/console).
+
+| Campo | Tipo | Note |
+|---|---|---|
+| `email` | String | Email dell'utente |
+| `role` | String | `admin` o `client` |
+| `createdAt` | Timestamp | Data creazione |
+
+### `users/{uid}/clientProjects/{projectId}`
+
+Progetti collegati a un cliente tramite codice progetto. Creazione consentita solo se `code` è il codice di quel progetto (`clientAccess/{code}.projectId == projectId`).
+
+| Campo | Tipo | Note |
+|---|---|---|
+| `code` | String | Codice progetto usato per il collegamento |
+| `projectId` | String | Progetto collegato |
+| `linkedAt` | Timestamp | Data del collegamento |
