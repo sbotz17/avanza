@@ -1,0 +1,25 @@
+name: Verifica sito
+
+on:
+  workflow_dispatch:
+
+jobs:
+  verifica:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Controlla cosa serve il sito pubblicato
+        run: |
+          BASE=https://avanza-b62d7.web.app
+          for f in main.dart.js flutter_bootstrap.js flutter_service_worker.js index.html manifest.json favicon.ico; do
+            echo "== $f"
+            curl -sSI "$BASE/$f" | grep -i -E "^(HTTP|cache-control|content-type|etag|last-modified|x-served-by)" || true
+          done
+          curl -sS "$BASE/main.dart.js" -o /tmp/main.js
+          echo "== contenuto di main.dart.js ($(wc -c < /tmp/main.js) byte)"
+          for t in "Sei un cliente e non hai un account" "Accedi come admin" "Accedi con codice progetto"; do
+            echo "'$t': $(grep -c -F "$t" /tmp/main.js) occorrenze"
+          done
+          echo "== logo negli asset"
+          curl -sS "$BASE/assets/AssetManifest.bin.json" | grep -c "logo.png" || true
+          echo "== versione del service worker"
+          curl -sS "$BASE/flutter_service_worker.js" | grep -m1 -E "CACHE_NAME|RESOURCES = " || true
