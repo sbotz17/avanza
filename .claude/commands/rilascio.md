@@ -1,0 +1,22 @@
+---
+description: Rilascio in produzione con il protocollo di sicurezza completo: autonomo per le correzioni di bug; i nuovi sviluppi solo dopo la validazione di Andrea
+argument-hint: <cosa rilasciare, oppure vuoto per tutto ciò che è pronto>
+---
+Prepara ed esegui il PASSAGGIO IN PRODUZIONE seguendo la sezione Ambienti e il Protocollo produzione di CLAUDE.md. Richiesta: $ARGUMENTS
+
+Correzioni di malfunzionamenti: non serve l'OK di Andrea, lo sostituiscono i controlli automatici e il GO del `guardiano-produzione`. Nuovi sviluppi: in più serve la validazione di Andrea (vedi punto 2b). Priorità assoluta: nessun dato perso o alterato, nessuna configurazione persa, nessun disservizio. Nel dubbio: NO-GO, non si rilascia, si registra e si avvisa Andrea.
+
+0. Se esiste `BLOCCO-SQUADRA.md` attivo: fermati.
+1. Leggi docs/progetto/ambienti.md e produzione.md. Se mancano informazioni sulla produzione (repository, database, configurazioni, backup, come si pubblica): NO-GO, decisione in sospeso in registro-decisioni.md, avviso ad Andrea.
+2. Ogni elemento da rilasciare deve avere l'APPROVATO del `validatore` nel repository di sviluppo. Ciò che non lo ha NON si rilascia. Per le correzioni nate da segnalazioni esterne: esito `confermato` del gestore-ritorni, controllo zone protette e dimensione superati, tetto giornaliero di rilasci da segnalazioni rispettato; altrimenti resta in attesa (decisione in sospeso).
+2b. Classifica ogni elemento: CORREZIONE (ripristina il comportamento documentato; PR con etichetta `tipo:correzione`) o NUOVO SVILUPPO (tutto il resto, nel dubbio). I nuovi sviluppi: la pull request resta aperta; prepara `docs/progetto/da-validare.md` (cosa fa, link di anteprima, test, rischi, ritorno indietro) e fallo arrivare nel ramo (parte l'avviso WhatsApp). Solo dopo la validazione di Andrea la pull request si unisce; la CI attende il suo tocco sull'ambiente `produzione-sviluppi` (nessun agente può darlo). Intanto continua con altro.
+3. Il rilascio ha due parti da ordinare con cura: (a) database Firestore (regole di sicurezza e indici solo additivi, già provati sull'ambiente di test `avanza-test`, controllati da `controlla-regole.py`; pubblicati con il workflow "Setup Firestore"), (b) Cloud Functions e web su Firebase Hosting (provati sull'ambiente di test, poi promozione da `staging` a `main` con la CI). Avanza è solo web: nessun passo su store o installer. Il backup comprende il database Firestore (export su bucket) e la copia delle configurazioni.
+4. `dba`: piano di modifica a regole, indici e dati solo additivo e reversibile, con rollback. Nessun DROP/TRUNCATE/DELETE/UPDATE di massa: se servono, il rilascio di quella parte NON avviene (decisione in sospeso).
+5. `guardiano-produzione` FASE 1 (checklist completa): backup verificato, prova generale su copia con confronto prima/dopo, rollback provato, diff delle configurazioni, rischio di disservizio, controlli automatici (CI verde). Registra tutto in produzione.md.
+6. NO-GO del guardiano: fermati, scrivi cosa manca nel registro decisioni, avvisa Andrea. Non forzare, non aggirare.
+7. Con GO: scrivi in produzione.md il riepilogo in italiano semplice (cosa cambia per gli utenti, backup e prove con risultati, rischi residui, come si torna indietro). Per le correzioni non si attende alcuna risposta.
+8. Esecuzione: la promozione e il deploy li fa la CI (`promozione.yml`, `rilascio-produzione.yml`) con la sua chiave dedicata: gli agenti non usano credenziali di produzione. Se la CI non è configurata, il rilascio NON avviene e si segnala ad Andrea cosa serve (vedi `modelli/ci/README-CI.md`). Un passo alla volta; al primo imprevisto stop.
+9. `guardiano-produzione` FASE 3: verifica post-rilascio in sola lettura e confronto con i valori registrati. Se la verifica non è completa l'esito NON è OK. Anomalia: rollback del codice, avviso immediato ad Andrea, ripristino dati solo alle condizioni di `/ripristina`.
+10. Comunicazione agli utenti: solo con esito post-rilascio OK, pubblica (solo aggiunte, da modelli fissi, mai dati personali) l'evento "rilasciata" sulle segnalazioni collegate ai ritorni risolti e la voce in "Novità e problemi risolti" preparata da `redattore-manuale`.
+11. Aggiorna diario.md e produzione.md; porta a CHIUSO i ritorni corrispondenti solo con esito post-rilascio OK.
+12. Resoconto breve ad Andrea a cose fatte: cosa è stato rilasciato, verifiche, decisioni in sospeso.
