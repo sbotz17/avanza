@@ -3,12 +3,14 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
 import '../services/firestore_service.dart';
+import '../models/chat_message.dart';
 import '../models/task.dart';
 import '../core/constants.dart';
 import '../widgets/status_pill.dart';
 import '../widgets/progress_bar.dart';
 import '../widgets/phase_row.dart';
 import '../widgets/empty_state.dart';
+import '../widgets/task_chat.dart';
 import '../widgets/task_code_badge.dart';
 
 class TaskDetailPage extends StatelessWidget {
@@ -207,7 +209,19 @@ class TaskDetailPage extends StatelessWidget {
                   Text('Note e stato corrente', style: sectionTitle),
                   const SizedBox(height: 8),
                   ...task.notes.map((n) => _NoteCard(note: n, isDark: isDark)),
+                  const SizedBox(height: 16),
                 ],
+
+                // [T-12] Chat con la squadra: solo admin e solo se il task non è completato.
+                if (canShowTaskChat(isAdmin: isAdmin, status: task.status))
+                  TaskChat(
+                    task: task,
+                    service: service,
+                    authorUid: auth.user?.uid ?? '',
+                    authorName: auth.user?.displayName?.isNotEmpty == true
+                        ? auth.user!.displayName!
+                        : (auth.user?.email ?? 'Admin'),
+                  ),
               ],
             ),
           ),

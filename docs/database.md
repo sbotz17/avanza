@@ -1,6 +1,6 @@
 # Avanza — Schema dati (Firestore)
 
-Ultimo aggiornamento: 2026-10-22
+Ultimo aggiornamento: 2026-10-23
 
 ---
 
@@ -155,3 +155,25 @@ Progetti collegati a un cliente tramite codice progetto. Creazione consentita so
 | `code` | String | Codice progetto usato per il collegamento |
 | `projectId` | String | Progetto collegato |
 | `linkedAt` | Timestamp | Data del collegamento |
+
+### `projects/{projectId}/tasks/{taskId}/chat/{messageId}`  (T-12)
+
+Chat dell'admin con la squadra sul task. **Solo admin proprietario del progetto**: i clienti non leggono né scrivono (le regole del task NON si estendono alla sottocollezione).
+
+| Campo | Tipo | Note |
+|---|---|---|
+| `from` | String | `admin` (scritto dall'app) oppure `squadra` (scritto solo dallo script) |
+| `text` | String | 1-2000 caratteri |
+| `authorUid` | String | UID di chi scrive (per `squadra`: `squadra`) |
+| `authorName` | String | Nome mostrato (per l'admin: nome o email; per la squadra: membro indicato o `Squadra`), max 200 caratteri |
+| `createdAt` | Timestamp | Orario del server (`serverTimestamp`) |
+| `kind` | String | `domanda` (admin), `risposta` (squadra) o `stato-automatico` (squadra, riservato) |
+
+**Accessi** (regole in `firestore.rules`):
+- lettura: `isAdmin() && isProjectOwner(projectId)`;
+- creazione dal client: solo `from == 'admin'`, `kind == 'domanda'`, `authorUid == request.auth.uid`, `authorName` stringa (max 200), `text` stringa di 1-2000 caratteri, `createdAt == request.time`, nessun campo oltre quelli elencati;
+- nessun `update` né `delete` dal client;
+- le risposte `squadra` le scrive solo l'Admin SDK (`scripts/registra-ore.mjs`, azione `rispondi`), che non passa dalle regole.
+
+**Indici**: nessun indice composto (query con solo `orderBy('createdAt')`, indice automatico). L'app mostra la chat solo se il task non è `validated`/`released`; la regola Firestore non controlla lo stato del task (la limitazione è di interfaccia, l'accesso resta comunque riservato all'admin).
+Il documento è aggiuntivo: i task esistenti e le versioni vecchie dell'app non sono toccati. Cancellando un task dall'app i messaggi restano (il client non può cancellarli).

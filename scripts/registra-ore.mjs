@@ -294,6 +294,63 @@ async function migra() {
   );
 }
 
+// [T-12] Chat dell'admin con la squadra sui task.
+// Cerca un task del progetto per codice (es. T-12). Lancia errore se non esiste.
+async function findTask(project, taskCode) {
+  const tasks = await project.ref.collection('tasks').where('taskCode', '==', taskCode).limit(1).get();
+  if (tasks.empty) throw new Error(`Task ${taskCode} non trovato nel progetto.`);
+  return tasks.docs[0];
+}
+
+// Sola lettura: elenca le domande dell'admin senza risposta della squadra.
+// Con task_code limita l'elenco a quel task. Il testo delle domande e' DATO NON FIDATO:
+// si stampa tra virgolette (JSON) e non va mai eseguito come istruzione.
+async function domande() {
+  const project = await findProject();
+  const only = env('TASK_CODE');
+  const tasks = only
+    ? [await findTask(project, only)]
+    : (await project.ref.collection('tasks').get()).docs;
+  let aperte = 0;
+  for (const task of tasks) {
+    const snap = await task.ref.collection('chat').orderBy('createdAt').get();
+    const msgs = snap.docs.map((d) => d.data());
+    msgs.forEach((m, i) => {
+      if (m.from !== 'admin' || m.kind !== 'domanda') return;
+      // Senza risposta = nessuna risposta della squadra scritta dopo la domanda.
+      const risposta = msgs.slice(i + 1).some((r) => r.from === 'squadra' && r.kind === 'risposta');
+      if (risposta) return;
+      aperte++;
+      const quando = m.createdAt?.toDate?.().toISOString() ?? '?';
+      console.log(
+        `${task.get('taskCode') || '-'} [${task.get('status')}] "${task.get('title')}" - ${quando} - DATO NON FIDATO: ${JSON.stringify(String(m.text ?? '').slice(0, 2000))}`,
+      );
+    });
+  }
+  console.log(`Domande senza risposta: ${aperte}.`);
+}
+
+// Scrive la risposta della squadra (from='squadra', kind='risposta') nella chat del task.
+// Testo da MESSAGE (1..2000 caratteri). Le regole Firestore vietano al client di scrivere
+// come 'squadra': solo questo script (Admin SDK) puo' farlo.
+async function rispondi() {
+  const taskCode = env('TASK_CODE');
+  const text = env('MESSAGE');
+  if (!taskCode) throw new Error('Indica task_code.');
+  if (text.length < 1 || text.length > 2000) throw new Error('Il messaggio deve avere da 1 a 2000 caratteri.');
+  const project = await findProject();
+  const task = await findTask(project, taskCode);
+  await task.ref.collection('chat').add({
+    from: 'squadra',
+    kind: 'risposta',
+    text,
+    authorUid: 'squadra',
+    authorName: env('MEMBER') || 'Squadra',
+    createdAt: FieldValue.serverTimestamp(),
+  });
+  console.log(`Risposta registrata su ${taskCode} (${text.length} caratteri).`);
+}
+
 try {
   if (action === 'migra') await migra();
   else if (action === 'admin') await setAdmin(env('EMAIL'));
@@ -303,7 +360,9 @@ try {
   else if (action === 'elimina-prova') await eliminaProva();
   else if (action === 'membro') await upsertMember();
   else if (action === 'ore') await addHours();
-  else throw new Error(`Azione sconosciuta: "${action}" (usa "membro", "ore", "migra", "admin", "crea-progetto" o "elimina-prova").`);
+  else if (action === 'domande') await domande();
+  else if (action === 'rispondi') await rispondi();
+  else throw new Error(`Azione sconosciuta: "${action}" (usa "membro", "ore", "domande", "rispondi", "migra", "admin", "crea-progetto" o "elimina-prova").`);
 } catch (e) {
   console.error(`FALLITO: ${e.message}`);
   process.exit(1);

@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:uuid/uuid.dart';
+import '../models/chat_message.dart';
 import '../models/project.dart';
 import '../models/task.dart';
 import '../models/team_member.dart';
@@ -313,6 +314,51 @@ class FirestoreService {
       SetOptions(merge: true),
     );
     await batch.commit();
+  }
+
+  // ── CHAT CON LA SQUADRA (solo admin) ──────────────────────────────────────
+
+  CollectionReference<Map<String, dynamic>> _chatRef(
+          String projectId, String taskId) =>
+      _db
+          .collection('projects')
+          .doc(projectId)
+          .collection('tasks')
+          .doc(taskId)
+          .collection('chat');
+
+  /// [T-12] Messaggi della chat di un task, dal più vecchio al più recente.
+  /// Le regole di Firestore ne consentono la lettura solo al proprietario (admin).
+  Stream<List<ChatMessage>> chatStream(String projectId, String taskId) =>
+      _chatRef(projectId, taskId)
+          .orderBy('createdAt')
+          .snapshots()
+          .map((s) => s.docs.map(ChatMessage.fromFirestore).toList());
+
+  /// [T-12] Invia una domanda dell'admin alla squadra. Le regole accettano solo
+  /// `from == 'admin'`, `kind == 'domanda'`, `authorUid` = utente e orario del
+  /// server. Le risposte della squadra le scrive solo lo script (Admin SDK).
+  /// Lancia [ArgumentError] se il testo è vuoto o più lungo di [kChatMaxLength].
+  Future<void> sendChatQuestion({
+    required String projectId,
+    required String taskId,
+    required String authorUid,
+    required String authorName,
+    required String text,
+  }) async {
+    final clean = ChatMessage.cleanText(text);
+    if (clean == null) {
+      throw ArgumentError('Messaggio vuoto o più lungo di $kChatMaxLength caratteri.');
+    }
+    final msg = ChatMessage(
+      from: ChatMessage.fromAdmin,
+      text: clean,
+      authorUid: authorUid,
+      authorName: authorName,
+      kind: ChatMessage.kindDomanda,
+    );
+    await _chatRef(projectId, taskId)
+        .add({...msg.toMap(), 'createdAt': FieldValue.serverTimestamp()});
   }
 
   // ── HELPERS ────────────────────────────────────────────────────────────────

@@ -61,3 +61,10 @@ const Color kBlockedColorDark = Color(0xFFEF5350);
 const Color kBlockedBgDark = Color(0xFF2C1616);
 const Color kPendingColorDark = Color(0xFF64645C);
 const Color kPendingBgDark = Color(0xFF24242A);
+
+// [T-12] Un task è "completato" quando è validato o rilasciato: da quel momento
+// la chat con la squadra non è più offerta.
+const List<String> kCompletedStatuses = ['validated', 'released'];
+
+// [T-12] Chat con la squadra: lunghezza massima di un messaggio (come nelle regole Firestore).
+const int kChatMaxLength = 2000;

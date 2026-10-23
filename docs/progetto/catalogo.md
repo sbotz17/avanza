@@ -11,6 +11,7 @@ Aggiornare a ogni nuovo oggetto o modifica significativa.
 |------|----------|-------|----------|
 | `Task` | `lib/models/task.dart` | Modello dati del task (con campi `taskCode`, `taskNumber`, `githubBranch?`, `githubPrNumber?`) | Ovunque nel frontend |
 | `Project` | `lib/models/project.dart` | Modello dati del progetto (con `nextTaskNumber`) | Home, project page, firestore_service |
+| `ChatMessage`, `canShowTaskChat` | `lib/models/chat_message.dart` | [T-12] Messaggio della chat admin-squadra (`fromMap`/`toMap`, `cleanText`) e regola "chi vede la chat" (admin e task non `validated`/`released`) | `firestore_service.dart`, `task_chat.dart`, `task_detail_page.dart`, `test/chat_message_test.dart` |
 
 ---
 
@@ -24,7 +25,8 @@ Aggiornare a ogni nuovo oggetto o modifica significativa.
 | `PhaseRow` | `lib/widgets/phase_row.dart` | Riga singola fase di un task | `task_detail_page.dart`, `edit_task_page.dart` |
 | `ProgressBar` | `lib/widgets/progress_bar.dart` | Barra di avanzamento percentuale | `task_card.dart`, `task_detail_page.dart` |
 | `StatusPill` | `lib/widgets/status_pill.dart` | Pillola colorata per lo status del task | `task_card.dart`, `task_detail_page.dart` |
-| `EmptyState` | `lib/widgets/empty_state.dart` | Schermata vuota con messaggio e icona | `project_page.dart`, `home_page.dart` |
+| `EmptyState` | `lib/widgets/empty_state.dart` | Schermata vuota con messaggio e icona | `project_page.dart`, `home_page.dart`, `task_chat.dart` |
+| `TaskChat`, `taskStatusSummary` | `lib/widgets/task_chat.dart` | [T-12] Chat in tempo reale dell'admin con la squadra su un task non completato; riquadro "Stato attuale" calcolato dai dati del task | `task_detail_page.dart` (solo admin) |
 
 ---
 
@@ -47,10 +49,11 @@ Aggiornare a ogni nuovo oggetto o modifica significativa.
 
 | Nome | Percorso | Scopo | Usato in |
 |------|----------|-------|----------|
-| `FirestoreService` | `lib/services/firestore_service.dart` | Accesso CRUD a Firestore (progetti, task, fasi, note) | Pagine e provider |
+| `FirestoreService` | `lib/services/firestore_service.dart` | Accesso CRUD a Firestore (progetti, task, fasi, note; [T-12] `chatStream`, `sendChatQuestion`) | Pagine e provider |
 | `AuthServiceBase` | `lib/services/auth_service.dart` | Interfaccia astratta per l'autenticazione; consente l'iniezione di stub nei test senza Firebase | `auth_provider.dart`, `test/auth_provider_test.dart` |
 | `AuthService` | `lib/services/auth_service.dart` | Implementazione concreta di `AuthServiceBase` tramite Firebase Auth | `auth_provider.dart` |
 | `AuthProvider` | `lib/providers/auth_provider.dart` | Provider ChangeNotifier per lo stato di autenticazione | `app.dart` |
+| `RememberEmailService` | `lib/services/remember_email.dart` | [T-11] Salva/legge/cancella l'email ricordata nello spazio locale (`shared_preferences`); mai la password | `login_page.dart`, `test/remember_email_test.dart` |
 
 ---
 
@@ -59,7 +62,7 @@ Aggiornare a ogni nuovo oggetto o modifica significativa.
 | Nome | Percorso | Scopo | Usato in |
 |------|----------|-------|----------|
 | `AppTheme` | `lib/core/theme.dart` | Tema Material3 (light/dark, colori, tipografia) | `main.dart` |
-| `AppConstants` | `lib/core/constants.dart` | Costanti applicative (statusOrder, colori status, ecc.) | Widget, pagine |
+| `AppConstants` | `lib/core/constants.dart` | Costanti applicative (statusOrder, colori status, ecc.; [T-12] `kCompletedStatuses`, `kChatMaxLength`) | Widget, pagine |
 
 ---
 
@@ -76,3 +79,11 @@ Aggiornare a ogni nuovo oggetto o modifica significativa.
 | `buildUpdate` | `functions/src/lib/taskUpdater.ts` | Costruisce l'aggiornamento Firestore applicando la logica di avanzamento (no retrocessione, idempotenza note) | `githubWebhook.ts` |
 | `writeUpdate` | `functions/src/lib/firestoreWriter.ts` | Esegue la transazione atomica su Firestore (status + fasi + nota) | `githubWebhook.ts` |
 | Interfacce condivise | `functions/src/lib/types.ts` | Tipi TypeScript condivisi tra i moduli Cloud Function (`GithubEvent`, `DesiredUpdate`, ecc.) | Tutti i moduli `lib/` |
+
+---
+
+## Script di amministrazione (`scripts/`)
+
+| Nome | Percorso | Scopo | Usato in |
+|------|----------|-------|----------|
+| `registra-ore.mjs` | `scripts/registra-ore.mjs` | Azioni della squadra su Firestore (Admin SDK): `membro`, `ore`, `importa-task`, `stato`, `admin`, `crea-progetto`, `elimina-prova`, `migra`; [T-12] `domande` (sola lettura) e `rispondi` (chat admin-squadra) | Workflow "Registra ore squadra" |
