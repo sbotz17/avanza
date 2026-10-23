@@ -1,0 +1,42 @@
+name: Setup Firestore
+
+on:
+  workflow_dispatch:
+    inputs:
+      location:
+        description: 'Regione del database (definitiva, non modificabile dopo la creazione)'
+        default: 'eur3'
+
+jobs:
+  setup-firestore:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+
+      - name: Setup gcloud
+        uses: google-github-actions/setup-gcloud@v2
+
+      # Crea il database (default) solo se non esiste: non tocca database esistenti.
+      - name: Crea database (default) se assente
+        run: |
+          if gcloud firestore databases describe --database='(default)' --project=avanza-b62d7 >/dev/null 2>&1; then
+            echo "Il database (default) esiste gia': nessuna creazione."
+          else
+            gcloud firestore databases create \
+              --database='(default)' \
+              --location='${{ inputs.location }}' \
+              --type=firestore-native \
+              --project=avanza-b62d7
+          fi
+
+      - name: Pubblica regole e indici
+        run: npx firebase-tools deploy --only firestore --project avanza-b62d7 --non-interactive

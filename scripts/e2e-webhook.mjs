@@ -55,6 +55,17 @@ async function runQuery(parent, token, structuredQuery) {
   return body.filter((r) => r.document).map((r) => r.document);
 }
 
+async function createDoc(parent, token, fields) {
+  const res = await fetch(`${DOCS}${parent}`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ fields }),
+  });
+  const body = await res.json();
+  if (!res.ok) throw new Error(`Creazione documento fallita (${res.status}): ${JSON.stringify(body)}`);
+  return body;
+}
+
 const str = (f) => f?.stringValue ?? null;
 const noteTexts = (doc) =>
   (doc.fields.notes?.arrayValue?.values ?? []).map((v) => str(v.mapValue?.fields?.text));
@@ -67,23 +78,60 @@ async function main() {
     from: [{ collectionId: 'projects' }],
     where: { fieldFilter: { field: { fieldPath: 'ownerId' }, op: 'EQUAL', value: { stringValue: uid } } },
   });
-  const project = projects.find(
+  let project = projects.find(
     (p) => (str(p.fields.githubUrl) ?? '').toLowerCase().replace(/\/$/, '') === REPO_URL,
   );
   if (!project) {
-    throw new Error(
-      `L'utente di prova non ha un progetto con githubUrl ${REPO_URL}. Crealo dall'app (vedi istruzioni).`,
-    );
+    console.log('Progetto di prova assente: lo creo');
+    const now = new Date().toISOString();
+    const code = Array.from({ length: 6 }, () => 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'[Math.floor(Math.random() * 32)]).join('');
+    project = await createDoc('/projects', token, {
+      name: { stringValue: 'Avanza (progetto di prova E2E)' },
+      description: { stringValue: 'Creato dal test automatico del webhook' },
+      githubUrl: { stringValue: `https://github.com/${REPO}` },
+      clientCode: { stringValue: code },
+      ownerId: { stringValue: uid },
+      nextTaskNumber: { integerValue: '2' },
+      createdAt: { timestampValue: now },
+      updatedAt: { timestampValue: now },
+    });
   }
   const projectPath = `/${project.name.split('/documents/')[1]}`;
   console.log(`Progetto trovato: ${str(project.fields.name)}`);
 
-  const tasks = await runQuery(projectPath, token, {
+  let tasks = await runQuery(projectPath, token, {
     from: [{ collectionId: 'tasks' }],
     where: { fieldFilter: { field: { fieldPath: 'taskCode' }, op: 'EQUAL', value: { stringValue: TASK_CODE } } },
     limit: 1,
   });
-  if (tasks.length === 0) throw new Error(`Nel progetto non esiste il task ${TASK_CODE}.`);
+  if (tasks.length === 0) {
+    console.log(`Task ${TASK_CODE} assente: lo creo`);
+    const now = new Date().toISOString();
+    const phase = (name) => ({
+      mapValue: { fields: { name: { stringValue: name }, status: { stringValue: 'pending' }, label: { stringValue: 'In attesa' } } },
+    });
+    const num = Number(TASK_CODE.replace(/\D/g, '')) || 1;
+    tasks = [
+      await createDoc(`${projectPath}/tasks`, token, {
+        title: { stringValue: 'Task di prova E2E' },
+        description: { stringValue: 'Creato dal test automatico del webhook' },
+        clientRequest: { stringValue: '' },
+        status: { stringValue: 'backlog' },
+        phases: {
+          arrayValue: { values: ['Analisi', 'Database', 'Backend', 'Design', 'Frontend', 'Test', 'Validazione'].map(phase) },
+        },
+        notes: { arrayValue: { values: [] } },
+        estimatedHours: { doubleValue: 0 },
+        actualHours: { doubleValue: 0 },
+        hourlyRate: { doubleValue: 0 },
+        order: { integerValue: '0' },
+        taskCode: { stringValue: TASK_CODE },
+        taskNumber: { integerValue: String(num) },
+        createdAt: { timestampValue: now },
+        updatedAt: { timestampValue: now },
+      }),
+    ];
+  }
   const taskPath = `/${tasks[0].name.split('/documents/')[1]}`;
   console.log(`Task ${TASK_CODE} trovato`);
 
