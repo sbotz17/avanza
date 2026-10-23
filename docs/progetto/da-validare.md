@@ -42,3 +42,35 @@ Inoltre ogni task mostra ora un **codice breve** (es. "T-3") come badge colorato
 
 ### Rischi
 Nessuno identificato. La funzione è read-only su GitHub e write-only su Firestore con campi aggiuntivi nullable.
+
+---
+
+## [2] Allineamento alla squadra: ambienti test/produzione e regole di protezione
+
+**Data**: 2026-10-23
+**Stato**: preparato dalla squadra — in attesa di validazione Andrea (e di alcune configurazioni tue, vedi sotto)
+
+### Cosa fa (in parole semplici)
+Porta in Avanza le stesse regole di sicurezza che usiamo su Volty:
+- **Due ambienti**: un ramo `staging` per provare (con un progetto Firebase di test separato, `avanza-test`) e il ramo `main` per la produzione.
+  Le prove non toccano più i dati veri.
+- **Gli agenti non scrivono più in produzione**: lavorano su rami di sviluppo con pull request verso `staging`. In `main` si arriva solo con la promozione controllata e, per i nuovi sviluppi, con la tua approvazione.
+- **Squadra con regole scritte** (`CLAUDE.md`, agenti, comandi in `.claude/`): analisi, sviluppo, test, validazione, guardiano della produzione con GO o NO-GO, backup verificato prima di ogni modifica ai dati.
+- **Documenti di progetto** aggiornati: stato rapido, requisiti, architettura, ambienti, registro delle decisioni.
+
+### Come provarlo
+1. Leggi `docs/progetto/registro-decisioni.md`: la tabella "Decisioni in sospeso" elenca le 11 cose che solo tu puoi fare (progetto di test, bucket dei backup, protezione dei rami, ambienti GitHub, avvisi).
+2. Il ramo `staging` esiste già su GitHub (creato da `main`).
+3. Dopo che avrai creato il progetto `avanza-test` e i segreti, una modifica a `staging` pubblicherà sul sito di test e potrai provarla senza rischi.
+
+### Esiti dei test
+- Solo documentazione e regole di lavoro: nessun codice dell'app è cambiato in questo passo.
+- I workflow e gli script di controllo (CI, backup, ripristino, guardia automatica) sono preparati da un altro passo del lavoro e vanno ancora provati: finora non c'è stata alcuna prova sul progetto di test, che non esiste.
+
+### Rischi
+- Finché non configuri GitHub e Google, le protezioni sono scritte ma non tutte attive: per esempio nulla impedisce ancora tecnicamente una scrittura diretta su `main`.
+- Senza il progetto di test le anteprime non pubblicano nulla e le prove restano la CI.
+- Le nuove regole fermano la squadra dal fare da sola cose che prima faceva (merge in produzione): i tempi di rilascio dei nuovi sviluppi dipendono dalla tua approvazione.
+
+### Come si torna indietro
+- Sono file di documentazione e regole di lavoro: basta ripristinare i file precedenti con Git. Nessun dato e nessuna impostazione del sito vengono toccati da questa parte.

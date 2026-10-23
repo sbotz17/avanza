@@ -1,0 +1,248 @@
+# RILASCIO IN PRODUZIONE (progetto Firebase avanza-b62d7): parte quando main avanza (promozione da staging approvata da Andrea).
+# Passi di pubblicazione IDENTICI a quelli di sempre (Hosting live + funzione githubWebhook con gcloud). I controlli completi
+# (backup coerente, prova su copia, verifica, tag ultimo-rilascio-ok, ritorno automatico) si accendono SOLO con la variabile
+# PRODUZIONE_CONTROLLI_COMPLETI = true: senza, il comportamento e' quello di sempre. Leggi .github/README-CI.md.
+# L'ambiente GitHub "produzione" (limitato al ramo main) e' dove Andrea puo' mettere il revisore obbligatorio.
+name: rilascio-produzione
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: produzione
+  cancel-in-progress: false
+
+jobs:
+  controlli:
+    uses: ./.github/workflows/ci.yml
+
+  # ---------------------------------------------------------------------------
+  rilascio:
+    needs: controlli
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: produzione
+    permissions:
+      checks: write
+      contents: write
+      pull-requests: write
+    outputs:
+      toccato: ${{ steps.segna.outputs.toccato }}
+    env:
+      COMPLETI: ${{ vars.PRODUZIONE_CONTROLLI_COMPLETI }}
+      BUCKET: ${{ vars.BUCKET_BACKUP_FIRESTORE }}
+      URL_PRODUZIONE: ${{ vars.URL_PRODUZIONE || 'https://avanza-b62d7.web.app' }}
+      AVVISI_URL: ${{ secrets.AVVISI_URL }}
+      AVVISI_TOKEN: ${{ secrets.AVVISI_TOKEN }}
+      AVVISI_NUMERO: ${{ secrets.AVVISI_NUMERO }}
+      AVVISI_PERMETTI_HTTP: ${{ vars.AVVISI_PERMETTI_HTTP }}
+      AVVISI_PROGETTO: ${{ vars.NOME_PROGETTO || 'Avanza' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Blocco di emergenza
+        env:
+          BLOCCO_VAR: ${{ vars.BLOCCO_SQUADRA }}
+        run: |
+          if [ "$BLOCCO_VAR" = "ATTIVO" ]; then echo "BLOCCO_SQUADRA attivo: rilascio sospeso"; exit 1; fi
+          if [ -f BLOCCO-SQUADRA.md ] && head -n1 BLOCCO-SQUADRA.md | grep -qi '^ATTIVO'; then echo "BLOCCO-SQUADRA.md attivo: rilascio sospeso"; exit 1; fi
+
+      - name: Scarica la build web dei controlli
+        uses: actions/download-artifact@v4
+        with:
+          name: web-build
+          path: build/web
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install Functions dependencies
+        run: npm ci
+        working-directory: functions
+
+      - name: Build Functions
+        run: npm run build
+        working-directory: functions
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+
+      - name: Setup gcloud
+        uses: google-github-actions/setup-gcloud@v2
+
+      # ----- CONTROLLI COMPLETI (solo con PRODUZIONE_CONTROLLI_COMPLETI = true) -----
+      # NON PROVATO su GitHub: nasce senza poterlo eseguire. Si accende solo dopo che Andrea ha creato il bucket di backup
+      # (variabile BUCKET_BACKUP_FIRESTORE) e il service account ha i permessi di export/import Firestore.
+      - name: "Controlli completi 1 - backup coerente del database con impronta (export su bucket)"
+        if: vars.PRODUZIONE_CONTROLLI_COMPLETI == 'true'
+        env:
+          FIRESTORE_PROJECT: avanza-b62d7
+        run: |
+          test -n "$BUCKET" || { echo "BUCKET_BACKUP_FIRESTORE non impostata: rilascio fermato prima di toccare qualsiasi cosa"; exit 1; }
+          mkdir -p backup
+          .claude/scripts/backup-firestore.sh backup
+          echo "BACKUP_GS=$(jq -r .backup .claude/backup-ok.json)" >> "$GITHUB_ENV"
+          echo "IMPRONTA_BACKUP=$(jq -r .file .claude/backup-ok.json)" >> "$GITHUB_ENV"
+
+      - name: "Controlli completi 2 - prova generale: ripristino su copia IDENTICO"
+        if: vars.PRODUZIONE_CONTROLLI_COMPLETI == 'true'
+        env:
+          FIRESTORE_PROJECT: avanza-b62d7
+        run: .claude/scripts/ripristina-firestore.sh --verifica "$BACKUP_GS" --impronta "$IMPRONTA_BACKUP" --elimina-copia
+
+      - name: Da qui in poi si tocca la produzione
+        id: segna
+        run: echo "toccato=si" >> "$GITHUB_OUTPUT"
+
+      # ----- PUBBLICAZIONE (identica a oggi) -----
+      - name: Deploy to Firebase Hosting (live)
+        uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          repoToken: ${{ secrets.GITHUB_TOKEN }}
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          channelId: live
+          projectId: avanza-b62d7
+
+      # gcloud al posto di firebase-tools: quest'ultimo pretende il permesso
+      # cloudfunctions.functions.setIamPolicy (ruolo Cloud Functions Admin),
+      # mentre gcloud rende pubblica la funzione tramite Cloud Run (run.invoker).
+      - name: Deploy Cloud Functions
+        run: |
+          gcloud functions deploy githubWebhook \
+            --gen2 \
+            --region=us-central1 \
+            --runtime=nodejs22 \
+            --trigger-http \
+            --allow-unauthenticated \
+            --service-account=firebase-adminsdk-fbsvc@avanza-b62d7.iam.gserviceaccount.com \
+            --source=functions \
+            --entry-point=githubWebhook \
+            --project=avanza-b62d7 \
+            --quiet
+
+      # ----- VERIFICA E SEGNALAZIONE (solo con i controlli completi) -----
+      - name: "Controlli completi 3 - verifica dopo il rilascio (sola lettura): nessun dato sparito e sito raggiungibile"
+        if: vars.PRODUZIONE_CONTROLLI_COMPLETI == 'true'
+        env:
+          FIRESTORE_PROJECT: avanza-b62d7
+        run: |
+          node .claude/scripts/impronta-firestore.mjs > /tmp/prod-dopo
+          python3 .claude/scripts/confronta-impronte.py "$IMPRONTA_BACKUP" /tmp/prod-dopo
+          curl -fsS --retry 5 --retry-delay 10 -o /dev/null "$URL_PRODUZIONE"
+          echo "Sito raggiungibile"
+
+      - name: "Controlli completi 4 - segna questa versione come ultima buona"
+        if: vars.PRODUZIONE_CONTROLLI_COMPLETI == 'true'
+        run: |
+          git tag -f ultimo-rilascio-ok HEAD && git push -f origin refs/tags/ultimo-rilascio-ok
+          T="rilascio-$(date -u +%Y%m%d-%H%M%S)"; git tag "$T" HEAD && git push origin "refs/tags/$T"
+
+      - name: Avviso WhatsApp
+        if: success()
+        continue-on-error: true
+        run: python3 .claude/scripts/avvisa-whatsapp.py rilasciato "Rilascio in produzione completato."
+
+  # ---------------------------------------------------------------------------
+  # RITORNO AUTOMATICO alla versione precedente: solo con i controlli completi e solo se il rilascio e' fallito
+  # DOPO aver toccato la produzione. NON PROVATO su GitHub. I dati non si ripristinano da soli (decisione di Andrea).
+  # ---------------------------------------------------------------------------
+  torna-indietro:
+    needs: rilascio
+    if: failure() && vars.PRODUZIONE_CONTROLLI_COMPLETI == 'true' && needs.rilascio.outputs.toccato == 'si'
+    runs-on: ubuntu-latest
+    environment: produzione
+    env:
+      AVVISI_URL: ${{ secrets.AVVISI_URL }}
+      AVVISI_TOKEN: ${{ secrets.AVVISI_TOKEN }}
+      AVVISI_NUMERO: ${{ secrets.AVVISI_NUMERO }}
+      AVVISI_PERMETTI_HTTP: ${{ vars.AVVISI_PERMETTI_HTTP }}
+      AVVISI_PROGETTO: ${{ vars.NOME_PROGETTO || 'Avanza' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Esiste una versione buona precedente?
+        id: v
+        run: |
+          git fetch --tags --force
+          if git rev-parse -q --verify refs/tags/ultimo-rilascio-ok >/dev/null; then
+            echo "ok=si" >> "$GITHUB_OUTPUT"; git checkout ultimo-rilascio-ok
+          else
+            echo "ok=no" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Setup Flutter
+        if: steps.v.outputs.ok == 'si'
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
+
+      - name: Build web della versione precedente
+        if: steps.v.outputs.ok == 'si'
+        run: |
+          flutter pub get
+          flutter build web --release --base-href / --pwa-strategy=none
+
+      - name: Hosting alla versione precedente
+        if: steps.v.outputs.ok == 'si'
+        uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          repoToken: ${{ secrets.GITHUB_TOKEN }}
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          channelId: live
+          projectId: avanza-b62d7
+
+      - name: Setup Node.js
+        if: steps.v.outputs.ok == 'si'
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Funzione alla versione precedente
+        if: steps.v.outputs.ok == 'si'
+        run: |
+          cd functions && npm ci && npm run build && cd ..
+
+      - name: Authenticate to Google Cloud
+        if: steps.v.outputs.ok == 'si'
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+
+      - name: Setup gcloud
+        if: steps.v.outputs.ok == 'si'
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Deploy funzione precedente
+        if: steps.v.outputs.ok == 'si'
+        run: |
+          gcloud functions deploy githubWebhook \
+            --gen2 --region=us-central1 --runtime=nodejs22 --trigger-http --allow-unauthenticated \
+            --service-account=firebase-adminsdk-fbsvc@avanza-b62d7.iam.gserviceaccount.com \
+            --source=functions --entry-point=githubWebhook --project=avanza-b62d7 --quiet
+
+      - name: Avviso WhatsApp
+        if: always()
+        continue-on-error: true
+        env:
+          OK: ${{ steps.v.outputs.ok }}
+          ESITO: ${{ job.status }}
+        run: |
+          if [ "$OK" = "si" ] && [ "$ESITO" = "success" ]; then
+            python3 .claude/scripts/avvisa-whatsapp.py anomalia "Rilascio fallito dopo l'avvio. Sito e funzione riportati alla versione precedente. I dati NON sono stati toccati dal ritorno: il ripristino dei dati e' una tua decisione (backup verificato disponibile)."
+          else
+            python3 .claude/scripts/avvisa-whatsapp.py anomalia "Rilascio fallito e ritorno automatico alla versione precedente NON riuscito o non disponibile. Serve un intervento."
+          fi

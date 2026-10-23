@@ -28,11 +28,14 @@ async function findProject() {
     if (!doc.exists) throw new Error(`Progetto ${pid} non trovato.`);
     return doc;
   }
+  // Il progetto si sceglie dall'indirizzo GitHub passato (github_url) oppure, se
+  // assente, da quello del repository in cui gira il workflow.
+  const wanted = (env('GITHUB_URL') || repoUrl).toLowerCase().replace(/\/$/, '');
   const snap = await db.collection('projects').get();
   const matches = snap.docs.filter(
-    (d) => String(d.get('githubUrl') ?? '').toLowerCase().replace(/\/$/, '') === repoUrl,
+    (d) => String(d.get('githubUrl') ?? '').toLowerCase().replace(/\/$/, '') === wanted,
   );
-  if (matches.length === 0) throw new Error(`Nessun progetto con githubUrl ${repoUrl}.`);
+  if (matches.length === 0) throw new Error(`Nessun progetto con githubUrl ${wanted}.`);
   if (matches.length > 1) {
     const list = matches.map((d) => `${d.id} (${d.get('name')})`).join(', ');
     throw new Error(`Piu' progetti con lo stesso indirizzo GitHub: ${list}. Indica project_id.`);
@@ -106,6 +109,65 @@ async function addHours() {
   );
   await batch.commit();
   console.log(`Registrate ${hours}h di ${member.get('name')} su ${taskCode} (${phase}).`);
+}
+
+// Crea task nel progetto del repository, in blocco, per registrare lavoro gia' fatto.
+// Input: TASKS_JSON = [{title, description, status, phases:{Analisi:'done',...}, notes:[{type,text}]}].
+// Non duplica: salta i titoli gia' presenti. Le ore restano a zero (si dichiarano a parte).
+async function importaTask() {
+  const items = JSON.parse(env('TASKS_JSON'));
+  const project = await findProject();
+  const existing = await project.ref.collection('tasks').get();
+  const titles = new Set(existing.docs.map((d) => d.get('title')));
+  const PH = ['Analisi', 'Database', 'Backend', 'Design', 'Frontend', 'Test', 'Validazione'];
+  const LABEL = { done: 'Completato', active: 'In corso', pending: 'In attesa', skip: 'Non necessaria', blocked: 'Bloccato' };
+  const codici = [];
+  let created = 0;
+  for (const [i, it] of items.entries()) {
+    if (titles.has(it.title)) continue;
+    await db.runTransaction(async (tx) => {
+      const ps = await tx.get(project.ref);
+      const n = ps.get('nextTaskNumber') ?? 1;
+      const taskRef = project.ref.collection('tasks').doc();
+      const now = Timestamp.now();
+      tx.set(taskRef, {
+        title: it.title,
+        description: it.description ?? '',
+        clientRequest: it.clientRequest ?? '',
+        status: it.status ?? 'backlog',
+        phases: PH.map((name) => {
+          const st = it.phases?.[name] ?? 'pending';
+          return { name, status: st, label: LABEL[st] ?? st };
+        }),
+        notes: it.notes ?? [],
+        order: existing.size + i,
+        taskCode: `T-${n}`,
+        taskNumber: n,
+        createdAt: now,
+        updatedAt: now,
+      });
+      tx.set(project.ref.collection('taskCosts').doc(taskRef.id), { estimatedHours: 0, actualHours: 0, hourlyRate: 0 });
+      tx.update(project.ref, { nextTaskNumber: n + 1, updatedAt: now });
+      codici.push(`T-${n} ${it.title}`);
+    });
+    created++;
+  }
+  console.log(`Task creati: ${created} (gia' presenti: ${items.length - created}).`);
+  for (const c of codici) console.log(`  ${c}`);
+}
+
+// Sola lettura: elenca i progetti con proprietario, codice cliente e task.
+async function stato() {
+  const projects = await db.collection('projects').get();
+  console.log(`Progetti: ${projects.size}`);
+  for (const p of projects.docs) {
+    const tasks = await p.ref.collection('tasks').get();
+    const codes = tasks.docs.map((t) => `${t.get('taskCode') || '-'}:${t.get('status')}`).join(', ');
+    console.log(`- ${p.get('name')} (${p.id}) owner=${p.get('ownerId')} url=${p.get('githubUrl')} task=${tasks.size}${codes ? ` [${codes}]` : ''}`);
+  }
+  const users = await db.collection('users').get();
+  console.log(`Utenti con ruolo: ${users.size}`);
+  for (const u of users.docs) console.log(`- ${u.id} ${u.get('email')} ruolo=${u.get('role')}`);
 }
 
 // Assegna il ruolo admin a un utente (per email). Il ruolo si assegna solo da qui o
@@ -235,6 +297,8 @@ async function migra() {
 try {
   if (action === 'migra') await migra();
   else if (action === 'admin') await setAdmin(env('EMAIL'));
+  else if (action === 'stato') await stato();
+  else if (action === 'importa-task') await importaTask();
   else if (action === 'crea-progetto') await creaProgetto();
   else if (action === 'elimina-prova') await eliminaProva();
   else if (action === 'membro') await upsertMember();

@@ -1,0 +1,11 @@
+# ESEMPIO, NON ATTIVO. Per attivarlo: rinomina in .github/CODEOWNERS e, nella protezione dei rami `staging` e `main`,
+# attiva "Require review from Code Owners". Cosi' le regole della squadra, la CI, le regole di sicurezza e la configurazione
+# possono cambiare solo con l'approvazione di Andrea (e non da una modifica della squadra).
+/.github/            @sbotz17
+/.claude/            @sbotz17
+/CLAUDE.md           @sbotz17
+/BLOCCO-SQUADRA.md   @sbotz17
+/firestore.rules     @sbotz17
+/firestore.indexes.json @sbotz17
+/firebase.json       @sbotz17
+/.firebaserc         @sbotz17

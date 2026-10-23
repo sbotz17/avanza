@@ -18,6 +18,9 @@ on:
       github_url:
         description: 'Indirizzo GitHub del repository (es. https://github.com/sbotz17/avanza), solo per action=crea-progetto'
         default: ''
+      tasks_json:
+        description: 'Elenco task in JSON, solo per action=importa-task'
+        default: ''
       project_id:
         description: 'ID del progetto (facoltativo: altrimenti si cerca per indirizzo GitHub)'
         default: ''
@@ -73,6 +76,7 @@ jobs:
         env:
           ACTION: ${{ inputs.action }}
           EMAIL: ${{ inputs.email }}
+          TASKS_JSON: ${{ inputs.tasks_json }}
           PROJECT_ID: ${{ inputs.project_id }}
           PROJECT_NAME: ${{ inputs.project_name }}
           PROJECT_DESCRIPTION: ${{ inputs.project_description }}

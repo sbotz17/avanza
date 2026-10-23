@@ -41,3 +41,8 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Squadra: segnale del backup recente e cartella dei backup locali (mai nel repository)
+/.claude/backup-ok.json
+/.claude/settings.local.json
+/backup/

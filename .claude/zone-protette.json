@@ -1,0 +1,52 @@
+{
+  "_istruzioni": "Avanza: lo modifica solo Andrea. Serve a due controlli AUTOMATICI: (1) una correzione nata da una segnalazione ESTERNA (rami 'rami_soggetti') che tocca queste zone o supera i limiti non entra; (2) una modifica e' trattata come CORREZIONE (rilascio autonomo) solo se ha l'etichetta tipo:correzione, un ramo con prefisso in 'prefissi_correzione', un riferimento al ritorno (R-numero), non tocca le zone protette e resta nei limiti; altrimenti e' un NUOVO SVILUPPO e aspetta l'approvazione di Andrea. I pattern si confrontano con il percorso intero e con il solo nome del file.",
+  "rami_soggetti": [
+    "claude/segnalazione-"
+  ],
+  "max_file_modificati": 8,
+  "max_righe_modificate": 300,
+  "prefissi_correzione": [
+    "fix/",
+    "hotfix/",
+    "claude/segnalazione-"
+  ],
+  "max_file_correzione": 15,
+  "max_righe_correzione": 400,
+  "max_rilasci_segnalazioni_giorno": 3,
+  "protette": [
+    "CLAUDE.md",
+    ".claude/*",
+    ".claude/**",
+    ".github/*",
+    ".github/**",
+    "BLOCCO-SQUADRA.md",
+    "firestore.rules",
+    "firestore.indexes.json",
+    "firebase.json",
+    ".firebaserc",
+    "functions/package.json",
+    "functions/package-lock.json",
+    "pubspec.yaml",
+    "pubspec.lock",
+    "package.json",
+    "package-lock.json",
+    ".env*",
+    "*.env",
+    "*.pem",
+    "*.key",
+    "*secret*",
+    "*.rules",
+    "lib/providers/auth_provider.dart",
+    "lib/services/auth_service.dart",
+    "lib/firebase_options*.dart",
+    "lib/app.dart",
+    "functions/src/lib/hmac.ts",
+    "functions/src/githubWebhook.ts",
+    "scripts/registra-ore.mjs",
+    "scripts/e2e-webhook.mjs",
+    "web/index.html",
+    "web/manifest.json",
+    "android/app/build.gradle*",
+    "ios/Runner/Info.plist"
+  ]
+}
