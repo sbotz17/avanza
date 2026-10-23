@@ -108,6 +108,48 @@ async function addHours() {
   console.log(`Registrate ${hours}h di ${member.get('name')} su ${taskCode} (${phase}).`);
 }
 
+// Crea task nel progetto del repository, in blocco, per registrare lavoro gia' fatto.
+// Input: TASKS_JSON = [{title, description, status, phases:{Analisi:'done',...}, notes:[{type,text}]}].
+// Non duplica: salta i titoli gia' presenti. Le ore restano a zero (si dichiarano a parte).
+async function importaTask() {
+  const items = JSON.parse(env('TASKS_JSON'));
+  const project = await findProject();
+  const existing = await project.ref.collection('tasks').get();
+  const titles = new Set(existing.docs.map((d) => d.get('title')));
+  const PH = ['Analisi', 'Database', 'Backend', 'Design', 'Frontend', 'Test', 'Validazione'];
+  const LABEL = { done: 'Completato', active: 'In corso', pending: 'In attesa', skip: 'Non necessaria', blocked: 'Bloccato' };
+  let created = 0;
+  for (const [i, it] of items.entries()) {
+    if (titles.has(it.title)) continue;
+    await db.runTransaction(async (tx) => {
+      const ps = await tx.get(project.ref);
+      const n = ps.get('nextTaskNumber') ?? 1;
+      const taskRef = project.ref.collection('tasks').doc();
+      const now = Timestamp.now();
+      tx.set(taskRef, {
+        title: it.title,
+        description: it.description ?? '',
+        clientRequest: it.clientRequest ?? '',
+        status: it.status ?? 'backlog',
+        phases: PH.map((name) => {
+          const st = it.phases?.[name] ?? 'pending';
+          return { name, status: st, label: LABEL[st] ?? st };
+        }),
+        notes: it.notes ?? [],
+        order: existing.size + i,
+        taskCode: `T-${n}`,
+        taskNumber: n,
+        createdAt: now,
+        updatedAt: now,
+      });
+      tx.set(project.ref.collection('taskCosts').doc(taskRef.id), { estimatedHours: 0, actualHours: 0, hourlyRate: 0 });
+      tx.update(project.ref, { nextTaskNumber: n + 1, updatedAt: now });
+    });
+    created++;
+  }
+  console.log(`Task creati: ${created} (gia' presenti: ${items.length - created}).`);
+}
+
 // Sola lettura: elenca i progetti con proprietario, codice cliente e task.
 async function stato() {
   const projects = await db.collection('projects').get();
@@ -250,6 +292,7 @@ try {
   if (action === 'migra') await migra();
   else if (action === 'admin') await setAdmin(env('EMAIL'));
   else if (action === 'stato') await stato();
+  else if (action === 'importa-task') await importaTask();
   else if (action === 'crea-progetto') await creaProgetto();
   else if (action === 'elimina-prova') await eliminaProva();
   else if (action === 'membro') await upsertMember();
