@@ -1,0 +1,29 @@
+name: E2E Webhook
+
+on:
+  workflow_dispatch:
+    inputs:
+      task_code:
+        description: 'Codice del task di prova'
+        default: 'T-1'
+
+jobs:
+  e2e-webhook:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Test webhook end-to-end
+        run: node scripts/e2e-webhook.mjs
+        env:
+          FIREBASE_API_KEY: AIzaSyBXrHl4if6b8h19fx6Pdcts6sT2bQ2budU
+          TEST_USER_EMAIL: ${{ secrets.TEST_USER_EMAIL }}
+          TEST_USER_PASSWORD: ${{ secrets.TEST_USER_PASSWORD }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TASK_CODE: ${{ inputs.task_code }}
