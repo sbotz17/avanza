@@ -6,18 +6,17 @@
 |---|---|
 | Firebase project | `avanza-b62d7` |
 | Hosting URL | https://avanza-b62d7.web.app |
-| Cloud Functions | `githubWebhook` — **non ancora deployata** (in attesa validazione Andrea) |
+| Cloud Functions | `githubWebhook` — **in produzione** (`us-central1`, Node.js 22) |
 | Firestore | `us-central1`, dati reali degli utenti |
 | Auth | Firebase Auth email/password |
 
-## Stato attuale (2026-10-22)
+## Stato attuale (2026-10-23)
 
 **Flutter web (Hosting)**: in produzione — versione con badge taskCode (T-N) visibile.
 Nota: il badge taskCode è una nuova funzionalità non ancora formalmente validata da Andrea (vedi `da-validare.md`), ma è già in produzione perché la CI deployava da `claude/epic-galileo-e9a406` a `channelId: live`. Le correzioni R-2 (spinner infinito) e R-3 (logout al refresh) sono anch'esse già in produzione.
 
-**Cloud Functions**: NON in produzione. Il deploy richiede:
-1. Ruoli IAM aggiuntivi sul service account (vedi sotto)
-2. Segreto `GITHUB_WEBHOOK_SECRET` in Firebase Secret Manager
+**Cloud Functions**: in produzione — `githubWebhook` deployata con Node.js 22 (run CI #40, 2026-10-23).
+Il segreto `GITHUB_WEBHOOK_SECRET` è letto a runtime da Secret Manager (nessuna dipendenza da `secrets: []` nel deploy).
 
 ## Requisiti IAM per deploy Cloud Functions
 
@@ -40,6 +39,7 @@ Avanza usa Firebase/Firestore — i backup automatici di Firestore non sono atti
 |---|---|---|---|
 | 2026-10-22 | Deploy Flutter web (CI automatica) | OK | Branch `claude/epic-galileo-e9a406` → live. Include badge taskCode, R-2, R-3 |
 | 2026-10-22 | Deploy Cloud Functions | FALLITO (IAM mancanti) | La CI ha tentato ma mancano i ruoli IAM sul service account |
+| 2026-10-23 | Deploy Cloud Functions `githubWebhook` | OK | Node.js 22, Secret Manager SDK a runtime, CI run #40. API abilitate: cloudfunctions, cloudbuild, artifactregistry, run, eventarc, pubsub, storage, secretmanager, cloudbilling |
 
 ## Piano di rollback
 
