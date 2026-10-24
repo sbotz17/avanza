@@ -6,26 +6,37 @@ Regole per chi esegue: un passo alla volta; **verifica dopo ogni passo** (comand
 Prima di iniziare: `gh auth status` (account sbotz17, permessi `repo`, `workflow`, `admin:repo_hook`) e `gcloud auth list`.
 
 ## 1. Protezione dei rami (ruleset) — Avanza, Volty (e Commerciali se ha `main`)
-Regole: nessuna cancellazione, nessun push forzato, solo pull request (0 approvazioni richieste: l'approvazione di Andrea vale sugli ambienti), controlli obbligatori. L'amministratore del repository può scavalcare (emergenze).
+Regole: nessuna cancellazione, nessun push forzato, solo pull request (0 approvazioni richieste: nessun tocco umano), controlli obbligatori **dove la pull request può produrli**. L'amministratore del repository può scavalcare (emergenze).
 Controlli obbligatori (nomi esatti dei job):
-- Avanza: `controlli`, `zone-protette`, `regole`, `nessun-segreto`, `blocco`.
+- Avanza, solo su `staging`: `controlli`, `zone-protette`, `regole`, `nessun-segreto`, `blocco`.
 - Volty: `test`, `nessun-segreto`, `migrazioni`, `zone-protette`, `blocco`.
+**Avanza — `main` senza controlli obbligatori (T-18, promozione automatica):** la pull request `staging -> main` la apre e la unisce il bot (`GITHUB_TOKEN`), e le pull request aperte dal bot NON fanno partire i workflow `pull_request`: i controlli obbligatori non comparirebbero mai e la pull request resterebbe `BLOCKED` (la promozione lo scrive nel riepilogo e non unisce). Le stesse verifiche sono già obbligatorie su `staging` (prima di entrarvi) e `promuovi-staging.sh` controlla i controlli verdi della testa di `staging`; il rilascio rifà CI, test, build e confronto con `staging`. Alternativa se si vogliono comunque i controlli su `main`: aprire la pull request con un token che faccia partire i workflow (token personale o app GitHub, che la squadra non ha): decisione di Andrea, da rivalutare.
 ```bash
-REPO=sbotz17/avanza   # poi sbotz17/volty-flutter, con i controlli di Volty
-cat > /tmp/ruleset.json <<'JSON'
-{ "name": "Protezione main e staging", "target": "branch", "enforcement": "active",
+REPO=sbotz17/avanza   # per Volty vedi sotto
+cat > /tmp/ruleset-staging.json <<'JSON'
+{ "name": "Protezione staging", "target": "branch", "enforcement": "active",
   "bypass_actors": [ { "actor_id": 5, "actor_type": "RepositoryRole", "bypass_mode": "always" } ],
-  "conditions": { "ref_name": { "include": ["refs/heads/main", "refs/heads/staging"], "exclude": [] } },
+  "conditions": { "ref_name": { "include": ["refs/heads/staging"], "exclude": [] } },
   "rules": [ { "type": "deletion" }, { "type": "non_fast_forward" },
     { "type": "pull_request", "parameters": { "required_approving_review_count": 0, "dismiss_stale_reviews_on_push": false, "require_code_owner_review": false, "require_last_push_approval": false, "required_review_thread_resolution": false } },
     { "type": "required_status_checks", "parameters": { "strict_required_status_checks_policy": false,
       "required_status_checks": [ {"context":"controlli"}, {"context":"zone-protette"}, {"context":"regole"}, {"context":"nessun-segreto"}, {"context":"blocco"} ] } } ] }
 JSON
-gh api -X POST repos/$REPO/rulesets --input /tmp/ruleset.json
+cat > /tmp/ruleset-main.json <<'JSON'
+{ "name": "Protezione main", "target": "branch", "enforcement": "active",
+  "bypass_actors": [ { "actor_id": 5, "actor_type": "RepositoryRole", "bypass_mode": "always" } ],
+  "conditions": { "ref_name": { "include": ["refs/heads/main"], "exclude": [] } },
+  "rules": [ { "type": "deletion" }, { "type": "non_fast_forward" },
+    { "type": "pull_request", "parameters": { "required_approving_review_count": 0, "dismiss_stale_reviews_on_push": false, "require_code_owner_review": false, "require_last_push_approval": false, "required_review_thread_resolution": false } } ] }
+JSON
+gh api -X POST repos/$REPO/rulesets --input /tmp/ruleset-staging.json
+gh api -X POST repos/$REPO/rulesets --input /tmp/ruleset-main.json
 gh api repos/$REPO/rulesets --jq '.[].name'     # verifica
 ```
+Volty (un solo ruleset per `main` e `staging`, come prima, con i controlli di Volty): usare il file dell'esempio precedente cambiando `REPO` e l'elenco `required_status_checks`; la promozione di Volty è un altro flusso.
 **Prova obbligatoria dopo l'attivazione:** aprire una pull request di prova verso `staging` e controllare che tutti i controlli richiesti compaiano e passino. Se uno non compare mai (nome diverso), la PR resta bloccata: correggere il nome nel ruleset (`gh api -X PUT repos/$REPO/rulesets/<id>`), non togliere la protezione.
-Nota: l'unione di `staging` → `main` deve essere "Create a merge commit" (con lo squash tutto viene trattato come sviluppo).
+**Prova della promozione automatica (T-18):** Actions > promozione > *Run workflow* con `solo_verifica` = true: deve dire se la testa di `staging` sarebbe unita, senza unire. Poi osservare la prima promozione vera.
+Nota: l'unione di `staging` → `main` deve essere "Create a merge commit" (con lo squash tutto viene trattato come sviluppo e il rilascio non ritrova il contenuto): la promozione usa `--merge`. L'impostazione *Allow auto-merge* NON serve (la promozione unisce direttamente); servono invece i *merge commit* consentiti e *Allow GitHub Actions to create and approve pull requests* (sezione 3). Il bot unisce con il proprio token: nessuna delle regole sopra lo ostacola (0 approvazioni, nessun controllo obbligatorio su `main`).
 
 ## 2. Ambiente `produzione` (senza revisore) e variabile degli sviluppi (Avanza; analogo per Volty se presente nei suoi workflow)
 Decisione di Andrea (24/10/2026): niente più tocco umano per i nuovi sviluppi. L'ambiente `produzione` è limitato al ramo `main` e **non ha revisore** (con un revisore fermerebbe ogni rilascio); la variabile `SVILUPPI_RICHIEDONO_APPROVAZIONE` vale `no`.

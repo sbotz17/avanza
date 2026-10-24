@@ -12,12 +12,12 @@
 | Progetto Firebase | `avanza-test` — **DA CREARE da Andrea** | `avanza-b62d7` |
 | Sito | da definire (Hosting del progetto di test) | https://avanza-b62d7.web.app |
 | Database | Firestore `(default)` del progetto di test (da creare) | Firestore `(default)` in `eur3` |
-| Chi pubblica | la CI, a ogni modifica di `staging` (finché il progetto di test non esiste non pubblica nulla) | la CI, solo con la promozione controllata da `staging` a `main` |
+| Chi pubblica | la CI, a ogni modifica di `staging` (finché il progetto di test non esiste non pubblica nulla) | la CI, solo con la promozione controllata da `staging` a `main`: automatica quando tutti i controlli sono verdi (T-18: `promozione.yml` unisce la pull request e avvia `rilascio-produzione.yml`) |
 | Dati | solo dati di prova, mai dati reali | dati reali |
 
 **Regole di lavoro**
 1. Si lavora su rami `fix/`, `hotfix/`, `feature/` (e sul ramo `claude/...` assegnato dalla sessione) e si apre una pull request verso `staging`.
-2. Gli agenti non aprono pull request e non scrivono su `main`. In `main` si arriva solo con la promozione controllata della CI.
+2. Gli agenti non aprono pull request verso `main` e non scrivono su `main`. In `main` si arriva solo con la promozione controllata della CI, che unisce da sola (merge commit) la pull request `staging -> main` quando la testa di `staging` ha CI, test, deploy di test completo e controlli verdi, e poi avvia il rilascio. Fermarla: variabile `SQUADRA_CI_ATTIVA` = `no` o `BLOCCO_SQUADRA` = `ATTIVO`. Dettagli: `.github/README-CI.md`.
 3. Le correzioni di malfunzionamenti vanno in produzione da sole con tutti i controlli; anche i nuovi sviluppi vanno in produzione da soli dopo l'accettazione indipendente e con gli stessi controlli (decisione di Andrea del 24/10/2026). Il tocco umano resta solo se la variabile `SVILUPPI_RICHIEDONO_APPROVAZIONE` e' diversa da `no` (ambiente `produzione-sviluppi`).
 4. Prima di ogni modifica ai dati di produzione: backup verificato (vedi `CLAUDE.md`, "Regola d'oro dei dati").
 5. Le anteprime e i test non devono mai usare il progetto di produzione.
