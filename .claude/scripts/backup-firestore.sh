@@ -1,9 +1,12 @@
 #!/usr/bin/env bash
-# Backup verificato di Firestore (export su Google Cloud Storage). NON cancella mai backup precedenti.
+# Backup verificato di Firestore (export su Google Cloud Storage). Ogni esecuzione e' un NUOVO backup numerato per data/ora (serie incrementale):
+# non sovrascrive e non cancella mai il backup precedente. Per regola di Andrea (24/10/2026) si CONSERVANO GLI ULTIMI 20 backup coerenti
+# (BACKUP_CONSERVA, default 20): dopo un backup riuscito, solo questa procedura ruota i piu' vecchi (mai a mano, mai il backup appena fatto).
+# La squadra lo esegue PRIMA di ogni variazione al database, di qualsiasi genere (dati, struttura, indici, migrazioni, script di modifica).
 # Uso:   backup-firestore.sh <cartella-locale-per-registro-e-impronte>
 # Variabili: BUCKET (obbligatoria, nome del bucket SENZA gs://; meglio con blocco di conservazione)
 #            FIRESTORE_PROJECT (default avanza-b62d7)  FIRESTORE_DATABASE (default "(default)")
-#            BACKUP_PREFISSO (default avanza)  BACKUP_TENTATIVI (default 3)  BACKUP_ATTESA secondi (default 60)
+#            BACKUP_CONSERVA (default 20, quanti backup coerenti tenere)  BACKUP_PREFISSO (default avanza)  BACKUP_TENTATIVI (default 3)  BACKUP_ATTESA secondi (default 60)
 # Credenziali: quelle di Google gia' attive (nella CI: google-github-actions/auth). Mai scritte nei file.
 # Il service account deve poter esportare Firestore (ruolo Cloud Datastore Import Export Admin) e scrivere nel bucket.
 #
@@ -56,6 +59,27 @@ chmod 400 "$IMP" 2>/dev/null || true
 echo "$(date -Is) $DEST $SIZE $SHA" >> "$DIR/INDICE-BACKUP.log"           # registro solo in aggiunta
 mkdir -p .claude
 printf '{"epoch": %s, "file": "%s", "sha256": "%s", "size": %s, "backup": "%s"}\n' "$(date +%s)" "$IMP" "$SHA" "$SIZE" "$DEST" > .claude/backup-ok.json
+# ---- ROTAZIONE: si tengono gli ultimi BACKUP_CONSERVA backup coerenti (default 20); i piu' vecchi li rimuove QUESTA procedura e solo lei ----
+# Si guarda il bucket (non il registro locale, che nella CI non resta tra un'esecuzione e l'altra): un backup e' COERENTE se ha accanto il file .impronta.
+KEEP="${BACKUP_CONSERVA:-20}"
+if [[ "$KEEP" =~ ^[0-9]+$ ]] && [ "$KEEP" -ge 1 ]; then
+  ELENCO_IMP="$(gcloud storage ls "gs://$BUCKET/$PREF/" 2>/dev/null | grep -E 'backup-[0-9-]+(-b)*\.impronta$' | sort || true)"
+  TOT="$(printf '%s\n' "$ELENCO_IMP" | grep -c . || true)"
+  if [ "${TOT:-0}" -gt "$KEEP" ]; then
+    printf '%s\n' "$ELENCO_IMP" | head -n "$((TOT - KEEP))" | while read -r IMPV; do
+      [ -n "$IMPV" ] || continue
+      V="${IMPV%.impronta}"
+      [ "$V" = "$DEST" ] && continue                         # mai il backup appena fatto
+      if gcloud storage rm -r "$V" >/dev/null 2>&1; then
+        gcloud storage rm "$IMPV" >/dev/null 2>&1 || true
+        echo "$(date -Is) ruotato $V" >> "$DIR/INDICE-BACKUP.log"
+        echo "Rotazione: rimosso il backup piu' vecchio $V (si conservano gli ultimi $KEEP)."
+      else
+        echo "ATTENZIONE: impossibile rimuovere $V (probabile blocco di conservazione del bucket): resta dov'e', la rotazione ci riprova al prossimo backup."
+      fi
+    done
+  fi
+fi
 echo "BACKUP OK: $DEST ($SIZE byte, sha256 elenco $SHA)"
 echo "Impronta dei dati: $IMP"
 echo "Ricorda: verifica anche il ripristino su una copia (ripristina-firestore.sh --verifica) prima di operare in produzione."

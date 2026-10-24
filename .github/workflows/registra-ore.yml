@@ -74,6 +74,25 @@ jobs:
         with:
           credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
 
+      # Regola di Andrea (24/10/2026): prima di OGNI variazione al database un backup nuovo e verificato (serie incrementale, ultimi 20).
+      # Le azioni di sola lettura (stato, domande) non lo richiedono. Se il bucket non e' configurato lo si dichiara qui sotto.
+      - uses: google-github-actions/setup-gcloud@v2
+        if: vars.BUCKET_BACKUP_FIRESTORE != '' && inputs.action != 'stato' && inputs.action != 'domande'
+
+      - name: Backup verificato prima della variazione
+        if: vars.BUCKET_BACKUP_FIRESTORE != '' && inputs.action != 'stato' && inputs.action != 'domande'
+        env:
+          BUCKET: ${{ vars.BUCKET_BACKUP_FIRESTORE }}
+          FIRESTORE_PROJECT: avanza-b62d7
+        run: |
+          mkdir -p backup
+          .claude/scripts/backup-firestore.sh backup
+
+      - name: Backup NON eseguito (bucket non configurato)
+        if: vars.BUCKET_BACKUP_FIRESTORE == '' && inputs.action != 'stato' && inputs.action != 'domande'
+        run: |
+          echo "::warning::Variazione al database SENZA backup: manca la variabile BUCKET_BACKUP_FIRESTORE (bucket dei backup non ancora creato). Va detto ad Andrea."
+
       - name: Registra
         run: node scripts/registra-ore.mjs
         env:
