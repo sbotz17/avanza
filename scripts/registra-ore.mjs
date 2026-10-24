@@ -72,6 +72,56 @@ async function upsertMember() {
   }
 }
 
+// Copia (solo aggiunte) i membri della squadra intestati ad un altro account nell'account proprietario del progetto,
+// cosi' l'admin li vede nella pagina Squadra (le regole mostrano solo i membri con ownerId = proprio uid).
+// Non modifica e non cancella nulla: i membri originali restano dove sono. Per sicurezza:
+// - SOLA PROVA per default: scrive solo con note=esegui;
+// - si ferma se i membri da copiare appartengono a piu' di un account (nessuna scelta implicita);
+// - salta i membri senza nome e quelli gia' copiati (stesso nome oppure copiedFrom uguale all'originale).
+async function copiaSquadra() {
+  const project = await findProject();
+  const ownerId = project.get('ownerId');
+  if (!ownerId || typeof ownerId !== 'string') throw new Error('Il progetto non ha un proprietario (ownerId).');
+  const esegui = env('NOTE').toLowerCase() === 'esegui';
+  const all = await db.collection('teamMembers').get();
+  const mine = all.docs.filter((d) => d.get('ownerId') === ownerId);
+  const mineNames = new Set(mine.map((d) => String(d.get('name') ?? '').toLowerCase()));
+  const mineCopiedFrom = new Set(mine.map((d) => d.get('copiedFrom')).filter(Boolean));
+  const others = all.docs.filter((d) => d.get('ownerId') !== ownerId);
+  const sourceOwners = [...new Set(others.map((d) => d.get('ownerId')))];
+  if (sourceOwners.length > 1) {
+    throw new Error(`I membri da copiare appartengono a ${sourceOwners.length} account diversi (${sourceOwners.join(', ')}): non scelgo da solo, serve una decisione.`);
+  }
+  let created = 0;
+  let skipped = 0;
+  const newIds = [];
+  for (const d of others) {
+    const name = String(d.get('name') ?? '').trim();
+    if (!name) { skipped++; console.log(`Senza nome, salto: ${d.id}`); continue; }
+    if (mineNames.has(name.toLowerCase()) || mineCopiedFrom.has(d.id)) { skipped++; console.log(`Gia' presente per il proprietario, salto: ${name}`); continue; }
+    const data = {
+      ownerId,
+      name,
+      kind: d.get('kind') ?? 'agent',
+      role: d.get('role') ?? '',
+      costRate: d.get('costRate') ?? 0,
+      billRate: d.get('billRate') ?? 0,
+      active: d.get('active') ?? true,
+      createdAt: Timestamp.now(),
+      copiedFrom: d.id,
+    };
+    mineNames.add(name.toLowerCase());
+    if (!esegui) { console.log(`[prova] copierei: ${name} (ruolo=${data.role}, costo=${data.costRate}, vendita=${data.billRate})`); created++; continue; }
+    const ref = await db.collection('teamMembers').add(data);
+    newIds.push(ref.id);
+    console.log(`Copiato: ${name} -> ${ref.id} (da ${d.id})`);
+    created++;
+  }
+  console.log(`${esegui ? '' : '[prova, nulla e\' stato scritto] '}Membri copiati: ${created}, gia' presenti o saltati: ${skipped}. Nessun dato esistente modificato o cancellato.`);
+  if (esegui) console.log(`ID creati (per un eventuale annullamento, da decidere con Andrea): ${newIds.join(', ')}`);
+  if (!esegui) console.log('Per scrivere davvero rilancia con note=esegui.');
+}
+
 async function addHours() {
   const project = await findProject();
   const ownerId = project.get('ownerId');
@@ -168,6 +218,12 @@ async function stato() {
   const users = await db.collection('users').get();
   console.log(`Utenti con ruolo: ${users.size}`);
   for (const u of users.docs) console.log(`- ${u.id} ${u.get('email')} ruolo=${u.get('role')}`);
+  // Sola lettura: membri della squadra (nome, tipo, ruolo, tariffe, proprietario). Serve a capire cosa vede l'admin nella pagina Squadra.
+  const members = await db.collection('teamMembers').get();
+  console.log(`Membri squadra: ${members.size}`);
+  for (const m of members.docs) {
+    console.log(`- ${m.get('name')} tipo=${m.get('kind')} ruolo=${m.get('role') || '-'} costo=${m.get('costRate')} vendita=${m.get('billRate')} attivo=${m.get('active')} owner=${m.get('ownerId')}`);
+  }
 }
 
 // Assegna il ruolo admin a un utente (per email). Il ruolo si assegna solo da qui o
@@ -359,11 +415,12 @@ try {
   else if (action === 'crea-progetto') await creaProgetto();
   else if (action === 'elimina-prova') await eliminaProva();
   else if (action === 'membro') await upsertMember();
+  else if (action === 'copia-squadra') await copiaSquadra();
   else if (action === 'ore') await addHours();
   else if (action === 'domande') await domande();
   else if (action === 'rispondi') await rispondi();
   else if (action === 'backup') console.log('Azione backup: nessuna modifica ai dati. Il backup verificato e\' stato eseguito dal passo precedente del workflow (se il bucket e\' configurato).');
-  else throw new Error(`Azione sconosciuta: "${action}" (usa "membro", "ore", "domande", "rispondi", "migra", "admin", "crea-progetto" o "elimina-prova").`);
+  else throw new Error(`Azione sconosciuta: "${action}" (usa "membro", "copia-squadra", "ore", "domande", "rispondi", "migra", "admin", "crea-progetto" o "elimina-prova").`);
 } catch (e) {
   console.error(`FALLITO: ${e.message}`);
   process.exit(1);

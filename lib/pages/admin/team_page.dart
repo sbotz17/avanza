@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../../core/constants.dart';
 import '../../models/team_member.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/firestore_service.dart';
+import '../../widgets/empty_state.dart';
+import '../../widgets/team_member_tile.dart';
 
 class TeamPage extends StatelessWidget {
   const TeamPage({super.key});
@@ -13,16 +14,14 @@ class TeamPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final uid = context.watch<AuthProvider>().user?.uid;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final fg2 = isDark ? kFg2Dark : kFg2Light;
-    final eur = NumberFormat.currency(locale: 'it_IT', symbol: '€');
     final service = FirestoreService();
 
     return Scaffold(
       appBar: AppBar(
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
-          onPressed: () => context.canPop() ? context.pop() : context.go('/home'),
+          onPressed: () =>
+              context.canPop() ? context.pop() : context.go('/home'),
         ),
         title: const Text('Squadra'),
       ),
@@ -44,62 +43,93 @@ class TeamPage extends StatelessWidget {
                 if (snap.connectionState == ConnectionState.waiting) {
                   return const Center(child: CircularProgressIndicator());
                 }
-                final members = snap.data ?? [];
-                if (members.isEmpty) {
-                  return Center(
-                    child: Padding(
-                      padding: const EdgeInsets.all(24),
-                      child: Text(
-                        'Nessun membro. Aggiungi agenti e persone con la loro '
-                        'tariffa di costo e di vendita oraria.',
-                        style: TextStyle(color: fg2),
-                        textAlign: TextAlign.center,
-                      ),
-                    ),
-                  );
-                }
-                return ListView.builder(
-                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 90),
-                  itemCount: members.length,
-                  itemBuilder: (context, i) {
-                    final m = members[i];
-                    return Container(
-                      margin: const EdgeInsets.only(bottom: 8),
-                      decoration: BoxDecoration(
-                        color: isDark ? kCardDark : kCardLight,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                            color: isDark ? kBorderDark : kBorderLight),
-                      ),
-                      child: ListTile(
-                        onTap: () =>
-                            showMemberDialog(context, service, uid, member: m),
-                        title: Text(
-                          m.name,
-                          style: TextStyle(
-                            fontWeight: FontWeight.w600,
-                            decoration:
-                                m.active ? null : TextDecoration.lineThrough,
-                          ),
-                        ),
-                        subtitle: Text(
-                          '${kMemberKindLabels[m.kind] ?? m.kind}'
-                          '${m.role.isEmpty ? '' : ' · ${m.role}'}\n'
-                          'Costo ${eur.format(m.costRate)}/h · '
-                          'Vendita ${eur.format(m.billRate)}/h',
-                          style: TextStyle(fontSize: 12, color: fg2),
-                        ),
-                        isThreeLine: true,
-                        trailing: m.active
-                            ? null
-                            : Text('Non attivo',
-                                style: TextStyle(fontSize: 11, color: fg2)),
-                      ),
-                    );
-                  },
+                return TeamMembersView(
+                  members: snap.data ?? [],
+                  onOpen: (m) =>
+                      showMemberDialog(context, service, uid, member: m),
                 );
               },
             ),
+    );
+  }
+}
+
+/// Contenuto della pagina Squadra: messaggio d'aiuto se non ci sono membri,
+/// altrimenti l'avviso "costo non impostato" (se serve) e la lista.
+class TeamMembersView extends StatelessWidget {
+  final List<TeamMember> members;
+  final void Function(TeamMember) onOpen;
+
+  const TeamMembersView(
+      {super.key, required this.members, required this.onOpen});
+
+  @override
+  Widget build(BuildContext context) {
+    if (members.isEmpty) {
+      return const EmptyState(
+        icon: Icons.groups_outlined,
+        title: 'Nessun membro nella squadra',
+        subtitle: 'Con "Aggiungi membro" inserisci gli agenti e le '
+            'persone che lavorano ai progetti: per ognuno scegli '
+            'il ruolo e imposta il costo orario interno e la '
+            'tariffa di vendita oraria. I costi dei progetti si '
+            'calcolano da questi valori.',
+      );
+    }
+    final missingCost =
+        members.where((m) => m.active && memberCostNotSet(m)).length;
+    final offset = missingCost > 0 ? 1 : 0;
+    return ListView.builder(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 90),
+      itemCount: members.length + offset,
+      itemBuilder: (context, i) {
+        if (offset == 1 && i == 0) {
+          return MissingCostNotice(count: missingCost);
+        }
+        final m = members[i - offset];
+        return TeamMemberTile(member: m, onTap: () => onOpen(m));
+      },
+    );
+  }
+}
+
+/// Avviso in cima alla lista: ci sono membri attivi con costo orario 0.
+class MissingCostNotice extends StatelessWidget {
+  final int count;
+
+  const MissingCostNotice({super.key, required this.count});
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final color = isDark ? kBlockedColorDark : kBlockedColor;
+    final bg = isDark ? kBlockedBgDark : kBlockedBg;
+    final who = count == 1
+        ? '1 membro attivo ha il costo orario non impostato'
+        : '$count membri attivi hanno il costo orario non impostato';
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.info_outline, size: 20, color: color),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              '$who (vale 0). Tocca il membro e inserisci il "Costo orario '
+              'interno (€/h)": le ore registrate con costo 0 non generano '
+              'costo.',
+              style: TextStyle(fontSize: 13, color: color),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -112,33 +142,42 @@ Future<void> showMemberDialog(
 }) {
   return showDialog<void>(
     context: context,
-    builder: (_) =>
-        _MemberDialog(service: service, ownerId: ownerId, member: member),
+    builder: (_) => MemberDialog(
+        onSave: service.saveTeamMember, ownerId: ownerId, member: member),
   );
 }
 
-class _MemberDialog extends StatefulWidget {
-  final FirestoreService service;
+/// Valore interno della voce "Altro…" del menu Ruolo (non viene mai salvato).
+const String _kRoleOther = '__altro__';
+
+/// Dialogo "Nuovo/Modifica membro". `onSave` salva il membro (in produzione
+/// `FirestoreService.saveTeamMember`; nei test una funzione finta).
+class MemberDialog extends StatefulWidget {
+  final Future<void> Function(TeamMember) onSave;
   final String ownerId;
   final TeamMember? member;
 
-  const _MemberDialog({
-    required this.service,
+  const MemberDialog({
+    super.key,
+    required this.onSave,
     required this.ownerId,
     this.member,
   });
 
   @override
-  State<_MemberDialog> createState() => _MemberDialogState();
+  State<MemberDialog> createState() => _MemberDialogState();
 }
 
-class _MemberDialogState extends State<_MemberDialog> {
+class _MemberDialogState extends State<MemberDialog> {
   late final TextEditingController _name;
   late final TextEditingController _role;
   late final TextEditingController _cost;
   late final TextEditingController _bill;
   late String _kind;
   late bool _active;
+  // Voce scelta nel menu Ruolo: un ruolo standard, `_kRoleOther` oppure null
+  // (nessun ruolo ancora scelto).
+  String? _roleChoice;
   bool _saving = false;
   String? _error;
 
@@ -150,6 +189,16 @@ class _MemberDialogState extends State<_MemberDialog> {
     _role = TextEditingController(text: m?.role ?? '');
     _cost = TextEditingController(text: m == null ? '' : m.costRate.toString());
     _bill = TextEditingController(text: m == null ? '' : m.billRate.toString());
+    // Un ruolo già salvato che non è nell'elenco standard (o scritto in modo
+    // diverso) si preseleziona come "Altro…" con il suo testo: mai perso.
+    final savedRole = m?.role ?? '';
+    if (savedRole.trim().isEmpty) {
+      _roleChoice = null;
+    } else if (kMemberRoles.contains(savedRole)) {
+      _roleChoice = savedRole;
+    } else {
+      _roleChoice = _kRoleOther;
+    }
     _kind = m?.kind ?? 'agent';
     _active = m?.active ?? true;
   }
@@ -165,6 +214,13 @@ class _MemberDialogState extends State<_MemberDialog> {
 
   double _num(String s) => double.tryParse(s.trim().replaceAll(',', '.')) ?? 0;
 
+  String get _roleToSave {
+    final c = _roleChoice;
+    if (c == null) return '';
+    if (c == _kRoleOther) return _role.text.trim();
+    return c;
+  }
+
   Future<void> _save() async {
     if (_name.text.trim().isEmpty) {
       setState(() => _error = 'Il nome è obbligatorio.');
@@ -175,12 +231,12 @@ class _MemberDialogState extends State<_MemberDialog> {
       _error = null;
     });
     try {
-      await widget.service.saveTeamMember(TeamMember(
+      await widget.onSave(TeamMember(
         id: widget.member?.id ?? '',
         ownerId: widget.ownerId,
         name: _name.text.trim(),
         kind: _kind,
-        role: _role.text.trim(),
+        role: _roleToSave,
         costRate: _num(_cost.text),
         billRate: _num(_bill.text),
         active: _active,
@@ -222,22 +278,44 @@ class _MemberDialogState extends State<_MemberDialog> {
               onChanged: (v) => setState(() => _kind = v ?? _kind),
             ),
             const SizedBox(height: 8),
-            TextField(
-              controller: _role,
-              decoration: const InputDecoration(
-                  labelText: 'Ruolo (es. analista, dba, tester)'),
+            DropdownButtonFormField<String>(
+              initialValue: _roleChoice,
+              isExpanded: true,
+              hint: const Text('Scegli il ruolo'),
+              decoration: const InputDecoration(labelText: 'Ruolo'),
+              items: [
+                ...kMemberRoles.map((r) => DropdownMenuItem(
+                      value: r,
+                      child: Text(memberRoleLabel(r)),
+                    )),
+                const DropdownMenuItem(
+                  value: _kRoleOther,
+                  child: Text('Altro…'),
+                ),
+              ],
+              onChanged: (v) => setState(() => _roleChoice = v),
             ),
+            if (_roleChoice == _kRoleOther) ...[
+              const SizedBox(height: 8),
+              TextField(
+                controller: _role,
+                decoration:
+                    const InputDecoration(labelText: 'Ruolo (testo libero)'),
+              ),
+            ],
             const SizedBox(height: 8),
             TextField(
               controller: _cost,
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              keyboardType:
+                  const TextInputType.numberWithOptions(decimal: true),
               decoration: const InputDecoration(
                   labelText: 'Costo orario interno (€/h)'),
             ),
             const SizedBox(height: 8),
             TextField(
               controller: _bill,
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              keyboardType:
+                  const TextInputType.numberWithOptions(decimal: true),
               decoration: const InputDecoration(
                   labelText: 'Tariffa di vendita oraria (€/h)'),
             ),
