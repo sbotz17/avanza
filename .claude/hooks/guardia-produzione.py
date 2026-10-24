@@ -1,15 +1,13 @@
 #!/usr/bin/env python3
 """Guardia di sicurezza della squadra (hook PreToolUse di Claude Code): exit 2 = azione bloccata, il messaggio arriva a Claude.
 
-Protegge:
+Protegge (aggiornato su decisione di Andrea, 24/10/2026: l'unico limite invalicabile sono i DATI):
  1. la leva di Andrea (BLOCCO-SQUADRA.md);
- 2. le regole della squadra (hook, impostazioni, CLAUDE.md, CI, zone protette, script, agenti, comandi): gli agenti non le modificano;
- 3. i dati e la storia Git (comandi distruttivi);
+ 3. i dati (cancellazioni e reset del database) e la storia Git (comandi distruttivi);
  4. i backup (mai cancellati);
- 5. la produzione (niente scritture senza backup recente, niente cancellazioni, niente push verso la produzione);
- 6. le decisioni di Andrea su GitHub (approvazioni, protezioni, segreti: mai dagli agenti).
-E' una rete di sicurezza contro errori e abusi evidenti, non l'unica difesa: le difese decisive sono su GitHub
-(protezione dei rami, CODEOWNERS, ambienti con revisore) e nella separazione delle credenziali.
+ 5. la produzione (niente scritture senza backup recente, niente cancellazioni, niente rilascio diretto).
+Le regole della squadra, la CI, le zone protette e le configurazioni di GitHub e Google NON sono piu' bloccate dalla guardia.
+E' una rete di sicurezza contro errori evidenti, non l'unica difesa.
 """
 import json, os, re, sys, time
 
@@ -21,10 +19,10 @@ def esci(msg):
 
 def blocca(msg):
     esci("BLOCCATO dalla guardia di sicurezza: " + msg + "\n"
-         "Questo e' un LIMITE INVALICABILE: non va aggirato con comandi equivalenti ne' con altri strumenti. "
-         "Non e' un'attesa di permesso: scrivi la decisione in sospeso in docs/progetto/registro-decisioni.md "
-         "(cosa volevi fare, perche', rischi, alternative sicure), avvisa Andrea e prosegui con il resto del lavoro "
-         "usando una strada che non violi il limite. Vedi Autonomia e limiti invalicabili in CLAUDE.md.")
+         "Il limite riguarda i dati: cancellare o sovrascrivere dati reali o backup si fa solo insieme ad Andrea. "
+         "Non aggirarlo con comandi equivalenti: scrivi la decisione in sospeso in docs/progetto/registro-decisioni.md "
+         "(cosa volevi fare, perche', elenco dei record, backup, prova su copia), avvisa Andrea e prosegui con il resto del lavoro. "
+         "Vedi Autonomia e limiti in CLAUDE.md.")
 
 
 try:
@@ -78,52 +76,23 @@ if b:
     esci("SQUADRA IN BLOCCO: Andrea ha fermato il lavoro (" + b + "). Non eseguire comandi ne' modificare file. "
          "Puoi solo leggere e riferire. Il blocco lo toglie solo Andrea.")
 
-# ---------------- 2. REGOLE DELLA SQUADRA: file che gli agenti non modificano ----------------
-def rel(p):
-    p = os.path.abspath(os.path.join(cwd, os.path.expanduser(p)))
-    for base in (ROOT, HOME):
-        if p == base or p.startswith(base + os.sep):
-            return os.path.relpath(p, base).replace(os.sep, "/"), base
-    return p.replace(os.sep, "/"), None
-
-
-PROTETTI = [r"^\.claude/hooks/", r"^\.claude/scripts/", r"^\.claude/agents/", r"^\.claude/commands/", r"^\.claude/modelli/",
-            r"^\.claude/settings(\.local)?\.json$", r"^\.claude/zone-protette\.json$", r"^\.claude/backup-ok\.json$",
-            r"^\.claude/architettura-preferita\.md$", r"^\.claude/CLAUDE\.md$", r"^CLAUDE\.md$", r"^\.github/",
-            r"^BLOCCO-SQUADRA\.md$", r"^\.claude/BLOCCO-SQUADRA\.md$"]
-# file di configurazione che si possono CREARE la prima volta (impostazione del progetto) ma poi non si modificano
-SOLO_CREAZIONE = [r"^\.claude/produzione\.json$", r"^\.claude/progetto\.json$"]
-
+# ---------------- 2. LEVA DI ANDREA: il file di blocco lo gestisce solo lui ----------------
+# (le regole della squadra, la CI, le zone protette e le configurazioni non sono piu' protette: decisione di Andrea del 24/10/2026)
 if SCRIVE_FILE:
     target = tin.get("file_path") or tin.get("notebook_path") or ""
-    r, base = rel(target)
-    if re.search(r"(^|/)BLOCCO-SQUADRA\.md$", r):
+    if re.search(r"(^|/)BLOCCO-SQUADRA\.md$", target):
         nuovo = (tin.get("content") or "").strip().upper()
         if not (tool == "Write" and nuovo.startswith("ATTIVO")):
             esci("BLOCCATO: il file BLOCCO-SQUADRA.md lo modifica o lo toglie solo Andrea (gli agenti possono solo crearlo con ATTIVO, su sua richiesta).")
-        sys.exit(0)
-    if base is not None and any(re.search(p, r) for p in PROTETTI):
-        blocca("modifica di un file delle regole della squadra (" + r + "). Le regole, la guardia, la CI e le zone protette le cambia solo Andrea "
-               "(reinstallando il pacchetto da solo, oppure con una pull request che approva lui).")
-    if base is not None and any(re.search(p, r) for p in SOLO_CREAZIONE):
-        if os.path.exists(os.path.abspath(os.path.join(cwd, os.path.expanduser(target)))):
-            blocca("modifica di " + r + " dopo la prima impostazione. Se va cambiato, scrivi la proposta nel registro decisioni: lo cambia Andrea.")
     sys.exit(0)
 
 if tool != "Bash":
     sys.exit(0)
 
 c = cmd
-# installazione/aggiornamento del pacchetto: solo Andrea
-if re.search(r"\binstalla(-nel-progetto)?\.sh\b", c):
-    blocca("installazione o aggiornamento della squadra. Lo esegue solo Andrea, da terminale.")
-# Sui file delle regole (e sul file di blocco) sono ammesse SOLO letture: leggere, cercare, elencare, confrontare.
-NOMI_PROTETTI = r"(BLOCCO-SQUADRA|guardia-produzione|settings(\.local)?\.json|zone-protette|backup-ok\.json|produzione\.json|progetto\.json|architettura-preferita|CLAUDE\.md|\.github\b|\.claude\b)"
-SOLO_LETTURA = (r"^(cat|less|more|head|tail|grep|egrep|fgrep|rg|ls|wc|diff|cmp|file|stat|readlink|realpath|tree|sort|uniq|cut|nl|"
-                r"sha256sum|md5sum|jq|test|\[|find|python3\s+-m\s+json\.tool|"
-                r"git\s+(add|commit|status|diff|log|show|blame|ls-files|grep|cat-file|rev-parse|ls-tree))\b"
-                # eseguire (non modificare) gli script della squadra
-                r"|^((bash|sh|python3?)\s+)?(\./|~/|\$HOME/|\$CLAUDE_PROJECT_DIR/|\"\$CLAUDE_PROJECT_DIR\"/)?\.claude/scripts/[\w.-]+(\s|$)")
+# Sul file di blocco sono ammesse SOLO letture.
+NOMI_PROTETTI = r"BLOCCO-SQUADRA"
+SOLO_LETTURA = r"^(cat|less|more|head|tail|grep|egrep|fgrep|rg|ls|wc|diff|cmp|file|stat|readlink|realpath|test|\[|find)\b"
 INNOCUE = r"\d?>\s*/dev/null|&>\s*/dev/null|\d>&\d"          # redirezioni che non scrivono file
 if re.search(NOMI_PROTETTI, c):
     for seg in re.split(r"\|\||&&|;|\||\n", c):
@@ -134,19 +103,7 @@ if re.search(NOMI_PROTETTI, c):
         scrive = (not re.match(SOLO_LETTURA, senza)) or (">" in senza) \
             or (senza.startswith("find") and re.search(r"\s-(delete|exec|execdir|ok|okdir|fprint\w*|fls)\b", senza))
         if scrive:
-            blocca("comando che puo' modificare file delle regole della squadra o il file di blocco (" + seg[:80] + "). Su quei file sono ammesse solo letture.")
-
-# Su GitHub gli agenti possono LEGGERE impostazioni e stati, ma non cambiare approvazioni, protezioni, ambienti, segreti o accessi.
-if re.search(r"\bgh\s+api\b", c):
-    for seg in re.split(r"\|\||&&|;|\||\n", c):
-        if not re.search(r"\bgh\s+api\b", seg):
-            continue
-        sensibile = re.search(r"(pending_deployments|/environments|/protection|/rulesets|/actions/(secrets|variables|permissions)|/collaborators|/hooks|/keys|/deployments)", seg)
-        scrittura = re.search(r"(-X|--method)\s*(POST|PUT|PATCH|DELETE)\b|\s(-f|-F|--field|--raw-field|--input)\b", seg, re.IGNORECASE)
-        if sensibile and scrittura:
-            blocca("modifica di approvazioni, protezioni, ambienti, segreti o accessi su GitHub")
-        if re.search(r"(-X|--method)\s*DELETE\b", seg, re.IGNORECASE):
-            blocca("cancellazione tramite API GitHub")
+            esci("BLOCCATO: comando che puo' modificare il file di blocco (" + seg[:80] + "). Il file BLOCCO-SQUADRA.md lo gestisce solo Andrea.")
 
 # ---------------- 3. COMANDI DISTRUTTIVI ----------------
 REGOLE = [
@@ -162,10 +119,8 @@ REGOLE = [
     (r"\bgcloud\s+functions\s+delete\b|\bfirebase\s+functions:delete\b", "cancellazione di una Cloud Function"),
     (r"\bgcloud\s+run\s+services\s+delete\b", "cancellazione di un servizio Cloud Run"),
     (r"\bgcloud\s+projects\s+(delete|undelete)\b", "cancellazione di un progetto Google Cloud"),
-    (r"\bgcloud\s+iam\s+service-accounts\s+(delete|keys\s+(create|delete))\b", "creazione/cancellazione di chiavi o account di servizio"),
-    (r"\bgcloud\s+secrets\s+(delete|versions\s+(destroy|disable|add))\b|\bfirebase\s+functions:secrets:(set|destroy|prune)\b", "modifica o cancellazione di segreti"),
     (r"\bfirebase\s+hosting:disable\b", "disattivazione di Firebase Hosting"),
-    (r"\bgcloud\s+storage\s+buckets\s+(delete|update)\b|\bgsutil\s+(rb|retention|lifecycle)\b", "cancellazione o modifica di un bucket (retention, lifecycle)"),
+        (r"\bgcloud\s+storage\s+buckets\s+delete\b|\bgsutil\s+rb\b", "cancellazione di un bucket (possibili backup)"),
     # ---- Git ----
     (r"\bgit\s+push\b[^\n;|&]*(--force\b|--force-with-lease\b|\s-f\b|\s\+\S|--delete\b|\s:\S)", "git push forzato o cancellazione di rami remoti"),
     (r"\bgit\s+push\b[^\n;|&]*(\s|:)(refs/heads/)?(main|master|staging|produzione|production)(\s|$)", "push diretto su un ramo protetto (main/staging): si passa solo da pull request con i controlli"),
@@ -174,13 +129,7 @@ REGOLE = [
     (r"\bgit\s+branch\s+-D\b", "cancellazione forzata di branch"),
     (r"\bgit\s+(checkout|restore)\s+(--\s+)?\.(\s|$)", "scarto di tutte le modifiche locali"),
     (r"\bgit\s+(tag\s+-d|tag\s+--delete)\b", "cancellazione di tag"),
-    # ---- 6. decisioni di Andrea su GitHub ----
-    (r"\bgh\s+pr\s+merge\b[^\n;|&]*--admin", "merge forzato da amministratore"),
     (r"\bgh\s+pr\s+merge\b[^\n;|&]*--(base|into)[ =]+main\b", "fusione di una pull request in main: in produzione ci arriva solo la promozione da staging con i controlli e l'approvazione di Andrea"),
-    (r"\bgh\s+pr\s+review\b[^\n;|&]*(--approve|-a\b)", "approvazione di pull request: le approvazioni su GitHub sono di Andrea"),
-    (r"\bgh\s+(secret|variable)\s+(set|delete|remove)\b", "modifica di segreti o variabili di GitHub"),
-    (r"\bgh\s+(workflow\s+(disable|enable)|repo\s+(edit|delete|rename|archive)|release\s+delete|run\s+delete|label\s+delete)\b", "modifica della configurazione del repository o dei flussi su GitHub"),
-    (r"\bgh\s+auth\b[^\n;|&]*\b(token|refresh|login|switch)\b", "gestione delle credenziali GitHub"),
 ]
 for pattern, spiegazione in REGOLE:
     if re.search(pattern, c, re.IGNORECASE | re.DOTALL):
