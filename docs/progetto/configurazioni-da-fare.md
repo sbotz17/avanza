@@ -1,5 +1,11 @@
 # Configurazioni di GitHub e Google da applicare (per una sessione con accesso di amministratore)
 
+> **Strada consigliata (T-16):** invece di eseguire a mano i punti 1, 2, 3, 5 e 6, si lancia `bash scripts/applica-configurazioni.sh` dal computer di Andrea (`gh` e `gcloud` autenticati). Lo script e' idempotente, non stampa segreti e alla fine elenca cio' che NON ha potuto fare. Differenze volute rispetto ai comandi qui sotto (esito della seconda lettura del validatore):
+> - **Due regole di protezione**: `staging` con i controlli obbligatori; `main` senza controlli obbligatori (solo niente cancellazione, niente push forzato, solo pull request), perche' la pull request di promozione la apre la CI con il token del flusso e le pull request aperte cosi' non fanno partire i controlli: con controlli obbligatori su `main` resterebbe bloccata per sempre.
+> - **Volty e' un repository privato**: senza GitHub Pro (o repository pubblico) GitHub rifiuta ogni protezione dei rami. Lo script lo dichiara e prosegue. **Decisione in sospeso per Andrea** (vedi registro decisioni). Se si attiva, la promozione di Volty (push diretto su `main` con `PROD_DEPLOY_KEY`) va riesaminata.
+> - Su Volty `SQUADRA_CI_ATTIVA` si imposta solo se i segreti di produzione esistono (altrimenti il rilascio potrebbe partire senza backup).
+> - L'ambiente `produzione` esistente non viene riscritto.
+
 **Perché esiste:** la sessione cloud della squadra NON può cambiare le impostazioni di GitHub (protezione dei rami, ambienti, variabili, webhook): il suo ambiente le blocca.
 Una sessione di Claude Code sul computer di Andrea, con `gh` e `gcloud` autenticati come lui, può applicarle da sola. Autorizzazione: Andrea, 24/10/2026 ("fate tutto in autonomia").
 Regole per chi esegue: un passo alla volta; **verifica dopo ogni passo** (comando di controllo indicato); **non stampare mai segreti** (né in terminale, né in log, né in chat); se un passo fallisce, fermati e riferisci l'errore a Andrea; annota ogni modifica in `docs/progetto/registro-decisioni.md`.
