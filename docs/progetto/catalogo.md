@@ -87,3 +87,15 @@ Aggiornare a ogni nuovo oggetto o modifica significativa.
 | Nome | Percorso | Scopo | Usato in |
 |------|----------|-------|----------|
 | `registra-ore.mjs` | `scripts/registra-ore.mjs` | Azioni della squadra su Firestore (Admin SDK): `membro`, `ore`, `importa-task`, `stato`, `admin`, `crea-progetto`, `elimina-prova`, `migra`; [T-12] `domande` (sola lettura) e `rispondi` (chat admin-squadra) | Workflow "Registra ore squadra" |
+
+---
+
+## Script di controllo del rilascio (`.claude/scripts/`)
+
+| Nome | Percorso | Scopo | Usato in |
+|------|----------|-------|----------|
+| `classifica-rilascio.sh` | `.claude/scripts/classifica-rilascio.sh` | Ricalcola al momento del rilascio se ciò che esce è correzione o sviluppo (riusa `classifica-modifica.py`) e se regole/indici Firestore cambiano | `rilascio-produzione.yml` (job `classifica`) |
+| `controlla-prerequisiti-rilascio.sh` | `.claude/scripts/controlla-prerequisiti-rilascio.sh` | Segreti e variabili necessari presenti; la chiave è del progetto `avanza-b62d7` (mai i valori in chiaro) | `rilascio-produzione.yml` |
+| `verifica-da-staging.sh` | `.claude/scripts/verifica-da-staging.sh` | Il contenuto è identico a un commit di `staging` con controlli verdi e pubblicazione di test riuscita | `rilascio-produzione.yml`, `setup-firestore.yml` |
+| `controlla-build-ambiente.sh` | `.claude/scripts/controlla-build-ambiente.sh` | La build web contiene la configurazione del progetto giusto (prod/test) e nessuna traccia dell'altro | `ci.yml`, `deploy.yml`, `rilascio-produzione.yml` |
+| `smoke-produzione.sh` | `.claude/scripts/smoke-produzione.sh` | Prova rapida in sola lettura di sito, cache, funzione e login dopo il rilascio | `rilascio-produzione.yml`, `verifica-sito.yml` |
