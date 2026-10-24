@@ -2,6 +2,7 @@
 # Due job:
 #  - `pr` (push su staging): apre o aggiorna UNA pull request "staging -> main" con il riepilogo e la classificazione (correzione o sviluppo).
 #    Se e' uno sviluppo, avvisa Andrea su WhatsApp (solo informativo). Non unisce nulla.
+#    Il corpo riporta la DIMENSIONE del salto (commit, file, righe) e se regole/indici Firestore differiscono (in tal caso avvisa e la promozione NON parte da sola).
 #  - `unione` (a fine di "Deploy Avanza Web", "ci" e "controlli-pr" su staging, oppure a mano): se la TESTA di staging ha TUTTI i controlli verdi
 #    (CI con test passati, deploy di test completo, controlli della pull request) unisce la pull request con un merge commit e AVVIA ESPLICITAMENTE
 #    rilascio-produzione.yml. Serve l'avvio esplicito perche' un'unione fatta con GITHUB_TOKEN non fa partire altri workflow (nemmeno il push su main).
@@ -73,6 +74,12 @@ jobs:
         continue-on-error: true
         run: |
           python3 .claude/scripts/avvisa-whatsapp.py da_validare "Staging contiene un nuovo sviluppo in arrivo in produzione dopo i controlli della squadra. Puoi guardarlo sul sito di test."
+
+      - name: Avviso WhatsApp se servono le regole Firestore (la promozione non parte da sola)
+        if: steps.pr.outputs.n != '0' && steps.pr.outputs.regole == 'si'
+        continue-on-error: true
+        run: |
+          python3 .claude/scripts/avvisa-whatsapp.py decisione_in_sospeso "La promozione in produzione contiene modifiche a regole o indici Firestore: non parte da sola, serve una persona (Setup Firestore e unione a mano)."
 
   unione:
     # un evento per ogni workflow di controllo che finisce su staging; si procede solo se quel workflow e' riuscito (se e' rosso non c'e' nulla da unire)

@@ -26,7 +26,8 @@ emit() { if [ -n "$JQ" ]; then jq -r "$JQ" "$1"; else cat "$1"; fi; }
 case "$1 $2" in
   "label create") exit 0 ;;
   "pr list")   emit "$SC/pr_list.json" ;;
-  "pr edit"|"pr create") exit 0 ;;
+  "pr edit"|"pr create")
+     for i in "${!ARGS[@]}"; do [ "${ARGS[$i]}" = "--body-file" ] && cp "${ARGS[$((i+1))]}" "$SC/body.md"; done; exit 0 ;;
   "pr view")
      if [ -f "$SC/gia_unita" ]; then jq '.state="MERGED"' "$SC/pr_view.json" > "$SC/pr_view_now.json"
      elif [ -f "$SC/merged" ]; then
@@ -65,15 +66,15 @@ nuovo() {  # $1 nome scenario -> crea $SC con origine, clone sulla testa di stag
   git init -q --bare -b main "$SC/origin.git"
   W="$SC/lavoro"; git clone -q "$SC/origin.git" "$W" 2>/dev/null; cd "$W" || exit 1
   git checkout -q -b main; mkdir -p .claude/scripts; cp "$RADICE"/.claude/scripts/{promuovi-staging.sh,verifica-da-staging.sh,promozione-pr.sh,pr-del-commit.sh,classifica-modifica.py} .claude/scripts/; cp "$RADICE"/.claude/zone-protette.json .claude/
-  echo uno > a.txt; git add -A; git commit -q -m "A"; git push -q origin main
+  echo uno > a.txt; echo r1 > firestore.rules; echo "{}" > firestore.indexes.json; git add -A; git commit -q -m "A"; git push -q origin main
   git checkout -q -b staging; echo due > b.txt; git add b.txt; git commit -q -m "B (T-18)"; echo tre >> a.txt; git commit -q -am "C"; git push -q origin staging
   X="$(git rev-parse HEAD)"; export X
   echo '{"workflow_runs":[{"id":101,"conclusion":"success"}]}' > "$SC/runs.json"
   jq -n '{jobs:[
     {name:"controlli / controlli",steps:[{name:"Test",conclusion:"success"},{name:"Avviso test non superati",conclusion:"skipped"}]},
     {name:"deploy-test",steps:[{name:"Deploy Hosting (progetto di test)",conclusion:"success"},{name:"Regole e indici Firestore (progetto di test)",conclusion:"success"},{name:"Deploy funzione (progetto di test)",conclusion:"success"}]}]}' > "$SC/jobs.json"
-  echo "[{\"number\":7,\"headRefOid\":\"$X\"}]" > "$SC/pr_list.json"
-  jq -n --arg x "$X" '{state:"OPEN",headRefOid:$x,mergeable:"MERGEABLE",mergeStateStatus:"CLEAN",statusCheckRollup:[
+  echo "[{\"number\":7,\"headRefOid\":\"$X\",\"isCrossRepository\":false}]" > "$SC/pr_list.json"
+  jq -n --arg x "$X" '{state:"OPEN",headRefOid:$x,isCrossRepository:false,mergeable:"MERGEABLE",mergeStateStatus:"CLEAN",statusCheckRollup:[
     {__typename:"CheckRun",name:"blocco",workflowName:"controlli-pr",status:"COMPLETED",conclusion:"SUCCESS"},
     {__typename:"CheckRun",name:"controlli",workflowName:"ci",status:"COMPLETED",conclusion:"SUCCESS"},
     {__typename:"CheckRun",name:"promuovi",workflowName:"promozione",status:"IN_PROGRESS",conclusion:null},
@@ -95,6 +96,11 @@ verifica() {  # $1 descrizione, $2 esito atteso, $3 rc atteso, $4 unito (si/no),
 }
 
 # ---------------------------------------------------------------- casi
+cambia_staging() {  # $1 file, $2 contenuto: nuovo commit su staging, aggiorna X nei file di scenario
+  local VECCHIO="$X"; ( cd "$SC/lavoro" && echo "$2" > "$1" && git add "$1" && git commit -q -m "cambia $1" && git push -q origin staging ); X="$(git -C "$SC/lavoro" rev-parse HEAD)"; export X
+  sed -i "s/$VECCHIO/$X/g" "$SC"/*.json
+}
+pr_script() { ( cd "$SC/lavoro" && bash .claude/scripts/promozione-pr.sh > "$SC/log.txt" 2>&1 ); RC=$?; }
 nuovo verde;           esegui; verifica "CI verde, deploy completo, PR verde -> unisce e avvia il rilascio" unita-e-rilascio-avviato 0 si si
 chiamato "--merge --match-head-commit $X" || { FALLITI=$((FALLITI+1)); echo "FALLITO: l'unione deve essere un merge commit con --match-head-commit"; }
 ! grep -q -e "--squash\|--rebase\|--delete-branch\|--admin\|--auto" "$SC/calls.log" || { FALLITI=$((FALLITI+1)); echo "FALLITO: opzioni di unione vietate"; }
@@ -122,7 +128,7 @@ verifica "BLOCCO-SQUADRA.md attivo su main -> sospesa" bloccata 1 no no
 nuovo spenta;          SQUADRA_CI_ATTIVA=no esegui; verifica "SQUADRA_CI_ATTIVA=no -> spenta, nessuna azione" spenta 0 no no
 nuovo spenta-vuota;    SQUADRA_CI_ATTIVA="" esegui; verifica "SQUADRA_CI_ATTIVA non impostata -> spenta" spenta 0 no no
 
-nuovo testa-diversa;   echo "[{\"number\":7,\"headRefOid\":\"0000000000000000000000000000000000000000\"}]" > "$SC/pr_list.json"; esegui
+nuovo testa-diversa;   echo "[{\"number\":7,\"headRefOid\":\"0000000000000000000000000000000000000000\",\"isCrossRepository\":false}]" > "$SC/pr_list.json"; esegui
 verifica "testa della PR diversa da quella di staging -> non unisce" non-ora 0 no no
 nuovo staging-avanzato; ( cd "$SC/lavoro" && git checkout -q -b altro staging && echo nuovo > n.txt && git add n.txt && git commit -q -m D && git push -q origin altro:staging && git checkout -q staging ); esegui
 verifica "staging avanzato durante la valutazione -> non unisce (ci pensa la testa nuova)" non-ora 0 no no
@@ -158,6 +164,46 @@ nuovo pr-chiusa;       jq '.state="CLOSED"' "$SC/pr_view.json" > "$SC/j" && mv "
 nuovo pr-senza-check;  jq '.statusCheckRollup=[]' "$SC/pr_view.json" > "$SC/j" && mv "$SC/j" "$SC/pr_view.json"; esegui
 verifica "PR senza alcun controllo (aperta dal bot) e ramo senza regole -> unisce (il resto e' garantito dagli altri controlli)" unita-e-rilascio-avviato 0 si si
 
+# repository pubblico: una PR di un FORK con ramo "staging" non va ne' unita ne' modificata
+nuovo fork-solo;       echo "[{\"number\":9,\"headRefOid\":\"$X\",\"isCrossRepository\":true}]" > "$SC/pr_list.json"; esegui
+verifica "solo una PR di un fork con ramo 'staging' (stessa testa) -> non unisce" non-ora 0 no no
+nuovo fork-prima;      echo "[{\"number\":9,\"headRefOid\":\"$X\",\"isCrossRepository\":true},{\"number\":7,\"headRefOid\":\"$X\",\"isCrossRepository\":false}]" > "$SC/pr_list.json"; esegui
+verifica "PR di un fork per prima e PR vera dopo -> unisce la vera" unita-e-rilascio-avviato 0 si si
+if ! chiamato "pr merge 7 " || chiamato "pr merge 9"; then FALLITI=$((FALLITI+1)); echo "FALLITO: doveva unire la #7 e mai la #9 del fork"; fi
+nuovo fork-no-campo;   echo "[{\"number\":9,\"headRefOid\":\"$X\"}]" > "$SC/pr_list.json"; esegui
+verifica "PR senza il campo isCrossRepository -> esclusa (fail-closed)" non-ora 0 no no
+nuovo fork-vista;      jq '.isCrossRepository=true' "$SC/pr_view.json" > "$SC/j" && mv "$SC/j" "$SC/pr_view.json"; esegui
+verifica "la PR letta da vicino risulta di un fork -> non unisce" non-ora 0 no no
+nuovo fork-pr-script;  echo "[{\"number\":9,\"headRefOid\":\"$X\",\"isCrossRepository\":true}]" > "$SC/pr_list.json"; pr_script; TOTALE=$((TOTALE+1))
+if [ "$RC" = 0 ] && chiamato "pr create" && ! chiamato "pr edit"; then echo "OK    promozione-pr.sh: PR di un fork non modificata, ne apre una vera"
+else FALLITI=$((FALLITI+1)); echo "FALLITO promozione-pr.sh ha toccato la PR del fork"; fi
+nuovo fork-pr-script2; echo "[{\"number\":9,\"headRefOid\":\"$X\",\"isCrossRepository\":true},{\"number\":7,\"headRefOid\":\"$X\",\"isCrossRepository\":false}]" > "$SC/pr_list.json"; pr_script; TOTALE=$((TOTALE+1))
+if [ "$RC" = 0 ] && chiamato "pr edit 7 " && ! chiamato "pr edit 9" && ! chiamato "pr create"; then echo "OK    promozione-pr.sh: aggiorna la PR #7 e non la #9 del fork"
+else FALLITI=$((FALLITI+1)); echo "FALLITO promozione-pr.sh: PR sbagliata"; fi
+
+# forma imprevista delle risposte di GitHub: mai letta come "nessun controllo rosso"
+nuovo json-rollup-str; jq '.statusCheckRollup="boh"' "$SC/pr_view.json" > "$SC/j" && mv "$SC/j" "$SC/pr_view.json"; esegui
+verifica "statusCheckRollup e' una stringa (jq in errore) -> non unisce (fail-closed)" non-ora 0 no no
+nuovo json-rollup-num; jq '.statusCheckRollup={"a":1}' "$SC/pr_view.json" > "$SC/j" && mv "$SC/j" "$SC/pr_view.json"; esegui
+verifica "statusCheckRollup e' un oggetto -> non unisce (fail-closed)" non-ora 0 no no
+nuovo json-voci-str;   jq '.statusCheckRollup=["x","y"]' "$SC/pr_view.json" > "$SC/j" && mv "$SC/j" "$SC/pr_view.json"; esegui
+verifica "voci dei controlli non sono oggetti (jq in errore) -> non unisce" non-ora 0 no no
+nuovo json-rotto;      echo '<html>502</html>' > "$SC/pr_view.json"; esegui; verifica "risposta non JSON da gh pr view -> non unisce" non-ora 0 no no
+nuovo json-stato-manca; jq 'del(.mergeStateStatus)' "$SC/pr_view.json" > "$SC/j" && mv "$SC/j" "$SC/pr_view.json"; esegui
+verifica "mergeStateStatus mancante -> non unisce" non-ora 0 no no
+nuovo stato-strano;    jq '.mergeStateStatus="STRANO"' "$SC/pr_view.json" > "$SC/j" && mv "$SC/j" "$SC/pr_view.json"; esegui
+verifica "mergeStateStatus non riconosciuto -> non unisce (si procede solo con stati noti)" non-ora 0 no no
+nuovo lista-rotta;     echo '[{"number":"x","headRefOid":"y","isCrossRepository":false}]' > "$SC/pr_list.json"; esegui
+verifica "numero della PR non numerico -> non unisce" non-ora 0 no no
+
+# regole o indici Firestore diversi: la promozione automatica si ferma ("serve una persona")
+nuovo regole-diverse;  cambia_staging firestore.rules r2; esegui
+verifica "firestore.rules diverse tra staging e main -> si ferma: serve una persona" serve-persona 0 no no
+nuovo indici-diversi;  cambia_staging firestore.indexes.json '{"indexes":[]}'; esegui
+verifica "firestore.indexes.json diversi -> si ferma: serve una persona" serve-persona 0 no no
+nuovo regole-uguali;   cambia_staging altro.txt x; esegui
+verifica "regole e indici uguali (cambia solo altro) -> procede" unita-e-rilascio-avviato 0 si si
+
 nuovo solo-verifica;   PROMOZIONE_SOLO_VERIFICA=si esegui; verifica "solo verifica -> tutto in regola ma NON unisce" solo-verifica 0 no no
 nuovo extra-contenuto; touch "$SC/merge_extra"; esegui; verifica "unione con contenuto diverso da staging -> anomalia, rilascio NON avviato" anomalia 1 si no
 nuovo disp-fallito;    touch "$SC/dispatch_fail"; esegui; verifica "avvio del rilascio fallito -> anomalia (main unito ma rilascio non partito)" anomalia 1 si si
@@ -165,7 +211,6 @@ nuovo rilascio-in-coda; touch "$SC/run_in_coda"; esegui
 verifica "rilascio gia' in coda per lo stesso commit -> unisce ma non lo riavvia" unita-e-rilascio-avviato 0 si no
 
 # apertura/aggiornamento della pull request di promozione (promozione-pr.sh)
-pr_script() { ( cd "$SC/lavoro" && bash .claude/scripts/promozione-pr.sh > "$SC/log.txt" 2>&1 ); RC=$?; }
 verifica_pr() {  # $1 descrizione, $2 comando gh atteso, $3 n atteso
   TOTALE=$((TOTALE+1))
   if [ "$RC" = 0 ] && chiamato "$2" && grep -q "^n=$3$" "$GITHUB_OUTPUT" && ! chiamato "pr merge"; then echo "OK    $1"
@@ -173,6 +218,13 @@ verifica_pr() {  # $1 descrizione, $2 comando gh atteso, $3 n atteso
 }
 nuovo pr-apre;     echo '[]' > "$SC/pr_list.json"; pr_script; verifica_pr "nessuna PR aperta -> la apre (gh pr create), senza unire" "pr create" 2
 nuovo pr-aggiorna; pr_script; verifica_pr "PR gia' aperta -> la aggiorna (gh pr edit), senza unire" "pr edit 7" 2
+nuovo pr-dimensione; pr_script; TOTALE=$((TOTALE+1))
+if [ "$RC" = 0 ] && grep -q "Dimensione del salto" "$SC/body.md" && grep -q "non ancora in produzione: \*\*2\*\*" "$SC/body.md" && grep -q "file cambiati: \*\*2\*\*" "$SC/body.md" \
+   && grep -q "^regole=no$" "$GITHUB_OUTPUT" && grep -q "identici a produzione" "$SC/body.md"; then echo "OK    corpo della PR: dimensione del salto (2 commit, 2 file) e regole identiche"
+else FALLITI=$((FALLITI+1)); echo "FALLITO corpo della PR: dimensione o regole mancanti"; sed 's/^/      | /' "$SC/body.md" | head -20; fi
+nuovo pr-regole-diverse; cambia_staging firestore.rules r2; pr_script; TOTALE=$((TOTALE+1))
+if [ "$RC" = 0 ] && grep -q "^regole=si$" "$GITHUB_OUTPUT" && grep -q "DIFFERISCONO" "$SC/body.md" && ! grep -q "Si unisce da sola" "$SC/body.md"; then echo "OK    corpo della PR: regole Firestore diverse segnalate, nessuna promessa di unione automatica"
+else FALLITI=$((FALLITI+1)); echo "FALLITO corpo della PR: regole diverse non segnalate"; fi
 nuovo pr-niente;   ( cd "$SC/lavoro" && git push -q origin staging:main -f ); pr_script; TOTALE=$((TOTALE+1))
 if [ "$RC" = 0 ] && grep -q "^n=0$" "$GITHUB_OUTPUT" && ! chiamato "pr create" && ! chiamato "pr edit"; then echo "OK    staging = main -> nessuna PR aperta o modificata"
 else FALLITI=$((FALLITI+1)); echo "FALLITO staging = main: la PR non andava toccata"; fi

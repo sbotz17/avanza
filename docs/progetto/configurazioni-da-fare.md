@@ -75,6 +75,7 @@ gh variable list -R sbotz17/avanza
 Per Volty: variabili `SQUADRA_CI_ATTIVA=si`, `NOME_PROGETTO=Volty` e quelle elencate in testa a `rilascio-produzione.yml`; i segreti Supabase/Vercel/WhatsApp li fornisce Andrea (mai in chat): `gh secret set NOME -R sbotz17/volty-flutter` (il valore si digita nel terminale). `GCS_BUCKET` e `GCS_CHIAVE_JSON` di Volty sono già impostati da Andrea.
 
 ## 4. CODEOWNERS (Avanza)
+**Stato (T-18): NON attivo** (esiste solo `.github/CODEOWNERS.esempio`; nessun ruleset richiede la revisione dei Code Owners). Finché non lo è, gli script di promozione e rilascio (`.claude/scripts/`, `.github/`) possono essere cambiati da chi riesce a far entrare una modifica in `staging`, e il job `unione` li esegue con permessi di scrittura: rischio accettato (decisione di Andrea sull'autonomia, 24/10/2026), registrato in `registro-decisioni.md`.
 `git mv .github/CODEOWNERS.esempio .github/CODEOWNERS` su un ramo `feature/`, pull request verso `staging`. Controllare il contenuto prima: deve nominare solo `@sbotz17`.
 
 ## 5. Webhook di Commerciali (aggiorna i task in Avanza)
@@ -102,5 +103,15 @@ gcloud billing budgets list --billing-account="$BILLING"
 ```
 Le notifiche vanno per email agli amministratori della fatturazione (comportamento predefinito).
 
-## 7. Chiusura
+## 7. PRIMA promozione `staging -> main` (non automatica) e accensione della promozione automatica (T-18)
+`main` (`4e66a0e`) è molto indietro rispetto a `staging` (decine di file, regole Firestore della sottocollezione chat comprese). Il primo salto lo fa il `guardiano-produzione` con un amministratore, un passo alla volta, fermandosi al primo imprevisto:
+1. **Backup verificato** prima di tutto: variabile `BUCKET_BACKUP_FIRESTORE` (bucket con blocco di conservazione) e `PRODUZIONE_CONTROLLI_COMPLETI=true`; provare il backup (azione `backup` di "Registra ore squadra" o `backup-giornaliero.yml`) fino a "IDENTICO". Senza backup verificato non si procede.
+2. **Tag `ultimo-rilascio-ok`** su `main` `4e66a0e`, ma solo dopo aver verificato che coincida con ciò che è in produzione (sito e funzione).
+3. **Revisore sull'ambiente `produzione`** per questo primo salto (eccezione temporanea): si toglie subito dopo.
+4. **Unione manuale** della prima PR `staging -> main` con **merge commit**, in fascia a basso traffico. `SQUADRA_CI_ATTIVA` resta `no`. Leggere nel corpo della PR la dimensione del salto e se le regole Firestore differiscono.
+5. **Subito dopo**: pubblicare le regole con "Setup Firestore" da `main` (con backup) e controllare a mano login e chat nel browser; scrivere cosa non è provato.
+6. **Solo dopo**: togliere il revisore, `SQUADRA_CI_ATTIVA=si`, poi Actions > promozione > *Run workflow* con `solo_verifica=true` (prova a secco), poi osservare la prima promozione vera.
+Da quel momento la promozione è automatica con i controlli verdi, **tranne** quando `firestore.rules` o `firestore.indexes.json` differiscono tra `staging` e `main`: in quel caso si ferma ("serve una persona"): pubblicare le regole con Setup Firestore e unire a mano la PR.
+
+## 8. Chiusura
 Annotare in `docs/progetto/registro-decisioni.md` cosa è stato applicato e verificato, aggiornare `docs/progetto/ambienti.md` (rami protetti, ambienti), e riferire ad Andrea in italiano: cosa è fatto, cosa è stato verificato davvero e cosa no.

@@ -11,7 +11,8 @@
 #            PROMOZIONE_ATTESA (secondi tra i tentativi, default 10), GITHUB_OUTPUT, GITHUB_STEP_SUMMARY.
 # Esito 0 = tutto in regola (anche quando non si unisce per un controllo non ancora verde: "riprova al prossimo evento", niente rosso);
 # esito 1 = situazione anomala che richiede una persona (blocco di emergenza attivo, conflitti, main diverso da staging, unione o avvio rilascio falliti).
-# Scrive in GITHUB_OUTPUT: esito=spenta|non-ora|niente|solo-verifica|unita-da-altri|unita-e-rilascio-avviato|bloccata|anomalia
+# Scrive in GITHUB_OUTPUT: esito=spenta|non-ora|niente|serve-persona|solo-verifica|unita-da-altri|unita-e-rilascio-avviato|bloccata|anomalia
+# (serve-persona = le regole/indici Firestore differiscono tra staging e main: esito 0 con avviso, nessuna unione; il rosso a ogni evento sarebbe solo rumore)
 # Regole: l'unione e' un merge commit (mai squash: il rilascio deve poter ricostruire cosa esce), solo se la testa di staging e' quella della pull
 # request (--match-head-commit); mai --delete-branch; nessun segreto viene stampato; permessi minimi (vedi promozione.yml).
 # Concorrenza: una sola promozione alla volta (gruppo di concorrenza del workflow) e mai due rilasci in parallelo (gruppo `produzione` del rilascio;
@@ -55,6 +56,16 @@ echo "Testa di staging valutata: $X"
 N="$(git rev-list --count origin/main..origin/staging)"
 if [ "$N" = "0" ]; then echo "staging e main coincidono: niente da promuovere"; esito niente; riga "Niente da promuovere."; exit 0; fi
 
+# 3b. regole o indici Firestore diversi tra staging e main: NON si promuove da soli. Il rilascio non le pubblica (le pubblica "Setup Firestore", con backup):
+#     serve una persona che le pubblichi e unisca la pull request. Fail-closed: se il confronto stesso fallisce, vale come "differiscono".
+git diff --quiet origin/main origin/staging -- firestore.rules firestore.indexes.json 2>/dev/null; DR=$?
+if [ "$DR" != "0" ]; then
+  echo "::warning::Serve una persona: firestore.rules o firestore.indexes.json differiscono tra staging e main (o il confronto e' fallito). La promozione automatica si ferma."
+  esito serve-persona
+  riga "SERVE UNA PERSONA: le regole o gli indici Firestore differiscono tra staging e main. Pubblicarli con il workflow Setup Firestore (dopo il backup) e unire a mano la pull request di promozione, con merge commit."
+  exit 0
+fi
+
 # 4. l'unione dara' ESATTAMENTE il contenuto di staging? (altrimenti il rilascio la rifiuterebbe: meglio fermarsi prima, con un messaggio chiaro)
 git merge-tree --write-tree origin/main origin/staging > "$TMP/mt.out" 2> "$TMP/mt.err"; MT=$?
 TREE_UNIONE="$(head -n1 "$TMP/mt.out")"
@@ -72,36 +83,52 @@ RICHIEDI_TEST_VERDI="$RICH" bash .claude/scripts/verifica-da-staging.sh > "$TMP/
 sed 's/^/  /' "$TMP/verifica.txt"
 [ "$RC" = "0" ] || non_ora "la testa di staging non ha ancora tutti i controlli verdi o il deploy di test completo ($(tail -n 1 "$TMP/verifica.txt" | head -c 200))"
 
-# 6. la pull request di promozione esiste, ha la stessa testa di staging e le sue verifiche sono verdi
-gh pr list --base main --head staging --state open --json number,headRefOid --jq '.[0] // empty' > "$TMP/pr.json" 2>"$TMP/pr.err" \
+# 6. la pull request di promozione esiste, ha la stessa testa di staging e le sue verifiche sono verdi.
+#    Il repository e' PUBBLICO: `--head staging` trova anche una PR di un FORK con un ramo chiamato "staging". Si considerano SOLO le PR dello stesso
+#    repository (isCrossRepository == false: un campo mancante o diverso la esclude). Ogni lettura con jq e' fail-closed: se jq va in errore (forma
+#    imprevista della risposta) NON si unisce (un valore vuoto non va mai letto come "nessun controllo rosso").
+gh pr list --base main --head staging --state open --json number,headRefOid,isCrossRepository \
+  --jq '[.[] | select(.isCrossRepository == false)] | .[0] // empty' > "$TMP/pr.json" 2>"$TMP/pr.err" \
   || anomalia "impossibile leggere le pull request ($(head -c 200 "$TMP/pr.err"))"
-[ -s "$TMP/pr.json" ] || non_ora "nessuna pull request staging -> main aperta (la apre promozione.yml; serve 'Allow GitHub Actions to create and approve pull requests')"
-PR="$(jq -r .number "$TMP/pr.json")"; PRHEAD="$(jq -r .headRefOid "$TMP/pr.json")"
+[ -s "$TMP/pr.json" ] || non_ora "nessuna pull request staging -> main (dello stesso repository) aperta: la apre promozione.yml; serve 'Allow GitHub Actions to create and approve pull requests'"
+PR="$(jq -r '.number | tostring' "$TMP/pr.json")" || non_ora "risposta imprevista leggendo l'elenco delle pull request"
+PRHEAD="$(jq -r '.headRefOid | tostring' "$TMP/pr.json")" || non_ora "risposta imprevista leggendo l'elenco delle pull request"
+[[ "$PR" =~ ^[0-9]+$ ]] || non_ora "numero della pull request non riconosciuto ($PR)"
 [ "$PRHEAD" = "$X" ] || non_ora "la pull request #$PR e' ancora alla testa $PRHEAD, non a quella di staging $X"
 
 TENTATIVO=0
 while :; do
-  gh pr view "$PR" --json state,headRefOid,mergeable,mergeStateStatus,statusCheckRollup > "$TMP/prv.json" 2>"$TMP/pr.err" \
+  gh pr view "$PR" --json state,headRefOid,isCrossRepository,mergeable,mergeStateStatus,statusCheckRollup > "$TMP/prv.json" 2>"$TMP/pr.err" \
     || anomalia "impossibile leggere la pull request #$PR ($(head -c 200 "$TMP/pr.err"))"
-  [ "$(jq -r .mergeable "$TMP/prv.json")" != "UNKNOWN" ] && [ "$(jq -r .mergeStateStatus "$TMP/prv.json")" != "UNKNOWN" ] && break
+  # forma attesa: oggetto con elenco dei controlli (array o null); altrimenti non si decide
+  jq -e 'type == "object" and ((.statusCheckRollup // []) | type == "array")' "$TMP/prv.json" > /dev/null 2>&1 \
+    || non_ora "risposta imprevista di GitHub sulla pull request #$PR (forma dei controlli non riconosciuta)"
+  STATO="$(jq -r '.mergeStateStatus | tostring' "$TMP/prv.json")" || non_ora "stato della pull request #$PR illeggibile"
+  MERGEABLE="$(jq -r '.mergeable | tostring' "$TMP/prv.json")" || non_ora "stato della pull request #$PR illeggibile"
+  { [ "$MERGEABLE" != "UNKNOWN" ] && [ "$STATO" != "UNKNOWN" ]; } && break
   TENTATIVO=$((TENTATIVO+1)); [ "$TENTATIVO" -ge 6 ] && non_ora "GitHub non ha ancora calcolato lo stato della pull request #$PR"
   sleep "$ATTESA"
 done
-[ "$(jq -r .state "$TMP/prv.json")" = "OPEN" ] || non_ora "la pull request #$PR non e' piu' aperta"
-[ "$(jq -r .headRefOid "$TMP/prv.json")" = "$X" ] || non_ora "la testa della pull request #$PR non e' piu' quella di staging $X"
-STATO="$(jq -r .mergeStateStatus "$TMP/prv.json")"; MERGEABLE="$(jq -r .mergeable "$TMP/prv.json")"
+[ "$(jq -r '.state | tostring' "$TMP/prv.json")" = "OPEN" ] || non_ora "la pull request #$PR non e' piu' aperta"
+[ "$(jq -r '.isCrossRepository | tostring' "$TMP/prv.json")" = "false" ] || non_ora "la pull request #$PR non e' dello stesso repository (fork): non la tocco"
+[ "$(jq -r '.headRefOid | tostring' "$TMP/prv.json")" = "$X" ] || non_ora "la testa della pull request #$PR non e' piu' quella di staging $X"
 { [ "$MERGEABLE" = "CONFLICTING" ] || [ "$STATO" = "DIRTY" ]; } && anomalia "la pull request #$PR ha conflitti"
 
 # controlli della pull request: solo quelli dei workflow di controllo (ci, controlli-pr, Deploy Avanza Web); non conta la promozione stessa.
 # Un controllo rosso o in corso => non si unisce; nessun controllo presente => decidono le regole del ramo (mergeStateStatus, sotto).
-FILTRO='[.statusCheckRollup // [] | .[] | select(((.workflowName // "") == "") or ((.workflowName // "") | IN("ci","controlli-pr","Deploy Avanza Web")))]'
-ROSSI="$(jq -r "$FILTRO"' | map(select((((.conclusion // "") | IN("FAILURE","CANCELLED","TIMED_OUT","ACTION_REQUIRED","STARTUP_FAILURE")) or ((.state // "") | IN("FAILURE","ERROR"))) )) | map(.name // .context) | unique | join(", ")' "$TMP/prv.json")"
-IN_CORSO="$(jq -r "$FILTRO"' | map(select(((.status // "COMPLETED") != "COMPLETED") or ((.state // "") | IN("PENDING","EXPECTED")))) | map(.name // .context) | unique | join(", ")' "$TMP/prv.json")"
+FILTRO='[(.statusCheckRollup // [])[] | select(((.workflowName // "") == "") or ((.workflowName // "") | IN("ci","controlli-pr","Deploy Avanza Web")))]'
+ROSSI="$(jq -r "$FILTRO"' | map(select((((.conclusion // "") | IN("FAILURE","CANCELLED","TIMED_OUT","ACTION_REQUIRED","STARTUP_FAILURE")) or ((.state // "") | IN("FAILURE","ERROR"))) )) | map(.name // .context // "?") | unique | join(", ")' "$TMP/prv.json")" \
+  || non_ora "esito dei controlli della pull request #$PR illeggibile (forma imprevista)"
+IN_CORSO="$(jq -r "$FILTRO"' | map(select(((.status // "COMPLETED") != "COMPLETED") or ((.state // "") | IN("PENDING","EXPECTED")))) | map(.name // .context // "?") | unique | join(", ")' "$TMP/prv.json")" \
+  || non_ora "controlli in corso della pull request #$PR illeggibili (forma imprevista)"
 [ -z "$ROSSI" ] || non_ora "controlli della pull request #$PR non superati: $ROSSI"
 [ -z "$IN_CORSO" ] || non_ora "controlli della pull request #$PR ancora in corso: $IN_CORSO"
+# si procede SOLO con uno stato noto e buono (CLEAN, UNSTABLE = fallisce solo un controllo non obbligatorio di altri flussi, HAS_HOOKS); ogni altro valore: no
 case "$STATO" in
+  CLEAN|UNSTABLE|HAS_HOOKS) ;;
   BLOCKED) non_ora "le regole del ramo main non sono soddisfatte sulla pull request #$PR (controlli obbligatori mancanti o in corso, o approvazioni richieste)" ;;
   BEHIND)  non_ora "la pull request #$PR non e' aggiornata rispetto a main" ;;
+  *)       non_ora "stato della pull request #$PR non riconosciuto ('$STATO')" ;;
 esac
 echo "Pull request #$PR: testa $X, stato '$STATO', controlli della PR senza rossi ne' in corso."
 
