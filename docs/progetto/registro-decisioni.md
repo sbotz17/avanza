@@ -140,5 +140,5 @@ I nomi esatti di segreti, variabili e ambienti si confermano con i workflow defi
 - Decisione: se la squadra sbaglia una valutazione, se un passaggio è saltato o se un componente non è del tutto sicuro di ciò che ha fatto, si ferma e si valuta insieme ad Andrea (niente rilascio, niente correzioni in silenzio). Un "non verificato" o un'incertezza dichiarata vale come stop anche con controlli verdi.
 - Dove: sezione "Quando fermarsi e valutare insieme" in CLAUDE.md di Avanza e Volty, `docs/progetto/regole-globali-squadra.md` e regole globali del container; frase di richiamo in tutti gli agenti.
 - Distinzione: i dubbi minori sui requisiti restano "strada più prudente + registro"; lo stop vale per errori, passaggi saltati o incertezza sul proprio lavoro o su un esito.
-- Non verificato: nessun controllo automatico può far rispettare questa regola; dipende dalla dichiarazione onesta di ogni componente (e dalla seconda lettura del validatore).
+- Limite noto e accettato (non è uno stop): nessun controllo automatico può far rispettare questa regola; dipende dalla dichiarazione onesta di ogni componente (e dalla seconda lettura del validatore).
 - Come tornare indietro: togliere la sezione dai file indicati.
