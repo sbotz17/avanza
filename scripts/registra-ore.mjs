@@ -72,22 +72,33 @@ async function upsertMember() {
   }
 }
 
-// Copia (solo aggiunte) i membri della squadra intestati ad altri account nell'account proprietario del progetto,
+// Copia (solo aggiunte) i membri della squadra intestati ad un altro account nell'account proprietario del progetto,
 // cosi' l'admin li vede nella pagina Squadra (le regole mostrano solo i membri con ownerId = proprio uid).
-// Non modifica e non cancella nulla: i membri originali restano dove sono; se il proprietario ha gia' un membro
-// con lo stesso nome non fa nulla. Con note=prova stampa cosa farebbe senza scrivere.
+// Non modifica e non cancella nulla: i membri originali restano dove sono. Per sicurezza:
+// - SOLA PROVA per default: scrive solo con note=esegui;
+// - si ferma se i membri da copiare appartengono a piu' di un account (nessuna scelta implicita);
+// - salta i membri senza nome e quelli gia' copiati (stesso nome oppure copiedFrom uguale all'originale).
 async function copiaSquadra() {
   const project = await findProject();
   const ownerId = project.get('ownerId');
-  const dryRun = env('NOTE').toLowerCase() === 'prova';
+  if (!ownerId || typeof ownerId !== 'string') throw new Error('Il progetto non ha un proprietario (ownerId).');
+  const esegui = env('NOTE').toLowerCase() === 'esegui';
   const all = await db.collection('teamMembers').get();
-  const mine = new Set(all.docs.filter((d) => d.get('ownerId') === ownerId).map((d) => String(d.get('name')).toLowerCase()));
+  const mine = all.docs.filter((d) => d.get('ownerId') === ownerId);
+  const mineNames = new Set(mine.map((d) => String(d.get('name') ?? '').toLowerCase()));
+  const mineCopiedFrom = new Set(mine.map((d) => d.get('copiedFrom')).filter(Boolean));
+  const others = all.docs.filter((d) => d.get('ownerId') !== ownerId);
+  const sourceOwners = [...new Set(others.map((d) => d.get('ownerId')))];
+  if (sourceOwners.length > 1) {
+    throw new Error(`I membri da copiare appartengono a ${sourceOwners.length} account diversi (${sourceOwners.join(', ')}): non scelgo da solo, serve una decisione.`);
+  }
   let created = 0;
   let skipped = 0;
-  for (const d of all.docs) {
-    if (d.get('ownerId') === ownerId) continue;
-    const name = String(d.get('name'));
-    if (mine.has(name.toLowerCase())) { skipped++; console.log(`Gia' presente per il proprietario, salto: ${name}`); continue; }
+  const newIds = [];
+  for (const d of others) {
+    const name = String(d.get('name') ?? '').trim();
+    if (!name) { skipped++; console.log(`Senza nome, salto: ${d.id}`); continue; }
+    if (mineNames.has(name.toLowerCase()) || mineCopiedFrom.has(d.id)) { skipped++; console.log(`Gia' presente per il proprietario, salto: ${name}`); continue; }
     const data = {
       ownerId,
       name,
@@ -99,13 +110,16 @@ async function copiaSquadra() {
       createdAt: Timestamp.now(),
       copiedFrom: d.id,
     };
-    mine.add(name.toLowerCase());
-    if (dryRun) { console.log(`[prova] copierei: ${name} (ruolo=${data.role}, costo=${data.costRate}, vendita=${data.billRate})`); created++; continue; }
-    await db.collection('teamMembers').add(data);
-    console.log(`Copiato: ${name}`);
+    mineNames.add(name.toLowerCase());
+    if (!esegui) { console.log(`[prova] copierei: ${name} (ruolo=${data.role}, costo=${data.costRate}, vendita=${data.billRate})`); created++; continue; }
+    const ref = await db.collection('teamMembers').add(data);
+    newIds.push(ref.id);
+    console.log(`Copiato: ${name} -> ${ref.id} (da ${d.id})`);
     created++;
   }
-  console.log(`${dryRun ? '[prova] ' : ''}Membri copiati: ${created}, gia' presenti: ${skipped}. Nessun dato esistente modificato o cancellato.`);
+  console.log(`${esegui ? '' : '[prova, nulla e\' stato scritto] '}Membri copiati: ${created}, gia' presenti o saltati: ${skipped}. Nessun dato esistente modificato o cancellato.`);
+  if (esegui) console.log(`ID creati (per un eventuale annullamento, da decidere con Andrea): ${newIds.join(', ')}`);
+  if (!esegui) console.log('Per scrivere davvero rilancia con note=esegui.');
 }
 
 async function addHours() {
