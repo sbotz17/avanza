@@ -38,10 +38,7 @@ jobs:
         id: cfg
         run: |
           # Salvavita: il flusso di TEST non deve mai poter pubblicare sulla produzione (progetto o chiave di produzione per errore).
-          if [ "$PROGETTO" = "avanza-b62d7" ]; then echo "::error::PROGETTO_FIREBASE_TEST punta alla PRODUZIONE (avanza-b62d7): flusso di test fermato."; exit 1; fi
-          if [ -n "$SA_TEST" ] && [ "$(printf '%s' "$SA_TEST" | jq -r '.project_id // empty' 2>/dev/null)" = "avanza-b62d7" ]; then
-            echo "::error::FIREBASE_SERVICE_ACCOUNT_TEST e' la chiave della PRODUZIONE: flusso di test fermato."; exit 1
-          fi
+          bash .claude/scripts/salvavita-test.sh
           if [ -z "$SA_TEST" ]; then
             echo "::notice::Progetto di test NON configurato (manca il segreto FIREBASE_SERVICE_ACCOUNT_TEST): niente deploy di test."
             echo "pronto=no" >> "$GITHUB_OUTPUT"
@@ -138,10 +135,7 @@ jobs:
         id: cfg
         run: |
           # Salvavita: il flusso di TEST non deve mai poter pubblicare sulla produzione (progetto o chiave di produzione per errore).
-          if [ "$PROGETTO" = "avanza-b62d7" ]; then echo "::error::PROGETTO_FIREBASE_TEST punta alla PRODUZIONE (avanza-b62d7): flusso di test fermato."; exit 1; fi
-          if [ -n "$SA_TEST" ] && [ "$(printf '%s' "$SA_TEST" | jq -r '.project_id // empty' 2>/dev/null)" = "avanza-b62d7" ]; then
-            echo "::error::FIREBASE_SERVICE_ACCOUNT_TEST e' la chiave della PRODUZIONE: flusso di test fermato."; exit 1
-          fi
+          bash .claude/scripts/salvavita-test.sh
           if [ -z "$SA_TEST" ] || [ ! -f lib/firebase_options_test.dart ]; then
             echo "::notice::Anteprima non disponibile: progetto di test o configurazione di test dell'app mancanti. Nessuna anteprima sulla produzione."
             echo "pronto=no" >> "$GITHUB_OUTPUT"

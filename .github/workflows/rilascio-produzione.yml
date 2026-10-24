@@ -71,6 +71,7 @@ jobs:
       # configurato con il revisore obbligatorio, GitHub lo crea senza protezioni e il tocco non verrebbe mai chiesto: per questo
       # il rilascio si ferma finche' Andrea non conferma con la variabile SVILUPPI_APPROVAZIONE_CONFIGURATA = si (vedi README-CI.md).
       - name: Se e' uno sviluppo, l'approvazione di Andrea e' configurata?
+        id: cfg
         if: steps.c.outputs.tipo != 'correzione' && vars.SVILUPPI_APPROVAZIONE_CONFIGURATA != 'si'
         env:
           MOTIVO: ${{ steps.c.outputs.motivo }}
@@ -79,15 +80,23 @@ jobs:
           echo "Rilascio FERMATO, la produzione non e' stata toccata. Andrea: crea l'ambiente produzione-sviluppi con te come revisore e imposta la variabile SVILUPPI_APPROVAZIONE_CONFIGURATA = si (passi in .github/README-CI.md)."
           exit 1
 
-      - name: Avviso WhatsApp
-        if: failure()
+      - name: Avviso WhatsApp - configurazione dell'approvazione mancante
+        if: failure() && steps.cfg.outcome == 'failure'
         continue-on-error: true
         run: |
           python3 .claude/scripts/avvisa-whatsapp.py decisione_in_sospeso "Un nuovo sviluppo e' pronto per la produzione ma manca la configurazione dell'approvazione (ambiente produzione-sviluppi). Rilascio fermato, produzione intatta."
 
+      - name: Avviso WhatsApp - classificazione fallita
+        if: failure() && steps.cfg.outcome != 'failure'
+        continue-on-error: true
+        run: |
+          python3 .claude/scripts/avvisa-whatsapp.py anomalia "Rilascio fermato: lo script che decide se e' una correzione o uno sviluppo e' fallito. Produzione intatta. Dettagli nell'esito su GitHub."
+
   # Il tocco di Andrea: solo per i nuovi sviluppi (le correzioni saltano questo passo). Revisore obbligatorio da configurare sull'ambiente.
   approvazione-sviluppo:
-    needs: classifica
+    # Dipende anche da `controlli`: Andrea non riceve la richiesta di tocco se la CI e' rossa (il rilascio si fermerebbe comunque).
+    # Con `controlli` fallito o saltato questo job viene saltato, e `rilascio` richiede comunque controlli == success.
+    needs: [classifica, controlli]
     if: needs.classifica.outputs.tipo != 'correzione'
     runs-on: ubuntu-latest
     environment: produzione-sviluppi
@@ -270,6 +279,8 @@ jobs:
       - name: "Segna questa versione come ultima buona (tag ultimo-rilascio-ok)"
         continue-on-error: true
         run: |
+          # voluto: se UNO dei due comandi fallisce, si avvisa ed esce con errore
+          # shellcheck disable=SC2015
           git tag -f ultimo-rilascio-ok HEAD && git push -f origin refs/tags/ultimo-rilascio-ok || { echo "::warning::Tag ultimo-rilascio-ok NON scritto: il ritorno automatico del prossimo rilascio non sara' disponibile."; exit 1; }
           T="rilascio-$(date -u +%Y%m%d-%H%M%S)"; git tag "$T" HEAD && git push origin "refs/tags/$T"
 
@@ -356,10 +367,10 @@ jobs:
           S: ${{ steps.prec_smoke.outcome }}
         run: |
           if [ "$OK" = "si" ] && [ "$H" = "success" ] && [ "$F" = "success" ]; then
-            if [ "$S" = "success" ]; then ESITO="La produzione risponde ai controlli."; else ESITO="Attenzione: i controlli dopo il ritorno NON sono tutti verdi, verifica il sito."; fi
-            python3 .claude/scripts/avvisa-whatsapp.py anomalia "Rilascio fallito dopo l'avvio. Sito e funzione riportati alla versione precedente. $ESITO I dati NON sono stati toccati dal ritorno: il ripristino dei dati e' una tua decisione."
+            if [ "$S" = "success" ]; then ESITO="La produzione risponde ai controlli."; else ESITO="ATTENZIONE: controlli dopo il ritorno NON tutti verdi, verifica il sito."; fi
+            python3 .claude/scripts/avvisa-whatsapp.py anomalia "Rilascio fallito: sito e funzione tornati alla versione precedente. $ESITO Dati non toccati dal ritorno: il loro ripristino e' una tua decisione."
           else
-            python3 .claude/scripts/avvisa-whatsapp.py anomalia "Rilascio fallito e ritorno automatico alla versione precedente NON riuscito o non disponibile. Serve un intervento subito."
+            python3 .claude/scripts/avvisa-whatsapp.py anomalia "Rilascio fallito e ritorno automatico NON riuscito o non disponibile. Serve un intervento subito."
           fi
 
       - name: Avviso WhatsApp - rilascio fermato prima di toccare la produzione

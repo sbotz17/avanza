@@ -5,14 +5,14 @@
 # Nel dubbio (base non trovata, elenco non leggibile, nessuna modifica) il risultato e' "sviluppo".
 #
 # Confronto: dall'ultima versione buona (tag ultimo-rilascio-ok, se e' antenato di HEAD), altrimenti dal commit precedente di main
-# (variabile PRIMA = github.event.before), altrimenti dal primo genitore di HEAD.
+# (variabile PRIMA = github.event.before), altrimenti dal primo genitore di HEAD, ma SOLO se HEAD e' un commit di unione (due genitori); in ogni altro caso "sviluppo".
 # Variabili: GH_TOKEN, GITHUB_REPOSITORY, PRIMA (facoltativa), GITHUB_OUTPUT.
 # Scrive: tipo=correzione|sviluppo, motivo=..., regole_cambiate=si|no, base=<riferimento usato>.
+# Le pull request di promozione (staging -> main) non contano: vedi pr-del-commit.sh.
 # NON PROVATO su GitHub (le chiamate gh api non sono eseguibili qui); la parte git e la classificazione sono state provate su un repository di esempio.
 set -uo pipefail
 OUT="${GITHUB_OUTPUT:-/dev/null}"
 TMP="$(mktemp -d)"; trap 'rm -rf "$TMP"' EXIT
-REPO="${GITHUB_REPOSITORY:-}"
 fine() { # $1 tipo, $2 motivo, $3 regole, $4 base
   { echo "tipo=$1"; echo "motivo=$2"; echo "regole_cambiate=${3:-no}"; echo "base=${4:-}"; } >> "$OUT"
   echo "CLASSIFICAZIONE: $1 ($2)"; exit 0
@@ -23,7 +23,8 @@ if git rev-parse -q --verify refs/tags/ultimo-rilascio-ok >/dev/null 2>&1 && git
   BASE="refs/tags/ultimo-rilascio-ok"
 elif [ -n "${PRIMA:-}" ] && ! echo "$PRIMA" | grep -qE '^0+$' && git cat-file -e "${PRIMA}^{commit}" 2>/dev/null; then
   BASE="$PRIMA"
-else
+elif git rev-parse -q --verify 'HEAD^2' >/dev/null 2>&1; then
+  # ripiego (avvio manuale, nessun tag): solo se HEAD e' un commit di unione (promozione), altrimenti si esaminerebbe soltanto l'ultimo commit
   BASE="$(git rev-parse -q --verify 'HEAD^1' 2>/dev/null || true)"
 fi
 [ -n "$BASE" ] || fine sviluppo "versione in produzione non individuabile" no ""
@@ -31,15 +32,8 @@ fi
 REGOLE=no
 if ! git diff --quiet "$BASE" HEAD -- firestore.rules firestore.indexes.json 2>/dev/null; then REGOLE=si; fi
 
-: > "$TMP/lista.jsonl"; SENZA=0
-for c in $(git rev-list --no-merges "$BASE..HEAD"); do
-  if [ -z "$REPO" ] || ! gh api "repos/$REPO/commits/$c/pulls" > "$TMP/p.json" 2>/dev/null; then
-    SENZA=1; continue      # non leggibile = si presume una modifica senza pull request (strada prudente)
-  fi
-  [ "$(jq length "$TMP/p.json")" -eq 0 ] && SENZA=1
-  jq -c '.[] | {numero:.number, ramo:.head.ref, etichette:[.labels[].name], titolo:.title, corpo:(.body // "")}' "$TMP/p.json" >> "$TMP/lista.jsonl"
-done
-jq -s --argjson s "$SENZA" '{commit_senza_pr:$s, pr:(unique_by(.numero))}' "$TMP/lista.jsonl" > "$TMP/richieste.json" 2>/dev/null \
+# raccolta delle pull request dei commit: script condiviso con promozione.yml (esclude la PR di promozione staging -> main)
+bash .claude/scripts/pr-del-commit.sh "$BASE..HEAD" "$TMP/richieste.json" \
   || fine sviluppo "elenco delle pull request non leggibile" "$REGOLE" "$BASE"
 
 # script e regole di classificazione: quelli di HEAD (che e' main, gia' protetto)

@@ -8,6 +8,7 @@
 #     un 404/500/timeout significa funzione rotta). Nessun effetto: la firma sbagliata viene respinta prima di toccare Firestore;
 #   - il login e' raggiungibile: una richiesta di accesso con un'email inventata deve ricevere dal servizio di accesso Firebase un rifiuto "normale"
 #     (400 EMAIL_NOT_FOUND / INVALID_LOGIN_CREDENTIALS). Nessun account viene creato o modificato.
+#     Limite di richieste o guasto di Google (TOO_MANY_ATTEMPTS, 403, 429, 5xx) o chiave web non trovata = solo AVVISO (prova non conclusiva), mai fallimento.
 # Uso:  smoke-produzione.sh            Esito: 0 tutto ok, 1 almeno una prova fallita (le prove si ripetono SMOKE_TENTATIVI volte: la rete di Google puo' impiegare qualche secondo).
 # Variabili: URL_PRODUZIONE (default https://avanza-b62d7.web.app)  FUNZIONE_URL (default la funzione githubWebhook di produzione)
 #            SMOKE_TENTATIVI (default 6)  SMOKE_ATTESA secondi tra i tentativi (default 10)  FIREBASE_OPTIONS_FILE (default lib/firebase_options.dart, per la chiave web pubblica)
@@ -70,14 +71,26 @@ p_funz_post() {
 p_login() {
   local chiave c corpo
   chiave="$(sed -n '/static const FirebaseOptions web/,/);/p' "$OPT" 2>/dev/null | sed -n "s/.*apiKey: *'\([^']*\)'.*/\1/p" | head -1)"
-  [ -n "$chiave" ] || { echo "chiave web non trovata in $OPT (prova login saltata)"; return 0; }
+  # Senza la chiave la prova NON si puo' fare: non si segna OK in silenzio. Scelta prudente ma non bloccante: AVVISO esplicito
+  # (un file cambiato di posto non deve annullare un rilascio buono, ma chi legge deve sapere che il login NON e' stato provato).
+  if [ -z "$chiave" ]; then
+    echo "ATTENZIONE: chiave web non trovata in $OPT: la prova del servizio di accesso NON e' stata fatta (NON verificata)." >> "$TMP/avvisi"
+    echo "chiave web non trovata in $OPT: prova del login non eseguita (avviso)"; return 0
+  fi
   c="$(curl -sS -m 30 -o "$TMP/auth" -w '%{http_code}' -X POST -H 'content-type: application/json' -H "Referer: $URL/" \
       -d "{\"email\":\"smoke-$RANDOM$RANDOM@example.invalid\",\"password\":\"non-valida-$RANDOM\",\"returnSecureToken\":true}" \
       "${AUTH_URL:-https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword}?key=$chiave" 2>&1)"
   corpo="$(tr -d '\n' < "$TMP/auth" 2>/dev/null)"
+  # Un limite di richieste o un guasto passeggero di Google (TOO_MANY_ATTEMPTS, 429, 5xx) NON dice nulla sul nostro sito: solo avviso,
+  # altrimenti il ritorno automatico annullerebbe un rilascio buono. Si fallisce solo se l'accesso risponde in modo davvero inatteso.
   case "$c" in
-    400) echo "$corpo" | grep -q 'EMAIL_NOT_FOUND\|INVALID_LOGIN_CREDENTIALS\|INVALID_PASSWORD' || { echo "Auth risponde 400 ma con un errore inatteso: $(echo "$corpo" | head -c 200)"; return 1; } ;;
+    400) if echo "$corpo" | grep -q 'EMAIL_NOT_FOUND\|INVALID_LOGIN_CREDENTIALS\|INVALID_PASSWORD'; then :
+         elif echo "$corpo" | grep -q 'TOO_MANY_ATTEMPTS'; then
+           echo "Auth ha risposto TOO_MANY_ATTEMPTS_TRY_LATER (limite di richieste di Google sull'indirizzo della CI): prova del login non conclusiva, non blocca." >> "$TMP/avvisi"
+         else echo "Auth risponde 400 ma con un errore inatteso: $(echo "$corpo" | head -c 200)"; return 1; fi ;;
     403) echo "Auth ha risposto 403 alla prova di accesso (chiave con restrizioni?): prova non conclusiva, non blocca." >> "$TMP/avvisi" ;;
+    429) echo "Auth ha risposto 429 (troppe richieste): prova del login non conclusiva, non blocca." >> "$TMP/avvisi" ;;
+    5??) echo "Auth ha risposto HTTP $c (guasto passeggero del servizio Google?): prova del login non conclusiva, non blocca." >> "$TMP/avvisi" ;;
     *)   echo "Auth -> HTTP $c (atteso 400 con EMAIL_NOT_FOUND/INVALID_LOGIN_CREDENTIALS)"; return 1 ;;
   esac
 }
@@ -96,7 +109,8 @@ else echo "SALTATA la prova della funzione (SMOKE_FUNZIONE=no)"; fi
 if [ "${SMOKE_LOGIN:-}" != no ]; then
   prova "servizio di accesso Firebase raggiungibile (rifiuto normale di credenziali inventate)" p_login
 else echo "SALTATA la prova del login (SMOKE_LOGIN=no)"; fi
-[ -s "$TMP/avvisi" ] && sed 's/^/AVVISO /' "$TMP/avvisi"
+[ -s "$TMP/avvisi" ] && sort -u "$TMP/avvisi" | sed 's/^/AVVISO /'
 echo "== NON verificato da questo test: accesso reale con un utente, caricamento dei dati, funzioni dentro l'app (serve un browser)."
-if [ "$KO" = 0 ]; then echo "SMOKE TEST: TUTTE LE PROVE SUPERATE"; else echo "SMOKE TEST: ALMENO UNA PROVA FALLITA"; fi
+if [ "$KO" = 0 ] && [ -s "$TMP/avvisi" ]; then echo "SMOKE TEST: PROVE SUPERATE, MA CON AVVISI (almeno una prova non conclusiva: leggi gli AVVISO qui sopra)"
+elif [ "$KO" = 0 ]; then echo "SMOKE TEST: TUTTE LE PROVE SUPERATE"; else echo "SMOKE TEST: ALMENO UNA PROVA FALLITA"; fi
 exit "$KO"
