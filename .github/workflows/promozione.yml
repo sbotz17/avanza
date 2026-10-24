@@ -1,7 +1,7 @@
 # Promozione da staging a main (produzione). Quando una modifica entra in staging, questo flusso apre o aggiorna UNA pull request
 # "staging -> main" con il riepilogo di cio' che staging ha in piu' di main e la classificazione (correzione o nuovo sviluppo).
-# NON fonde nulla: la fusione la fa Andrea (o la CI con la sua approvazione), come richiesto dalla protezione del ramo main.
-# Se e' uno sviluppo, avvisa Andrea su WhatsApp. Gira solo con la variabile SQUADRA_CI_ATTIVA = si (di default no).
+# NON fonde nulla da sola: la fusione avviene con i controlli verdi (Andrea non valida piu' gli sviluppi, decisione del 24/10/2026).
+# Se e' uno sviluppo, avvisa Andrea su WhatsApp (solo informativo). Gira solo con la variabile SQUADRA_CI_ATTIVA = si (di default no).
 # Richiede nelle impostazioni del repository: Actions > General > "Allow GitHub Actions to create and approve pull requests".
 name: promozione
 on:
@@ -75,7 +75,7 @@ jobs:
             if [ "$TIPO" = "correzione" ]; then
               echo "Sono solo correzioni verificate: dopo i controlli si puo' unire."
             else
-              echo "Contiene un **nuovo sviluppo** (motivo: $MOTIVO): va provato sul sito di test e validato da Andrea prima di unire."
+              echo "Contiene un **nuovo sviluppo** (motivo: $MOTIVO): accettato dalla squadra (tester e validatore indipendenti) e provato sul sito di test; si unisce con i controlli verdi."
             fi
             echo
             echo "### Cosa cambia rispetto alla produzione"
@@ -85,7 +85,7 @@ jobs:
             jq -r '.pr[] | "- #\(.numero) \(.titolo) [\(.ramo)]"' /tmp/richieste.json
             echo
             echo "Dopo la fusione, rilascio-produzione.yml pubblica in produzione (ambiente GitHub \`produzione\`)."
-            echo "_Aperta in automatico da promozione.yml. La fusione resta di Andrea._"
+            echo "_Aperta in automatico da promozione.yml. Si fonde quando i controlli sono verdi (decisione di Andrea del 24/10/2026: non valida piu' gli sviluppi)._"
           } > /tmp/corpo.md
           TITOLO="Promozione staging -> main ($TIPO)"
           gh label create "promozione" --color 5319e7 --description "Promozione da staging a produzione" 2>/dev/null || true
@@ -103,4 +103,4 @@ jobs:
       - name: Avviso WhatsApp se e' uno sviluppo
         if: steps.diff.outputs.n != '0' && steps.c.outputs.tipo == 'sviluppo'
         run: |
-          python3 .claude/scripts/avvisa-whatsapp.py da_validare "Staging contiene uno sviluppo: provalo sul sito di test, poi approva la promozione su GitHub."
+          python3 .claude/scripts/avvisa-whatsapp.py da_validare "Staging contiene un nuovo sviluppo in arrivo in produzione dopo i controlli della squadra. Puoi guardarlo sul sito di test."

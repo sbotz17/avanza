@@ -115,7 +115,7 @@ jobs:
             if [ "$TIPO" = "correzione" ]; then
               echo "Una volta in staging e superati i controlli, potra' andare in produzione come correzione."
             else
-              echo "Sara' trattata come **nuovo sviluppo**: prima di arrivare in produzione serve la validazione di Andrea."
+              echo "Sara' trattata come **nuovo sviluppo**: prima di arrivare in produzione servono l'accettazione indipendente della squadra (tester e validatore) e la prova sul sito di test."
             fi
             echo
             echo '```'

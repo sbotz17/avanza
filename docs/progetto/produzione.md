@@ -61,7 +61,7 @@ Avanza usa Firebase/Firestore — i backup automatici di Firestore non sono atti
 
 ## Checklist di rilascio sicuro (revisione del 24/10/2026; dettagli e rischi in `test/2026-10-24-audit-rilascio-produzione.md`)
 Il rilascio la esegue in gran parte la CI (`rilascio-produzione.yml`); il guardiano la controlla a mano per ogni rilascio e scrive l'esito nel registro operazioni.
-1. Classificazione corretta: correzione (`fix/R-n`, `tipo:correzione`, nessuna zona protetta) oppure sviluppo; gli sviluppi hanno la voce in `registro-decisioni.md` e il tocco di Andrea su `produzione-sviluppi`.
+1. Classificazione corretta: correzione (`fix/R-n`, `tipo:correzione`, nessuna zona protetta) oppure sviluppo; gli sviluppi hanno l'esito dell'accettazione indipendente in `docs/progetto/test/` e la voce in `rilasci.md`; **nessun tocco di Andrea** (decisione del 24/10/2026: il job `approvazione-sviluppo` e' saltato finche' `SVILUPPI_RICHIEDONO_APPROVAZIONE` non e' `si`). Il job `classifica` scrive nel riepilogo cosa sta per uscire.
 2. Nessun `BLOCCO-SQUADRA.md` attivo e variabile `BLOCCO_SQUADRA` diversa da `ATTIVO`; il rilascio viene dalla promozione `staging` -> `main`, mai da un push diretto.
 3. CI verde sul commit di `main` (analisi, test, build, funzioni) e CI verde sul commit identico di `staging`, con sito, regole/indici e funzione pubblicati sul test (`avanza-test-c33ef`) e provati: `verifica-da-staging.sh`.
 4. APPROVATO del `validatore` e GO del guardiano per QUEL rilascio; rilascio solo della testa attuale di `main`.

@@ -113,3 +113,32 @@ I nomi esatti di segreti, variabili e ambienti si confermano con i workflow defi
 - La variabile GitHub `SVILUPPI_APPROVAZIONE_CONFIGURATA` = `si` la imposta **solo Andrea**, e solo DOPO aver creato l'ambiente `produzione-sviluppi` con sé come revisore: GitHub crea gli ambienti mancanti senza revisore, e senza revisore l'approvazione non fermerebbe nulla. Finché non è impostata, nessun nuovo sviluppo esce in produzione (voluto).
 - Prima di promuovere `staging` → `main` si controlla che l'ultimo "Deploy Avanza Web" su `staging` sia verde per intero (sito, regole e indici, funzione): il nuovo rilascio lo richiede anche per le correzioni.
 - Azione `backup` in `registra-ore.yml`/`registra-ore.mjs`: non modifica dati, serve a provare il backup verso il bucket (seconda lettura: 1 riga, riletta dal Coordinatore).
+
+### 2026-10-24 — Andrea non valida più gli sviluppi: la squadra fa tutto, produzione compresa (istruzione di Andrea)
+- **Istruzione (di Andrea, in chat)**: "organizzatevi per far sì che io non faccia più nulla per lo sviluppo, tranne le scelte iniziali con l'analista e, se serve, durante".
+- **Interpretazione**: viene meno la validazione di Andrea prima della produzione (era l'unico via libera umano sui nuovi sviluppi). Resta: scelte iniziali con l'analista (una volta), decisioni vere durante, il limite sui dati e le sue leve di blocco.
+- **Cosa prende il posto del suo OK**: accettazione indipendente dell'analista con prova vera nel browser sui criteri concordati; `tester` e `validatore`; CI verde; deploy di test riuscito per intero; backup verificato; GO del `guardiano-produzione`; prova del sito dopo il rilascio; ritorno automatico alla versione precedente. Nessuno di questi si salta.
+- **Applicato in**: `CLAUDE.md`, `AGENTS.md`, `docs/progetto/regole-globali-squadra.md`, agente `analista`. Da adeguare con una seconda lettura indipendente: `rilascio-produzione.yml` (l'approvazione degli sviluppi diventa disattivabile con una variabile, di default disattivata) e il runbook T-16 (ambiente `produzione-sviluppi` senza revisore).
+- **Rischio accettato da Andrea**: senza il suo OK un errore può arrivare in produzione. Mitigazioni: i controlli sopra, il ritorno automatico, i backup, la leva `BLOCCO_SQUADRA`.
+- **Come tornare indietro**: Andrea può dire "questo lo voglio vedere prima" per un singolo sviluppo, oppure reimpostare l'approvazione obbligatoria (variabile e revisore sull'ambiente).
+
+### 2026-10-24 — Rilascio: approvazione umana degli sviluppi resa facoltativa (guardiano-produzione, in attesa di seconda lettura del validatore)
+- **Cosa**: `rilascio-produzione.yml` legge la variabile GitHub `SVILUPPI_RICHIEDONO_APPROVAZIONE`. Assente, vuota o `no` (predefinito) = nessun tocco di Andrea: il job `approvazione-sviluppo` e' saltato e lo sviluppo esce con gli stessi controlli delle correzioni. Qualunque altro valore (`si` o errore di battitura) = tocco richiesto come prima (ambiente `produzione-sviluppi`, `SVILUPPI_APPROVAZIONE_CONFIGURATA`). Il job `rilascio` parte solo con controlli e classificazione verdi e approvazione `success`, oppure `skipped` perche' non dovuta; nuovo riepilogo "Cosa sta per uscire" nel job `classifica`.
+- **Alternative scartate**: verifica automatica dell'esistenza del report di accettazione (troppo fragile); interpretare ogni valore diverso da `si` come `no` (un errore di battitura aprirebbe il rilascio: scelta opposta, piu' prudente).
+- **Documentazione allineata**: runbook `configurazioni-da-fare.md` sezione 2 (ambiente `produzione` senza revisore, variabile `no`, `produzione-sviluppi` facoltativo), `.github/README-CI.md`, `produzione.md`, `/rilascio`, agente `guardiano-produzione`. Report: `docs/progetto/test/2026-10-24-audit-rilascio-produzione.md`, sezione 7.
+- **Non provato**: nessun workflow eseguito su GitHub (solo actionlint, prove locali degli script e un modello delle espressioni). Rischi residui nella sezione 7 del report (classificazione dubbia che non ferma piu', regole non pubblicate dal rilascio, fusione staging -> main ancora manuale, testi di `promozione.yml`/`avvisi.yml` da allineare).
+- **Come tornare indietro**: impostare `SVILUPPI_RICHIEDONO_APPROVAZIONE` = `si` (e creare `produzione-sviluppi` con il revisore) oppure `git revert` del commit.
+- **Decisione in sospeso per Andrea**: dopo la seconda lettura, applicare la configurazione (ambiente `produzione` senza revisore, variabile) con una sessione con accesso di amministratore; decidere chi fonde la pull request di promozione.
+
+## 2026-10-24 — Seconda lettura del rilascio senza tocco di Andrea (T-17)
+- Decisione: `rilascio-produzione.yml` con approvazione umana facoltativa (`SVILUPPI_RICHIEDONO_APPROVAZIONE`, predefinito `no`); testi di promozione, avvisi, controlli PR, `ambienti.md` e `CLAUDE.md` allineati.
+- Seconda lettura indipendente (validatore): APPROVATO. Fail-closed sulla variabile (solo vuoto/`no` = nessun tocco). Non verificato: nessun workflow eseguito su GitHub; stato reale di ambienti/variabili su GitHub; primo rilascio da osservare.
+- Rischi accettati: con `no` una classificazione dubbia non ferma il rilascio; regole/indici Firestore non pubblicati dal rilascio (restano a "Setup Firestore"); il ritorno automatico non ripristina dati né regole.
+- Come tornare indietro: impostare `SVILUPPI_RICHIEDONO_APPROVAZIONE=si` (ambiente `produzione-sviluppi` con revisore) o `BLOCCO_SQUADRA=ATTIVO`.
+
+## 2026-10-24 — Regola "quando fermarsi e valutare insieme" (istruzione di Andrea, T-17)
+- Decisione: se la squadra sbaglia una valutazione, se un passaggio è saltato o se un componente non è del tutto sicuro di ciò che ha fatto, si ferma e si valuta insieme ad Andrea (niente rilascio, niente correzioni in silenzio). Un limite di verifica noto e motivato nel registro resta ammesso; è stop un errore scoperto, un passaggio saltato o un'incertezza vera sul proprio lavoro, anche con controlli verdi.
+- Dove: sezione "Quando fermarsi e valutare insieme" in CLAUDE.md di Avanza e Volty, `docs/progetto/regole-globali-squadra.md` e regole globali del container; frase di richiamo in tutti gli agenti.
+- Distinzione: i dubbi minori sui requisiti restano "strada più prudente + registro"; lo stop vale per errori, passaggi saltati o incertezza sul proprio lavoro o su un esito.
+- Limite noto e accettato (non è uno stop): nessun controllo automatico può far rispettare questa regola; dipende dalla dichiarazione onesta di ogni componente (e dalla seconda lettura del validatore).
+- Come tornare indietro: togliere la sezione dai file indicati.

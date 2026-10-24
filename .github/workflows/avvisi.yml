@@ -42,7 +42,7 @@ jobs:
             mod=$(git diff --name-only HEAD~1 HEAD)
           fi
           if echo "$mod" | grep -q 'docs/progetto/da-validare.md'; then
-            python3 .claude/scripts/avvisa-whatsapp.py da_validare "C'e' un nuovo sviluppo da provare. Apri da-validare.md: dopo la validazione insieme approverai su GitHub."
+            python3 .claude/scripts/avvisa-whatsapp.py da_validare "C'e' un nuovo sviluppo in rilascio (accettato dalla squadra). Dettagli in rilasci.md."
           fi
           if echo "$mod" | grep -q 'docs/progetto/registro-decisioni.md'; then
             python3 .claude/scripts/avvisa-whatsapp.py decisione_in_sospeso "La squadra ha aggiornato il registro decisioni (possibile decisione in sospeso). Controllalo quando puoi."
