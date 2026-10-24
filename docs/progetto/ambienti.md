@@ -18,7 +18,7 @@
 **Regole di lavoro**
 1. Si lavora su rami `fix/`, `hotfix/`, `feature/` (e sul ramo `claude/...` assegnato dalla sessione) e si apre una pull request verso `staging`.
 2. Gli agenti non aprono pull request e non scrivono su `main`. In `main` si arriva solo con la promozione controllata della CI.
-3. Le correzioni di malfunzionamenti vanno in produzione da sole con tutti i controlli; i nuovi sviluppi aspettano la validazione di Andrea e la sua approvazione sull'ambiente GitHub `produzione-sviluppi`.
+3. Le correzioni di malfunzionamenti vanno in produzione da sole con tutti i controlli; anche i nuovi sviluppi vanno in produzione da soli dopo l'accettazione indipendente e con gli stessi controlli (decisione di Andrea del 24/10/2026). Il tocco umano resta solo se la variabile `SVILUPPI_RICHIEDONO_APPROVAZIONE` e' diversa da `no` (ambiente `produzione-sviluppi`).
 4. Prima di ogni modifica ai dati di produzione: backup verificato (vedi `CLAUDE.md`, "Regola d'oro dei dati").
 5. Le anteprime e i test non devono mai usare il progetto di produzione.
 
@@ -66,7 +66,7 @@ Storage, Secret Manager, Cloud Billing, Firestore. Lo stesso insieme servirà su
 | Google Cloud | Creare il bucket dei backup con blocco di conservazione e il relativo segreto GitHub | Backup che nessuno può cancellare |
 | GitHub | Proteggere i rami `main` (nessuna scrittura diretta, pull request e controlli obbligatori) e `staging` (pull request e controlli obbligatori) | Gli agenti non possono toccare produzione |
 | GitHub | `CODEOWNERS` con Andrea come proprietario di `.github/`, `.claude/`, `CLAUDE.md`, `firestore.rules`, `firebase.json` e opzione "Require review from Code Owners" | Le regole della squadra e della sicurezza le cambia solo Andrea |
-| GitHub | Ambienti `produzione-sviluppi` (revisore: Andrea), `produzione-correzioni`, `avvisi`, `produzione` | Approvazione dei nuovi sviluppi |
+| GitHub | Ambienti `produzione` (senza revisore), `produzione-sviluppi` (facoltativo, revisore: Andrea, usato solo con `SVILUPPI_RICHIEDONO_APPROVAZIONE` diversa da `no`), `produzione-correzioni`, `avvisi` | Rilascio in produzione |
 | GitHub | Segreti degli avvisi WhatsApp e variabile `BLOCCO_SQUADRA` | Avvisi e interruttore di sicurezza |
 
 Dettaglio e stato di ogni punto: `registro-decisioni.md` (decisioni in sospeso).

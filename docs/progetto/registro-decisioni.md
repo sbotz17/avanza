@@ -129,3 +129,9 @@ I nomi esatti di segreti, variabili e ambienti si confermano con i workflow defi
 - **Non provato**: nessun workflow eseguito su GitHub (solo actionlint, prove locali degli script e un modello delle espressioni). Rischi residui nella sezione 7 del report (classificazione dubbia che non ferma piu', regole non pubblicate dal rilascio, fusione staging -> main ancora manuale, testi di `promozione.yml`/`avvisi.yml` da allineare).
 - **Come tornare indietro**: impostare `SVILUPPI_RICHIEDONO_APPROVAZIONE` = `si` (e creare `produzione-sviluppi` con il revisore) oppure `git revert` del commit.
 - **Decisione in sospeso per Andrea**: dopo la seconda lettura, applicare la configurazione (ambiente `produzione` senza revisore, variabile) con una sessione con accesso di amministratore; decidere chi fonde la pull request di promozione.
+
+## 2026-10-24 — Seconda lettura del rilascio senza tocco di Andrea (T-17)
+- Decisione: `rilascio-produzione.yml` con approvazione umana facoltativa (`SVILUPPI_RICHIEDONO_APPROVAZIONE`, predefinito `no`); testi di promozione, avvisi, controlli PR, `ambienti.md` e `CLAUDE.md` allineati.
+- Seconda lettura indipendente (validatore): APPROVATO. Fail-closed sulla variabile (solo vuoto/`no` = nessun tocco). Non verificato: nessun workflow eseguito su GitHub; stato reale di ambienti/variabili su GitHub; primo rilascio da osservare.
+- Rischi accettati: con `no` una classificazione dubbia non ferma il rilascio; regole/indici Firestore non pubblicati dal rilascio (restano a "Setup Firestore"); il ritorno automatico non ripristina dati né regole.
+- Come tornare indietro: impostare `SVILUPPI_RICHIEDONO_APPROVAZIONE=si` (ambiente `produzione-sviluppi` con revisore) o `BLOCCO_SQUADRA=ATTIVO`.
