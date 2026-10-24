@@ -37,6 +37,11 @@ jobs:
       - name: Il progetto di test e' configurato?
         id: cfg
         run: |
+          # Salvavita: il flusso di TEST non deve mai poter pubblicare sulla produzione (progetto o chiave di produzione per errore).
+          if [ "$PROGETTO" = "avanza-b62d7" ]; then echo "::error::PROGETTO_FIREBASE_TEST punta alla PRODUZIONE (avanza-b62d7): flusso di test fermato."; exit 1; fi
+          if [ -n "$SA_TEST" ] && [ "$(printf '%s' "$SA_TEST" | jq -r '.project_id // empty' 2>/dev/null)" = "avanza-b62d7" ]; then
+            echo "::error::FIREBASE_SERVICE_ACCOUNT_TEST e' la chiave della PRODUZIONE: flusso di test fermato."; exit 1
+          fi
           if [ -z "$SA_TEST" ]; then
             echo "::notice::Progetto di test NON configurato (manca il segreto FIREBASE_SERVICE_ACCOUNT_TEST): niente deploy di test."
             echo "pronto=no" >> "$GITHUB_OUTPUT"
@@ -60,6 +65,12 @@ jobs:
           flutter pub get
           flutter build web --release --base-href / --pwa-strategy=none --dart-define=APP_ENV=test
 
+      - name: "La build di test NON contiene la configurazione di produzione"
+        if: steps.cfg.outputs.pronto == 'si'
+        env:
+          CONTROLLO_CONFIG_BUILD: ${{ vars.CONTROLLO_CONFIG_BUILD }}
+        run: bash .claude/scripts/controlla-build-ambiente.sh test build/web
+
       - name: Deploy Hosting (progetto di test)
         if: steps.cfg.outputs.pronto == 'si'
         uses: FirebaseExtended/action-hosting-deploy@v0
@@ -73,7 +84,7 @@ jobs:
         if: steps.cfg.outputs.pronto == 'si'
         run: |
           printf '%s' "$SA_TEST" > /tmp/sa-test.json
-          GOOGLE_APPLICATION_CREDENTIALS=/tmp/sa-test.json npx --yes firebase-tools@latest deploy --only firestore --project "$PROGETTO" --non-interactive
+          GOOGLE_APPLICATION_CREDENTIALS=/tmp/sa-test.json npx --yes firebase-tools@15.34.1 deploy --only firestore --project "$PROGETTO" --non-interactive
           rm -f /tmp/sa-test.json
 
       - name: Setup Node.js
@@ -126,6 +137,11 @@ jobs:
       - name: Il progetto di test e' configurato?
         id: cfg
         run: |
+          # Salvavita: il flusso di TEST non deve mai poter pubblicare sulla produzione (progetto o chiave di produzione per errore).
+          if [ "$PROGETTO" = "avanza-b62d7" ]; then echo "::error::PROGETTO_FIREBASE_TEST punta alla PRODUZIONE (avanza-b62d7): flusso di test fermato."; exit 1; fi
+          if [ -n "$SA_TEST" ] && [ "$(printf '%s' "$SA_TEST" | jq -r '.project_id // empty' 2>/dev/null)" = "avanza-b62d7" ]; then
+            echo "::error::FIREBASE_SERVICE_ACCOUNT_TEST e' la chiave della PRODUZIONE: flusso di test fermato."; exit 1
+          fi
           if [ -z "$SA_TEST" ] || [ ! -f lib/firebase_options_test.dart ]; then
             echo "::notice::Anteprima non disponibile: progetto di test o configurazione di test dell'app mancanti. Nessuna anteprima sulla produzione."
             echo "pronto=no" >> "$GITHUB_OUTPUT"
@@ -145,6 +161,12 @@ jobs:
         run: |
           flutter pub get
           flutter build web --release --base-href / --pwa-strategy=none --dart-define=APP_ENV=test
+
+      - name: "La build di test NON contiene la configurazione di produzione"
+        if: steps.cfg.outputs.pronto == 'si'
+        env:
+          CONTROLLO_CONFIG_BUILD: ${{ vars.CONTROLLO_CONFIG_BUILD }}
+        run: bash .claude/scripts/controlla-build-ambiente.sh test build/web
 
       - name: Anteprima (canale di test)
         if: steps.cfg.outputs.pronto == 'si'

@@ -8,6 +8,11 @@ on:
   push:
     branches: ['claude/**', 'feature/**', 'fix/**', 'hotfix/**']
   workflow_call:
+    inputs:
+      # rilascio-produzione.yml lo imposta a true: in produzione i test rossi fermano il rilascio.
+      test_obbligatori:
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -35,7 +40,7 @@ jobs:
       # verdi, si imposta TEST_OBBLIGATORI = true e diventano un controllo vero.
       - name: Test
         id: test
-        continue-on-error: ${{ vars.TEST_OBBLIGATORI != 'true' }}
+        continue-on-error: ${{ vars.TEST_OBBLIGATORI != 'true' && inputs.test_obbligatori != true }}
         run: flutter test
 
       - name: Avviso test non superati
@@ -46,6 +51,13 @@ jobs:
 
       - name: Build web
         run: flutter build web --release --base-href / --pwa-strategy=none
+
+      # La build di produzione (senza APP_ENV=test) non deve contenere la configurazione del progetto di test: altrimenti il sito
+      # pubblicato userebbe il database sbagliato. Valvola di Andrea: variabile CONTROLLO_CONFIG_BUILD = no (solo dopo aver verificato un falso allarme).
+      - name: Controlla che la build usi il progetto di produzione
+        env:
+          CONTROLLO_CONFIG_BUILD: ${{ vars.CONTROLLO_CONFIG_BUILD }}
+        run: bash .claude/scripts/controlla-build-ambiente.sh prod build/web
 
       - name: Salva la build web
         uses: actions/upload-artifact@v4

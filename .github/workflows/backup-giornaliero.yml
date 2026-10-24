@@ -13,11 +13,31 @@ on:
 permissions:
   contents: read
 
+# Gruppo SEPARATO da quello dei rilasci: un rilascio fermo in attesa del tocco di Andrea (anche per giorni) non deve bloccare il backup notturno.
 concurrency:
-  group: produzione
+  group: produzione-backup
   cancel-in-progress: false
 
 jobs:
+  # Senza bucket il backup non parte e nessuno se ne accorge: lo si dice ogni notte nel log e il lunedi' ad Andrea.
+  backup-non-configurato:
+    if: vars.BUCKET_BACKUP_FIRESTORE == ''
+    runs-on: ubuntu-latest
+    env:
+      AVVISI_URL: ${{ secrets.AVVISI_URL }}
+      AVVISI_TOKEN: ${{ secrets.AVVISI_TOKEN }}
+      AVVISI_NUMERO: ${{ secrets.AVVISI_NUMERO }}
+      AVVISI_PERMETTI_HTTP: ${{ vars.AVVISI_PERMETTI_HTTP }}
+      AVVISI_PROGETTO: ${{ vars.NOME_PROGETTO || 'Avanza' }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Il bucket dei backup non e' configurato
+        run: |
+          echo "::warning::NESSUN BACKUP: manca la variabile BUCKET_BACKUP_FIRESTORE (bucket dei backup non creato). I dati di produzione non hanno copie."
+          if [ "$(date -u +%u)" = "1" ]; then
+            python3 .claude/scripts/avvisa-whatsapp.py decisione_in_sospeso "Il backup notturno NON e' attivo: manca il bucket dei backup (variabile BUCKET_BACKUP_FIRESTORE). I dati di produzione non hanno copie. Passi in .github/README-CI.md." || true
+          fi
+
   backup:
     if: vars.BUCKET_BACKUP_FIRESTORE != ''
     runs-on: ubuntu-latest
