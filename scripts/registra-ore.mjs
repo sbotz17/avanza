@@ -72,6 +72,42 @@ async function upsertMember() {
   }
 }
 
+// Copia (solo aggiunte) i membri della squadra intestati ad altri account nell'account proprietario del progetto,
+// cosi' l'admin li vede nella pagina Squadra (le regole mostrano solo i membri con ownerId = proprio uid).
+// Non modifica e non cancella nulla: i membri originali restano dove sono; se il proprietario ha gia' un membro
+// con lo stesso nome non fa nulla. Con note=prova stampa cosa farebbe senza scrivere.
+async function copiaSquadra() {
+  const project = await findProject();
+  const ownerId = project.get('ownerId');
+  const dryRun = env('NOTE').toLowerCase() === 'prova';
+  const all = await db.collection('teamMembers').get();
+  const mine = new Set(all.docs.filter((d) => d.get('ownerId') === ownerId).map((d) => String(d.get('name')).toLowerCase()));
+  let created = 0;
+  let skipped = 0;
+  for (const d of all.docs) {
+    if (d.get('ownerId') === ownerId) continue;
+    const name = String(d.get('name'));
+    if (mine.has(name.toLowerCase())) { skipped++; console.log(`Gia' presente per il proprietario, salto: ${name}`); continue; }
+    const data = {
+      ownerId,
+      name,
+      kind: d.get('kind') ?? 'agent',
+      role: d.get('role') ?? '',
+      costRate: d.get('costRate') ?? 0,
+      billRate: d.get('billRate') ?? 0,
+      active: d.get('active') ?? true,
+      createdAt: Timestamp.now(),
+      copiedFrom: d.id,
+    };
+    mine.add(name.toLowerCase());
+    if (dryRun) { console.log(`[prova] copierei: ${name} (ruolo=${data.role}, costo=${data.costRate}, vendita=${data.billRate})`); created++; continue; }
+    await db.collection('teamMembers').add(data);
+    console.log(`Copiato: ${name}`);
+    created++;
+  }
+  console.log(`${dryRun ? '[prova] ' : ''}Membri copiati: ${created}, gia' presenti: ${skipped}. Nessun dato esistente modificato o cancellato.`);
+}
+
 async function addHours() {
   const project = await findProject();
   const ownerId = project.get('ownerId');
@@ -365,11 +401,12 @@ try {
   else if (action === 'crea-progetto') await creaProgetto();
   else if (action === 'elimina-prova') await eliminaProva();
   else if (action === 'membro') await upsertMember();
+  else if (action === 'copia-squadra') await copiaSquadra();
   else if (action === 'ore') await addHours();
   else if (action === 'domande') await domande();
   else if (action === 'rispondi') await rispondi();
   else if (action === 'backup') console.log('Azione backup: nessuna modifica ai dati. Il backup verificato e\' stato eseguito dal passo precedente del workflow (se il bucket e\' configurato).');
-  else throw new Error(`Azione sconosciuta: "${action}" (usa "membro", "ore", "domande", "rispondi", "migra", "admin", "crea-progetto" o "elimina-prova").`);
+  else throw new Error(`Azione sconosciuta: "${action}" (usa "membro", "copia-squadra", "ore", "domande", "rispondi", "migra", "admin", "crea-progetto" o "elimina-prova").`);
 } catch (e) {
   console.error(`FALLITO: ${e.message}`);
   process.exit(1);
