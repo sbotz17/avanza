@@ -99,6 +99,7 @@ Membri della squadra (agenti e persone) con tariffe. Solo il proprietario legge 
 | `billRate` | Number | Tariffa di vendita oraria |
 | `active` | Boolean | Se `false` non compare nel dialogo "Registra ore" |
 | `createdAt` | Timestamp | Data creazione |
+| `copiedFrom` | String (facoltativo) | Solo per i membri creati dall'azione `copia-squadra` (T-19): id del membro originale da cui sono copiati. Non usato dall'app; serve a non copiare due volte e a riconoscere le copie per un eventuale annullamento (da decidere con Andrea). |
 
 ### `projects/{projectId}/timeEntries/{entryId}`
 
