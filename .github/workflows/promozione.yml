@@ -1,24 +1,46 @@
-# Promozione da staging a main (produzione). Quando una modifica entra in staging, questo flusso apre o aggiorna UNA pull request
-# "staging -> main" con il riepilogo di cio' che staging ha in piu' di main e la classificazione (correzione o nuovo sviluppo).
-# NON fonde nulla da sola: la fusione avviene con i controlli verdi (Andrea non valida piu' gli sviluppi, decisione del 24/10/2026).
-# Se e' uno sviluppo, avvisa Andrea su WhatsApp (solo informativo). Gira solo con la variabile SQUADRA_CI_ATTIVA = si (di default no).
+# Promozione da staging a main (produzione), AUTOMATICA ma sicura (T-18, decisione di Andrea del 24/10/2026: "la squadra e' autonoma se i test sono verdi").
+# Due job:
+#  - `pr` (push su staging): apre o aggiorna UNA pull request "staging -> main" con il riepilogo e la classificazione (correzione o sviluppo).
+#    Se e' uno sviluppo, avvisa Andrea su WhatsApp (solo informativo). Non unisce nulla.
+#  - `unione` (a fine di "Deploy Avanza Web", "ci" e "controlli-pr" su staging, oppure a mano): se la TESTA di staging ha TUTTI i controlli verdi
+#    (CI con test passati, deploy di test completo, controlli della pull request) unisce la pull request con un merge commit e AVVIA ESPLICITAMENTE
+#    rilascio-produzione.yml. Serve l'avvio esplicito perche' un'unione fatta con GITHUB_TOKEN non fa partire altri workflow (nemmeno il push su main).
+#    Se manca anche un solo controllo, o e' in corso, non unisce e non fallisce: riprova al prossimo evento (ogni workflow che finisce e' un evento).
+#    Tutta la logica sta in .claude/scripts/promuovi-staging.sh (provata in locale con .claude/scripts/prova-promozione.sh).
+# Il rilascio (rilascio-produzione.yml) resta l'ultima barriera e rifa' tutti i suoi controlli; se SVILUPPI_RICHIEDONO_APPROVAZIONE non e' vuota/no,
+# il rilascio aspetta comunque il tocco di Andrea (questo workflow non lo salta).
+# Si ferma con SQUADRA_CI_ATTIVA = no (o non impostata), con BLOCCO_SQUADRA = ATTIVO o con BLOCCO-SQUADRA.md.
+# ATTENZIONE: i trigger `workflow_run` e `workflow_dispatch` usano il file che sta sul ramo PREDEFINITO (main): finche' questa versione non e' arrivata
+# in main con la prima promozione (da unire a mano) il job `unione` non parte da solo. Il trigger `push` usa invece il file di staging.
 # Richiede nelle impostazioni del repository: Actions > General > "Allow GitHub Actions to create and approve pull requests".
+# NON PROVATO su GitHub: nessun workflow e' eseguibile fuori da GitHub Actions (vedi docs/progetto/registro-decisioni.md, T-18).
 name: promozione
 on:
   push:
     branches: [staging]
-
-concurrency:
-  group: promozione
-  cancel-in-progress: false
+  workflow_run:
+    workflows: ["Deploy Avanza Web", "ci", "controlli-pr"]
+    types: [completed]
+    branches: [staging]
+  workflow_dispatch:
+    inputs:
+      solo_verifica:
+        description: "true = controlla soltanto (non unisce). Metti false per promuovere davvero."
+        type: boolean
+        default: true
 
 permissions:
   contents: read
 
 jobs:
-  promozione:
-    if: vars.SQUADRA_CI_ATTIVA == 'si'
+  pr:
+    if: github.event_name == 'push' && vars.SQUADRA_CI_ATTIVA == 'si'
     runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # gruppo separato da `unione`: una pull request in attesa qui non deve scartare una promozione in coda
+    concurrency:
+      group: promozione-pr
+      cancel-in-progress: false
     permissions:
       contents: read
       pull-requests: write
@@ -42,65 +64,72 @@ jobs:
           if [ "$BLOCCO_VAR" = "ATTIVO" ]; then echo "BLOCCO_SQUADRA attivo: promozione sospesa"; exit 1; fi
           if [ -f BLOCCO-SQUADRA.md ] && head -n1 BLOCCO-SQUADRA.md | grep -qi '^ATTIVO'; then echo "BLOCCO-SQUADRA.md attivo"; exit 1; fi
 
-      - name: C'e' qualcosa da promuovere?
-        id: diff
-        run: |
-          git fetch origin main
-          N=$(git rev-list --count origin/main..HEAD)
-          echo "n=$N" >> "$GITHUB_OUTPUT"
-          if [ "$N" = "0" ]; then echo "staging e main coincidono: niente da promuovere"; fi
-
-      - name: Raccogli le pull request entrate in staging e non ancora in produzione
-        if: steps.diff.outputs.n != '0'
-        run: |
-          # script condiviso con il rilascio (esclude la pull request di promozione stessa)
-          bash .claude/scripts/pr-del-commit.sh origin/main..HEAD /tmp/richieste.json
-          jq -c '.pr[] | {numero, ramo, etichette}' /tmp/richieste.json
-
-      - name: Classifica correzione o sviluppo
-        if: steps.diff.outputs.n != '0'
-        id: c
-        run: python3 .claude/scripts/classifica-modifica.py origin/main /tmp/richieste.json .claude/zone-protette.json | tee /tmp/classifica.txt
-
       - name: Apri o aggiorna la pull request staging -> main
-        if: steps.diff.outputs.n != '0'
-        env:
-          TIPO: ${{ steps.c.outputs.tipo }}
-          MOTIVO: ${{ steps.c.outputs.motivo }}
-        run: |
-          {
-            echo "## Promozione staging -> produzione"
-            echo
-            echo "**Tipo: $TIPO**"
-            if [ "$TIPO" = "correzione" ]; then
-              echo "Sono solo correzioni verificate: dopo i controlli si puo' unire."
-            else
-              echo "Contiene un **nuovo sviluppo** (motivo: $MOTIVO): accettato dalla squadra (tester e validatore indipendenti) e provato sul sito di test; si unisce con i controlli verdi."
-            fi
-            echo
-            echo "### Cosa cambia rispetto alla produzione"
-            git log origin/main..HEAD --no-merges --pretty='- %s (%h)' | head -50
-            echo
-            echo "### Pull request incluse"
-            jq -r '.pr[] | "- #\(.numero) \(.titolo) [\(.ramo)]"' /tmp/richieste.json
-            echo
-            echo "Dopo la fusione, rilascio-produzione.yml pubblica in produzione (ambiente GitHub \`produzione\`)."
-            echo "_Aperta in automatico da promozione.yml. Si fonde quando i controlli sono verdi (decisione di Andrea del 24/10/2026: non valida piu' gli sviluppi)._"
-          } > /tmp/corpo.md
-          TITOLO="Promozione staging -> main ($TIPO)"
-          gh label create "promozione" --color 5319e7 --description "Promozione da staging a produzione" 2>/dev/null || true
-          gh label create "tipo:$TIPO" --color 0e8a16 2>/dev/null || true
-          ESISTENTE=$(gh pr list --base main --head staging --state open --json number --jq '.[0].number // empty')
-          if [ -n "$ESISTENTE" ]; then
-            gh pr edit "$ESISTENTE" --title "$TITOLO" --body-file /tmp/corpo.md --add-label "promozione,tipo:$TIPO" \
-              || echo "::warning::Pull request di promozione non aggiornata"
-            echo "Aggiornata la pull request #$ESISTENTE"
-          else
-            gh pr create --base main --head staging --title "$TITOLO" --body-file /tmp/corpo.md --label "promozione,tipo:$TIPO" \
-              || echo "::warning::Non riesco ad aprire la pull request di promozione: abilita 'Allow GitHub Actions to create and approve pull requests' (Settings > Actions > General) oppure aprila a mano da staging a main."
-          fi
+        id: pr
+        run: bash .claude/scripts/promozione-pr.sh
 
       - name: Avviso WhatsApp se e' uno sviluppo
-        if: steps.diff.outputs.n != '0' && steps.c.outputs.tipo == 'sviluppo'
+        if: steps.pr.outputs.n != '0' && steps.pr.outputs.tipo == 'sviluppo'
+        continue-on-error: true
         run: |
           python3 .claude/scripts/avvisa-whatsapp.py da_validare "Staging contiene un nuovo sviluppo in arrivo in produzione dopo i controlli della squadra. Puoi guardarlo sul sito di test."
+
+  unione:
+    # un evento per ogni workflow di controllo che finisce su staging; si procede solo se quel workflow e' riuscito (se e' rosso non c'e' nulla da unire)
+    if: >-
+      vars.SQUADRA_CI_ATTIVA == 'si' &&
+      (github.event_name == 'workflow_dispatch' ||
+       (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'staging'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    # una sola promozione alla volta; quelle in attesa si sostituiscono con la piu' recente, che rilegge comunque lo stato attuale
+    concurrency:
+      group: promozione-unione
+      cancel-in-progress: false
+    # permessi minimi: unire la pull request (contents + pull-requests: write), avviare il rilascio (actions: write), leggere esiti dei controlli
+    permissions:
+      actions: write
+      checks: read
+      contents: write
+      pull-requests: write
+      statuses: read
+    env:
+      GH_TOKEN: ${{ github.token }}
+      REPO: ${{ github.repository }}
+      SQUADRA_CI_ATTIVA: ${{ vars.SQUADRA_CI_ATTIVA }}
+      BLOCCO_SQUADRA: ${{ vars.BLOCCO_SQUADRA }}
+      TEST_RILASCIO_NON_OBBLIGATORI: ${{ vars.TEST_RILASCIO_NON_OBBLIGATORI }}
+      CONTROLLO_STAGING: ${{ vars.CONTROLLO_STAGING }}
+      # a mano il predefinito e' "solo verifica"; negli eventi automatici si promuove davvero
+      PROMOZIONE_SOLO_VERIFICA: ${{ github.event_name == 'workflow_dispatch' && inputs.solo_verifica && 'si' || 'no' }}
+      AVVISI_URL: ${{ secrets.AVVISI_URL }}
+      AVVISI_TOKEN: ${{ secrets.AVVISI_TOKEN }}
+      AVVISI_NUMERO: ${{ secrets.AVVISI_NUMERO }}
+      AVVISI_PERMETTI_HTTP: ${{ vars.AVVISI_PERMETTI_HTTP }}
+      AVVISI_PROGETTO: ${{ vars.NOME_PROGETTO || 'Avanza' }}
+    steps:
+      # sempre la testa ATTUALE di staging (non il commit del ramo predefinito che e' il contesto dei workflow_run)
+      - uses: actions/checkout@v4
+        with:
+          ref: staging
+          fetch-depth: 0
+
+      - name: Blocco di emergenza
+        id: blocco
+        run: |
+          if [ "$BLOCCO_SQUADRA" = "ATTIVO" ]; then echo "BLOCCO_SQUADRA attivo: promozione sospesa"; exit 1; fi
+          if [ -f BLOCCO-SQUADRA.md ] && head -n1 BLOCCO-SQUADRA.md | grep -qi '^ATTIVO'; then echo "BLOCCO-SQUADRA.md attivo"; exit 1; fi
+
+      - name: Apri o aggiorna la pull request staging -> main
+        run: bash .claude/scripts/promozione-pr.sh
+
+      - name: Verifica dei controlli e, se tutto e' verde, unione e avvio del rilascio
+        id: promuovi
+        run: bash .claude/scripts/promuovi-staging.sh
+
+      # il blocco voluto da Andrea non e' un'anomalia da segnalare; una promozione che non unisce perche' un controllo non e' verde nemmeno (esito 0)
+      - name: Avviso WhatsApp - promozione ferma per un'anomalia
+        if: failure() && steps.blocco.outcome != 'failure' && steps.promuovi.outputs.esito != 'bloccata'
+        continue-on-error: true
+        run: |
+          python3 .claude/scripts/avvisa-whatsapp.py anomalia "Promozione automatica ferma: serve una persona. Produzione intatta. Dettagli nell'esito su GitHub."
