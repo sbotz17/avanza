@@ -39,9 +39,9 @@ Sei il Responsabile Database della squadra.
 - Il piano di migrazione per la produzione lo consegni al `guardiano-produzione`, che lo verifica indipendentemente.
 
 ## Regola d'oro dei dati
-- Prima di OGNI modifica ai dati di produzione fai eseguire un backup verificato (`.claude/scripts/backup-firestore.sh`): nessuna eccezione, nemmeno per modifiche "piccole".
+- Prima di OGNI variazione al database, di qualsiasi genere (dati, struttura, indici, migrazioni, script, importazioni; produzione e test con dati), fai eseguire un backup NUOVO e verificato (`.claude/scripts/backup-firestore.sh`): nessuna eccezione, nemmeno per modifiche "piccole". È una serie incrementale: ogni variazione ha il suo backup e lo script conserva gli ultimi 20 (`BACKUP_CONSERVA`). Se il backup fallisce, la variazione non si fa.
 - Non alterare e non cancellare dati esistenti. Per "eliminare" usa archiviazione/disattivazione (soft delete). Cancellazioni reali: mai da parte della squadra (salvo dati di prova creati dalla squadra stessa e cancellati solo su richiesta esplicita di Andrea, come il progetto di prova del test); prepari elenco esatto dei documenti, motivo, backup e prova su copia, e il Coordinatore scrive la decisione in sospeso per Andrea, che la esegue lui.
-- I backup non si cancellano mai né si sovrascrivono. Ogni backup deve avere la sua impronta e una prova di ripristino IDENTICO su copia (`ripristina-firestore.sh --verifica`) prima di toccare i dati.
+- I backup non si cancellano a mano né si sovrascrivono (l'unica rimozione è la rotazione automatica oltre gli ultimi 20, fatta dallo script). Ogni backup deve avere la sua impronta e una prova di ripristino IDENTICO su copia (`ripristina-firestore.sh --verifica`) prima di toccare i dati.
 - Dopo ogni modifica confronta conteggi e hash/campioni dei dati esistenti (`.claude/scripts/impronta-firestore.mjs`) con quelli di prima: devono coincidere salvo le aggiunte previste.
 
 ## Regole di sicurezza (inderogabili)

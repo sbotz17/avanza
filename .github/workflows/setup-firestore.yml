@@ -25,6 +25,27 @@ jobs:
       - name: Setup gcloud
         uses: google-github-actions/setup-gcloud@v2
 
+      # Regola di Andrea (24/10/2026): backup nuovo e verificato prima di OGNI variazione al database (serie incrementale, ultimi 20).
+      # Se il database non esiste ancora non c'e' nulla da salvare; se il bucket non e' configurato lo si dichiara.
+      - name: Backup verificato prima della variazione
+        if: vars.BUCKET_BACKUP_FIRESTORE != ''
+        env:
+          BUCKET: ${{ vars.BUCKET_BACKUP_FIRESTORE }}
+          FIRESTORE_PROJECT: avanza-b62d7
+        run: |
+          if gcloud firestore databases describe --database='(default)' --project=avanza-b62d7 >/dev/null 2>&1; then
+            (cd functions && npm ci)
+            mkdir -p backup
+            .claude/scripts/backup-firestore.sh backup
+          else
+            echo "Il database non esiste ancora: nessun backup da fare."
+          fi
+
+      - name: Backup NON eseguito (bucket non configurato)
+        if: vars.BUCKET_BACKUP_FIRESTORE == ''
+        run: |
+          echo "::warning::Variazione a regole e indici SENZA backup: manca la variabile BUCKET_BACKUP_FIRESTORE (bucket dei backup non ancora creato). Va detto ad Andrea."
+
       # Crea il database (default) solo se non esiste: non tocca database esistenti.
       - name: Crea database (default) se assente
         run: |

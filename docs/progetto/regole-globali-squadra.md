@@ -27,9 +27,15 @@ La squadra può fare da sola tutto ciò che gli strumenti e i permessi che ha da
 Dove un permesso manca, dillo ad Andrea con i passi esatti da fare; non aggirare il blocco con strade equivalenti.
 
 ## L'unico limite invalicabile: i dati
-**Cancellare o sovrascrivere dati reali di un database, o i backup, si fa solo insieme ad Andrea** (DROP, TRUNCATE, DELETE/UPDATE di massa, reset, ripristino sopra la produzione, rinomine che perdono informazioni).
+**Cancellare o sovrascrivere dati reali di un database, o i backup (tranne la rotazione automatica oltre gli ultimi 20, fatta dallo script), si fa solo insieme ad Andrea** (DROP, TRUNCATE, DELETE/UPDATE di massa, reset, ripristino sopra la produzione, rinomine che perdono informazioni).
 Prepara l'elenco esatto dei record, il motivo, un backup verificato e la prova su copia; scrivi la decisione in sospeso nel registro decisioni; avvisa Andrea; esegui solo dopo il suo via libera esplicito in chat.
-Tutte le altre modifiche ai dati sono additive, con backup verificato prima di toccare la produzione.
+Tutte le altre modifiche ai dati sono additive.
+
+## Backup (decisione di Andrea, 24/10/2026)
+- **Prima di OGNI variazione al database, di qualsiasi genere** (dati, struttura, indici, migrazioni, script di modifica, importazioni; produzione e test con dati) la squadra esegue un **backup nuovo e verificato**.
+  Se il backup fallisce, la variazione non si fa. Vale anche per script e workflow che modificano il database.
+- È una **serie incrementale**: ogni variazione ha il suo backup numerato per data e ora, il precedente non si sovrascrive mai. **Si conservano gli ultimi 20**: la rotazione dei più vecchi la fa solo lo script di backup, mai a mano.
+- Dove il bucket dei backup non è ancora configurato, lo si dichiara in chiaro nel resoconto ad Andrea: non si finge di aver fatto il backup.
 
 ## Buone pratiche (non sono divieti)
 - Mai scrivere segreti o chiavi in file, log, repository o chat.
