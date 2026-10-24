@@ -362,6 +362,7 @@ try {
   else if (action === 'ore') await addHours();
   else if (action === 'domande') await domande();
   else if (action === 'rispondi') await rispondi();
+  else if (action === 'backup') console.log('Azione backup: nessuna modifica ai dati. Il backup verificato e\' stato eseguito dal passo precedente del workflow (se il bucket e\' configurato).');
   else throw new Error(`Azione sconosciuta: "${action}" (usa "membro", "ore", "domande", "rispondi", "migra", "admin", "crea-progetto" o "elimina-prova").`);
 } catch (e) {
   console.error(`FALLITO: ${e.message}`);

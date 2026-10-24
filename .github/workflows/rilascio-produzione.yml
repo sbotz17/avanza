@@ -1,8 +1,16 @@
 # RILASCIO IN PRODUZIONE (progetto Firebase avanza-b62d7): parte quando main avanza (promozione da staging approvata da Andrea).
 # Passi di pubblicazione IDENTICI a quelli di sempre (Hosting live + funzione githubWebhook con gcloud). I controlli completi
-# (backup coerente, prova su copia, verifica, tag ultimo-rilascio-ok, ritorno automatico) si accendono SOLO con la variabile
-# PRODUZIONE_CONTROLLI_COMPLETI = true: senza, il comportamento e' quello di sempre. Leggi .github/README-CI.md.
-# L'ambiente GitHub "produzione" (limitato al ramo main) e' dove Andrea puo' mettere il revisore obbligatorio.
+# (backup coerente, prova su copia, confronto dei dati) si accendono SOLO con la variabile PRODUZIONE_CONTROLLI_COMPLETI = true.
+# Revisione di sicurezza del 24/10/2026 (audit docs/progetto/test/2026-10-24-audit-rilascio-produzione.md), SEMPRE attivi:
+#   - classifica: ricalcola se cio' che esce e' una CORREZIONE o un NUOVO SVILUPPO; gli sviluppi passano dall'ambiente produzione-sviluppi (Andrea);
+#   - prerequisiti: segreti e variabili esistono ed e' la chiave del progetto giusto, PRIMA di toccare qualcosa;
+#   - il commit e' la testa attuale di main (nessun rilascio di versioni vecchie con "Re-run");
+#   - il contenuto e' IDENTICO a un commit di staging con controlli verdi e pubblicazione di test riuscita (sito, regole, funzione);
+#   - la build di produzione non contiene la configurazione di test;
+#   - dopo il deploy: smoke test (sito, cache, funzione, login) e, se fallisce, RITORNO AUTOMATICO alla versione precedente;
+#   - tag ultimo-rilascio-ok aggiornato a ogni rilascio verificato.
+# L'ambiente GitHub "produzione" (limitato al ramo main) e' dove Andrea puo' mettere il revisore obbligatorio. Leggi .github/README-CI.md.
+# NON PROVATO su GitHub: questi flussi non sono eseguibili fuori da GitHub Actions; i singoli script sono stati provati in locale.
 name: rilascio-produzione
 
 on:
@@ -20,14 +28,91 @@ concurrency:
 jobs:
   controlli:
     uses: ./.github/workflows/ci.yml
+    with:
+      # In produzione i test rossi FERMANO il rilascio (diversamente dalle pull request, dove dipende da TEST_OBBLIGATORI).
+      # Valvola di Andrea: variabile TEST_RILASCIO_NON_OBBLIGATORI = si.
+      test_obbligatori: ${{ vars.TEST_RILASCIO_NON_OBBLIGATORI != 'si' }}
+
+  # ---------------------------------------------------------------------------
+  # CLASSIFICA cio' che sta per uscire: correzione (rilascio autonomo) o nuovo sviluppo (serve Andrea).
+  # ---------------------------------------------------------------------------
+  classifica:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      tipo: ${{ steps.c.outputs.tipo }}
+      motivo: ${{ steps.c.outputs.motivo }}
+      regole_cambiate: ${{ steps.c.outputs.regole_cambiate }}
+    env:
+      GH_TOKEN: ${{ github.token }}
+      AVVISI_URL: ${{ secrets.AVVISI_URL }}
+      AVVISI_TOKEN: ${{ secrets.AVVISI_TOKEN }}
+      AVVISI_NUMERO: ${{ secrets.AVVISI_NUMERO }}
+      AVVISI_PERMETTI_HTTP: ${{ vars.AVVISI_PERMETTI_HTTP }}
+      AVVISI_PROGETTO: ${{ vars.NOME_PROGETTO || 'Avanza' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Correzione o nuovo sviluppo?
+        id: c
+        env:
+          PRIMA: ${{ github.event.before }}
+        run: |
+          bash .claude/scripts/classifica-rilascio.sh | tee /tmp/classifica.txt
+          { echo "### Classificazione del rilascio"; echo; echo "- Tipo: **$(grep '^tipo=' "$GITHUB_OUTPUT" | tail -1 | cut -d= -f2)**"; } >> "$GITHUB_STEP_SUMMARY"
+
+      # Un nuovo sviluppo esce solo dopo il tocco di Andrea sull'ambiente "produzione-sviluppi". Se quell'ambiente non e' stato
+      # configurato con il revisore obbligatorio, GitHub lo crea senza protezioni e il tocco non verrebbe mai chiesto: per questo
+      # il rilascio si ferma finche' Andrea non conferma con la variabile SVILUPPI_APPROVAZIONE_CONFIGURATA = si (vedi README-CI.md).
+      - name: Se e' uno sviluppo, l'approvazione di Andrea e' configurata?
+        id: cfg
+        if: steps.c.outputs.tipo != 'correzione' && vars.SVILUPPI_APPROVAZIONE_CONFIGURATA != 'si'
+        env:
+          MOTIVO: ${{ steps.c.outputs.motivo }}
+        run: |
+          echo "Questo rilascio e' un NUOVO SVILUPPO ($MOTIVO), ma l'ambiente GitHub 'produzione-sviluppi' non risulta configurato con il revisore obbligatorio."
+          echo "Rilascio FERMATO, la produzione non e' stata toccata. Andrea: crea l'ambiente produzione-sviluppi con te come revisore e imposta la variabile SVILUPPI_APPROVAZIONE_CONFIGURATA = si (passi in .github/README-CI.md)."
+          exit 1
+
+      - name: Avviso WhatsApp - configurazione dell'approvazione mancante
+        if: failure() && steps.cfg.outcome == 'failure'
+        continue-on-error: true
+        run: |
+          python3 .claude/scripts/avvisa-whatsapp.py decisione_in_sospeso "Un nuovo sviluppo e' pronto per la produzione ma manca la configurazione dell'approvazione (ambiente produzione-sviluppi). Rilascio fermato, produzione intatta."
+
+      - name: Avviso WhatsApp - classificazione fallita
+        if: failure() && steps.cfg.outcome != 'failure'
+        continue-on-error: true
+        run: |
+          python3 .claude/scripts/avvisa-whatsapp.py anomalia "Rilascio fermato: lo script che decide se e' una correzione o uno sviluppo e' fallito. Produzione intatta. Dettagli nell'esito su GitHub."
+
+  # Il tocco di Andrea: solo per i nuovi sviluppi (le correzioni saltano questo passo). Revisore obbligatorio da configurare sull'ambiente.
+  approvazione-sviluppo:
+    # Dipende anche da `controlli`: Andrea non riceve la richiesta di tocco se la CI e' rossa (il rilascio si fermerebbe comunque).
+    # Con `controlli` fallito o saltato questo job viene saltato, e `rilascio` richiede comunque controlli == success.
+    needs: [classifica, controlli]
+    if: needs.classifica.outputs.tipo != 'correzione'
+    runs-on: ubuntu-latest
+    environment: produzione-sviluppi
+    steps:
+      - run: echo "Nuovo sviluppo approvato da Andrea sull'ambiente produzione-sviluppi. Si procede ai controlli e al rilascio."
 
   # ---------------------------------------------------------------------------
   rilascio:
-    needs: controlli
-    if: github.ref == 'refs/heads/main'
+    needs: [controlli, classifica, approvazione-sviluppo]
+    # Si parte solo se: controlli verdi, classificazione riuscita e (per gli sviluppi) approvazione di Andrea. Nel dubbio non si parte.
+    if: ${{ !cancelled() && github.ref == 'refs/heads/main' && needs.controlli.result == 'success' && needs.classifica.result == 'success' && (needs.approvazione-sviluppo.result == 'success' || needs.approvazione-sviluppo.result == 'skipped') }}
     runs-on: ubuntu-latest
+    timeout-minutes: 90
     environment: produzione
     permissions:
+      actions: read
       checks: write
       contents: write
       pull-requests: write
@@ -42,6 +127,7 @@ jobs:
       AVVISI_NUMERO: ${{ secrets.AVVISI_NUMERO }}
       AVVISI_PERMETTI_HTTP: ${{ vars.AVVISI_PERMETTI_HTTP }}
       AVVISI_PROGETTO: ${{ vars.NOME_PROGETTO || 'Avanza' }}
+      GH_TOKEN: ${{ github.token }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -54,11 +140,42 @@ jobs:
           if [ "$BLOCCO_VAR" = "ATTIVO" ]; then echo "BLOCCO_SQUADRA attivo: rilascio sospeso"; exit 1; fi
           if [ -f BLOCCO-SQUADRA.md ] && head -n1 BLOCCO-SQUADRA.md | grep -qi '^ATTIVO'; then echo "BLOCCO-SQUADRA.md attivo: rilascio sospeso"; exit 1; fi
 
+      # ----- PRIMA DI TOCCARE QUALSIASI COSA (se uno di questi passi fallisce la produzione resta com'e') -----
+      - name: "Prerequisiti - segreti e variabili esistono e sono quelli giusti"
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: bash .claude/scripts/controlla-prerequisiti-rilascio.sh
+
+      - name: "Si rilascia la testa attuale di main (mai una versione vecchia con Re-run)"
+        run: |
+          git fetch --quiet origin "+refs/heads/main:refs/remotes/origin/main"
+          if [ "$(git rev-parse HEAD)" != "$(git rev-parse origin/main)" ]; then
+            echo "Questo rilascio riguarda $(git rev-parse --short HEAD), ma main e' gia' avanti ($(git rev-parse --short origin/main)): pubblicarlo riporterebbe la produzione indietro."
+            echo "Rilascio fermato. Il rilascio piu' recente si occupa della versione giusta."; exit 1
+          fi
+          echo "OK: HEAD coincide con la testa di main."
+
+      - name: "Gia' provato su staging - stesso contenuto, controlli verdi, pubblicazione di test riuscita"
+        env:
+          CONTROLLO_STAGING: ${{ vars.CONTROLLO_STAGING }}
+        run: bash .claude/scripts/verifica-da-staging.sh
+
       - name: Scarica la build web dei controlli
         uses: actions/download-artifact@v4
         with:
           name: web-build
           path: build/web
+
+      - name: "La build di produzione NON contiene la configurazione di test"
+        env:
+          CONTROLLO_CONFIG_BUILD: ${{ vars.CONTROLLO_CONFIG_BUILD }}
+        run: bash .claude/scripts/controlla-build-ambiente.sh prod build/web
+
+      - name: "Avviso se cambiano regole o indici Firestore"
+        if: needs.classifica.outputs.regole_cambiate == 'si'
+        run: |
+          echo "::warning::Questo rilascio cambia firestore.rules o firestore.indexes.json. Il rilascio NON le pubblica (le pubblica solo il workflow Setup Firestore, con backup): pubblicale PRIMA o subito dopo, altrimenti il nuovo codice gira con le vecchie regole."
+          echo "- Regole/indici Firestore cambiati: da pubblicare con 'Setup Firestore' (dopo il backup)." >> "$GITHUB_STEP_SUMMARY"
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -101,6 +218,13 @@ jobs:
           FIRESTORE_PROJECT: avanza-b62d7
         run: .claude/scripts/ripristina-firestore.sh --verifica "$BACKUP_GS" --impronta "$IMPRONTA_BACKUP" --elimina-copia
 
+      - name: "Stato della produzione PRIMA del rilascio (solo informativo)"
+        continue-on-error: true
+        env:
+          URL_PRODUZIONE: ${{ env.URL_PRODUZIONE }}
+          SMOKE_TENTATIVI: "1"
+        run: bash .claude/scripts/smoke-produzione.sh
+
       - name: Da qui in poi si tocca la produzione
         id: segna
         run: echo "toccato=si" >> "$GITHUB_OUTPUT"
@@ -131,6 +255,14 @@ jobs:
             --project=avanza-b62d7 \
             --quiet
 
+      # ----- SMOKE TEST (sempre): se fallisce, il job fallisce e parte il RITORNO AUTOMATICO piu' sotto -----
+      - name: "Smoke test dopo il rilascio - sito, cache, funzione, login (sola lettura)"
+        env:
+          URL_PRODUZIONE: ${{ env.URL_PRODUZIONE }}
+          SMOKE_TENTATIVI: "8"
+          SMOKE_ATTESA: "15"
+        run: bash .claude/scripts/smoke-produzione.sh
+
       # ----- VERIFICA E SEGNALAZIONE (solo con i controlli completi) -----
       - name: "Controlli completi 3 - verifica dopo il rilascio (sola lettura): nessun dato sparito e sito raggiungibile"
         if: vars.PRODUZIONE_CONTROLLI_COMPLETI == 'true'
@@ -142,10 +274,14 @@ jobs:
           curl -fsS --retry 5 --retry-delay 10 -o /dev/null "$URL_PRODUZIONE"
           echo "Sito raggiungibile"
 
-      - name: "Controlli completi 4 - segna questa versione come ultima buona"
-        if: vars.PRODUZIONE_CONTROLLI_COMPLETI == 'true'
+      # Sempre (non solo con i controlli completi): serve come punto di ritorno per il rilascio successivo. Si arriva qui solo se lo smoke test e' passato.
+      # Se il tag non si riesce a scrivere NON si deve tornare indietro su un rilascio buono: avviso e si prosegue (ma il prossimo rilascio non avra' il ritorno).
+      - name: "Segna questa versione come ultima buona (tag ultimo-rilascio-ok)"
+        continue-on-error: true
         run: |
-          git tag -f ultimo-rilascio-ok HEAD && git push -f origin refs/tags/ultimo-rilascio-ok
+          # voluto: se UNO dei due comandi fallisce, si avvisa ed esce con errore
+          # shellcheck disable=SC2015
+          git tag -f ultimo-rilascio-ok HEAD && git push -f origin refs/tags/ultimo-rilascio-ok || { echo "::warning::Tag ultimo-rilascio-ok NON scritto: il ritorno automatico del prossimo rilascio non sara' disponibile."; exit 1; }
           T="rilascio-$(date -u +%Y%m%d-%H%M%S)"; git tag "$T" HEAD && git push origin "refs/tags/$T"
 
       - name: Avviso WhatsApp
@@ -153,96 +289,92 @@ jobs:
         continue-on-error: true
         run: python3 .claude/scripts/avvisa-whatsapp.py rilasciato "Rilascio in produzione completato."
 
-  # ---------------------------------------------------------------------------
-  # RITORNO AUTOMATICO alla versione precedente: solo con i controlli completi e solo se il rilascio e' fallito
-  # DOPO aver toccato la produzione. NON PROVATO su GitHub. I dati non si ripristinano da soli (decisione di Andrea).
-  # ---------------------------------------------------------------------------
-  torna-indietro:
-    needs: rilascio
-    if: failure() && vars.PRODUZIONE_CONTROLLI_COMPLETI == 'true' && needs.rilascio.outputs.toccato == 'si'
-    runs-on: ubuntu-latest
-    environment: produzione
-    env:
-      AVVISI_URL: ${{ secrets.AVVISI_URL }}
-      AVVISI_TOKEN: ${{ secrets.AVVISI_TOKEN }}
-      AVVISI_NUMERO: ${{ secrets.AVVISI_NUMERO }}
-      AVVISI_PERMETTI_HTTP: ${{ vars.AVVISI_PERMETTI_HTTP }}
-      AVVISI_PROGETTO: ${{ vars.NOME_PROGETTO || 'Avanza' }}
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Esiste una versione buona precedente?
-        id: v
+      # ======================================================================================================
+      # RITORNO AUTOMATICO alla versione precedente, nello STESSO job (cosi' non serve una seconda approvazione di Andrea:
+      # un job separato nell'ambiente "produzione" resterebbe in attesa del suo tocco). Parte se il rilascio fallisce DOPO aver
+      # toccato la produzione (deploy o smoke test). Riporta sito e funzione al tag ultimo-rilascio-ok; i DATI non si ripristinano
+      # da soli (decisione di Andrea). NON PROVATO su GitHub.
+      # ======================================================================================================
+      - name: "RITORNO 1 - esiste una versione buona precedente?"
+        id: prec
+        if: failure() && steps.segna.outcome == 'success'
         run: |
-          git fetch --tags --force
+          git fetch --tags --force --quiet || true
           if git rev-parse -q --verify refs/tags/ultimo-rilascio-ok >/dev/null; then
-            echo "ok=si" >> "$GITHUB_OUTPUT"; git checkout ultimo-rilascio-ok
+            PREC="$(git rev-parse 'refs/tags/ultimo-rilascio-ok^{commit}')"
+            if [ "$PREC" = "$(git rev-parse HEAD)" ]; then
+              echo "ok=no" >> "$GITHUB_OUTPUT"; echo "L'ultima versione buona coincide con questa: non c'e' nulla a cui tornare."
+            else
+              git worktree add --detach _precedente "$PREC"
+              echo "ok=si" >> "$GITHUB_OUTPUT"; echo "Si torna a $PREC"
+            fi
           else
-            echo "ok=no" >> "$GITHUB_OUTPUT"
+            echo "ok=no" >> "$GITHUB_OUTPUT"; echo "Il tag ultimo-rilascio-ok non esiste (primo rilascio con questa procedura): ritorno automatico non disponibile."
           fi
 
-      - name: Setup Flutter
-        if: steps.v.outputs.ok == 'si'
+      - name: "RITORNO 2 - Flutter"
+        if: failure() && steps.segna.outcome == 'success' && steps.prec.outputs.ok == 'si'
         uses: subosito/flutter-action@v2
         with:
           channel: 'stable'
           cache: true
 
-      - name: Build web della versione precedente
-        if: steps.v.outputs.ok == 'si'
+      - name: "RITORNO 3 - build web della versione precedente"
+        id: prec_build
+        if: failure() && steps.segna.outcome == 'success' && steps.prec.outputs.ok == 'si'
+        working-directory: _precedente
         run: |
           flutter pub get
           flutter build web --release --base-href / --pwa-strategy=none
+          bash ../.claude/scripts/controlla-build-ambiente.sh prod build/web
 
-      - name: Hosting alla versione precedente
-        if: steps.v.outputs.ok == 'si'
+      - name: "RITORNO 4 - Hosting alla versione precedente"
+        id: prec_hosting
+        if: failure() && steps.segna.outcome == 'success' && steps.prec_build.outcome == 'success'
         uses: FirebaseExtended/action-hosting-deploy@v0
         with:
           repoToken: ${{ secrets.GITHUB_TOKEN }}
           firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
           channelId: live
           projectId: avanza-b62d7
+          entryPoint: _precedente
 
-      - name: Setup Node.js
-        if: steps.v.outputs.ok == 'si'
-        uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-
-      - name: Funzione alla versione precedente
-        if: steps.v.outputs.ok == 'si'
+      - name: "RITORNO 5 - funzione alla versione precedente"
+        id: prec_fn
+        if: failure() && steps.segna.outcome == 'success' && steps.prec.outputs.ok == 'si'
         run: |
-          cd functions && npm ci && npm run build && cd ..
-
-      - name: Authenticate to Google Cloud
-        if: steps.v.outputs.ok == 'si'
-        uses: google-github-actions/auth@v2
-        with:
-          credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
-
-      - name: Setup gcloud
-        if: steps.v.outputs.ok == 'si'
-        uses: google-github-actions/setup-gcloud@v2
-
-      - name: Deploy funzione precedente
-        if: steps.v.outputs.ok == 'si'
-        run: |
+          (cd _precedente/functions && npm ci && npm run build)
           gcloud functions deploy githubWebhook \
             --gen2 --region=us-central1 --runtime=nodejs22 --trigger-http --allow-unauthenticated \
             --service-account=firebase-adminsdk-fbsvc@avanza-b62d7.iam.gserviceaccount.com \
-            --source=functions --entry-point=githubWebhook --project=avanza-b62d7 --quiet
+            --source=_precedente/functions --entry-point=githubWebhook --project=avanza-b62d7 --quiet
 
-      - name: Avviso WhatsApp
-        if: always()
+      - name: "RITORNO 6 - smoke test dopo il ritorno"
+        id: prec_smoke
+        if: failure() && steps.segna.outcome == 'success' && steps.prec.outputs.ok == 'si'
         continue-on-error: true
         env:
-          OK: ${{ steps.v.outputs.ok }}
-          ESITO: ${{ job.status }}
+          URL_PRODUZIONE: ${{ env.URL_PRODUZIONE }}
+        run: bash .claude/scripts/smoke-produzione.sh
+
+      - name: Avviso WhatsApp - rilascio fallito dopo l'avvio
+        if: failure() && steps.segna.outcome == 'success'
+        continue-on-error: true
+        env:
+          OK: ${{ steps.prec.outputs.ok }}
+          H: ${{ steps.prec_hosting.outcome }}
+          F: ${{ steps.prec_fn.outcome }}
+          S: ${{ steps.prec_smoke.outcome }}
         run: |
-          if [ "$OK" = "si" ] && [ "$ESITO" = "success" ]; then
-            python3 .claude/scripts/avvisa-whatsapp.py anomalia "Rilascio fallito dopo l'avvio. Sito e funzione riportati alla versione precedente. I dati NON sono stati toccati dal ritorno: il ripristino dei dati e' una tua decisione (backup verificato disponibile)."
+          if [ "$OK" = "si" ] && [ "$H" = "success" ] && [ "$F" = "success" ]; then
+            if [ "$S" = "success" ]; then ESITO="La produzione risponde ai controlli."; else ESITO="ATTENZIONE: controlli dopo il ritorno NON tutti verdi, verifica il sito."; fi
+            python3 .claude/scripts/avvisa-whatsapp.py anomalia "Rilascio fallito: sito e funzione tornati alla versione precedente. $ESITO Dati non toccati dal ritorno: il loro ripristino e' una tua decisione."
           else
-            python3 .claude/scripts/avvisa-whatsapp.py anomalia "Rilascio fallito e ritorno automatico alla versione precedente NON riuscito o non disponibile. Serve un intervento."
+            python3 .claude/scripts/avvisa-whatsapp.py anomalia "Rilascio fallito e ritorno automatico NON riuscito o non disponibile. Serve un intervento subito."
           fi
+
+      - name: Avviso WhatsApp - rilascio fermato prima di toccare la produzione
+        if: failure() && steps.segna.outcome != 'success'
+        continue-on-error: true
+        run: |
+          python3 .claude/scripts/avvisa-whatsapp.py anomalia "Rilascio FERMATO da un controllo prima di toccare la produzione: produzione invariata. Dettagli nell'esito su GitHub."

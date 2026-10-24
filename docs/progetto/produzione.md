@@ -59,9 +59,27 @@ Avanza usa Firebase/Firestore — i backup automatici di Firestore non sono atti
 | 2026-10-23 | Test E2E riscritto | OK | Non usa più un utente e un progetto di prova (si sarebbero sovrapposti al progetto reale con lo stesso indirizzo GitHub): crea un task temporaneo `T-9xxx` nel progetto reale, verifica la nota sul task e cancella task e branch |
 | 2026-10-23 | Versione web senza service worker (`--pwa-strategy=none`) e cache `no-cache` per js/css/html/json | OK | Un utente vedeva ancora la vecchia versione: il browser conservava una copia (cache di un anno sui file JavaScript con nome fisso e service worker). In incognito vedeva la versione nuova, quindi il server era corretto |
 
+## Checklist di rilascio sicuro (revisione del 24/10/2026; dettagli e rischi in `test/2026-10-24-audit-rilascio-produzione.md`)
+Il rilascio la esegue in gran parte la CI (`rilascio-produzione.yml`); il guardiano la controlla a mano per ogni rilascio e scrive l'esito nel registro operazioni.
+1. Classificazione corretta: correzione (`fix/R-n`, `tipo:correzione`, nessuna zona protetta) oppure sviluppo; gli sviluppi hanno la voce in `registro-decisioni.md` e il tocco di Andrea su `produzione-sviluppi`.
+2. Nessun `BLOCCO-SQUADRA.md` attivo e variabile `BLOCCO_SQUADRA` diversa da `ATTIVO`; il rilascio viene dalla promozione `staging` -> `main`, mai da un push diretto.
+3. CI verde sul commit di `main` (analisi, test, build, funzioni) e CI verde sul commit identico di `staging`, con sito, regole/indici e funzione pubblicati sul test (`avanza-test-c33ef`) e provati: `verifica-da-staging.sh`.
+4. APPROVATO del `validatore` e GO del guardiano per QUEL rilascio; rilascio solo della testa attuale di `main`.
+5. Segreti e variabili presenti (`controlla-prerequisiti-rilascio.sh`): chiave di produzione del progetto `avanza-b62d7`, mai quella di test.
+6. La build di produzione contiene `avanza-b62d7` e nessuna traccia di `avanza-test` (`controlla-build-ambiente.sh prod`); quella di test il contrario.
+7. Regole e indici: solo additivi, `controlla-regole.py` verde; se cambiano, il rilascio NON li pubblica: si pubblicano con "Setup Firestore" da `main`, dopo il backup, prima o subito dopo il codice.
+8. Backup nuovo e verificato (`BUCKET_BACKUP_FIRESTORE` + `PRODUZIONE_CONTROLLI_COMPLETI=true`) con prova di ripristino IDENTICO prima di ogni variazione ai dati; se il bucket non c'e' lo si scrive nel resoconto ("variazione SENZA backup").
+9. Finestra a basso traffico; compatibilita' tra vecchio e nuovo codice (solo aggiunte, nessuna rimozione di campi).
+10. Esiste il tag `ultimo-rilascio-ok` (punto di ritorno); dopo il deploy parte da solo lo smoke test e, se fallisce, il ritorno automatico di sito e funzione (i dati non si ripristinano da soli).
+11. Dopo il rilascio: smoke test verde (`smoke-produzione.sh`), nessun errore nei log di funzione e sito, impronta dei dati uguale a quella del backup (solo lettura).
+12. Cosa lo smoke test NON copre: accesso reale con un utente, caricamento dei dati, funzioni dentro l'app: provarli a mano in un browser e scrivere "non verificato" se non fatto.
+13. Esito scritto qui (ANOMALIA / NON VERIFICATO se la verifica non e' completa); in caso di anomalia: ritorno del codice, avviso ad Andrea, ripristino dati solo con lui.
+
 ## Piano di rollback
 
-**Flutter web**: Firebase Hosting mantiene versioni precedenti → `firebase hosting:rollback --project avanza-b62d7` (da fare con il CLI di Andrea).
+**Automatico (dal 24/10/2026, da provare)**: se lo smoke test o un passo di pubblicazione fallisce dopo l'avvio, lo stesso job ripubblica sito e funzione dal tag `ultimo-rilascio-ok` e avvisa Andrea. Non ripristina i dati.
+
+**Flutter web (a mano)**: Firebase Hosting mantiene versioni precedenti → `firebase hosting:rollback --project avanza-b62d7` (da fare con il CLI di Andrea).
 
 **Cloud Functions**: versioni precedenti visibili su Google Cloud Console → Cloud Functions → seleziona funzione → "Revisioni".
 

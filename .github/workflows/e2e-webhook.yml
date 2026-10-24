@@ -28,6 +28,25 @@ jobs:
         with:
           credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
 
+      # Regola di Andrea (24/10/2026): backup nuovo e verificato prima di OGNI variazione al database. Questo test crea (e poi toglie) un
+      # task temporaneo T-9xxx nel progetto reale: e' una variazione. Se il bucket non e' configurato lo si dichiara.
+      - uses: google-github-actions/setup-gcloud@v2
+        if: vars.BUCKET_BACKUP_FIRESTORE != ''
+
+      - name: Backup verificato prima della variazione
+        if: vars.BUCKET_BACKUP_FIRESTORE != ''
+        env:
+          BUCKET: ${{ vars.BUCKET_BACKUP_FIRESTORE }}
+          FIRESTORE_PROJECT: avanza-b62d7
+        run: |
+          mkdir -p backup
+          .claude/scripts/backup-firestore.sh backup
+
+      - name: Backup NON eseguito (bucket non configurato)
+        if: vars.BUCKET_BACKUP_FIRESTORE == ''
+        run: |
+          echo "::warning::Variazione al database (task temporaneo di prova) SENZA backup: manca la variabile BUCKET_BACKUP_FIRESTORE. Va detto ad Andrea."
+
       - name: Test webhook end-to-end
         run: node scripts/e2e-webhook.mjs
         env:

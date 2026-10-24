@@ -7,6 +7,12 @@ jobs:
   verifica:
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
+
+      # Prova rapida in sola lettura (sito, cache, funzione, login): la stessa che gira dopo ogni rilascio.
+      - name: Smoke test di produzione
+        run: bash .claude/scripts/smoke-produzione.sh
+
       - name: Controlla cosa serve il sito pubblicato
         run: |
           BASE=https://avanza-b62d7.web.app

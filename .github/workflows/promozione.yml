@@ -53,13 +53,8 @@ jobs:
       - name: Raccogli le pull request entrate in staging e non ancora in produzione
         if: steps.diff.outputs.n != '0'
         run: |
-          : > /tmp/lista.jsonl; senza=0
-          for c in $(git rev-list --no-merges origin/main..HEAD); do
-            gh api "repos/$REPO/commits/$c/pulls" > /tmp/p.json
-            if [ "$(jq length /tmp/p.json)" -eq 0 ]; then senza=1; fi
-            jq -c '.[] | {numero:.number, ramo:.head.ref, etichette:[.labels[].name], titolo:.title, corpo:(.body // "")}' /tmp/p.json >> /tmp/lista.jsonl
-          done
-          jq -s --argjson s "$senza" '{commit_senza_pr:$s, pr:(unique_by(.numero))}' /tmp/lista.jsonl > /tmp/richieste.json
+          # script condiviso con il rilascio (esclude la pull request di promozione stessa)
+          bash .claude/scripts/pr-del-commit.sh origin/main..HEAD /tmp/richieste.json
           jq -c '.pr[] | {numero, ramo, etichette}' /tmp/richieste.json
 
       - name: Classifica correzione o sviluppo
