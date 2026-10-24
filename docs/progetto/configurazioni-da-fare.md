@@ -27,7 +27,21 @@ gh api repos/$REPO/rulesets --jq '.[].name'     # verifica
 **Prova obbligatoria dopo l'attivazione:** aprire una pull request di prova verso `staging` e controllare che tutti i controlli richiesti compaiano e passino. Se uno non compare mai (nome diverso), la PR resta bloccata: correggere il nome nel ruleset (`gh api -X PUT repos/$REPO/rulesets/<id>`), non togliere la protezione.
 Nota: l'unione di `staging` → `main` deve essere "Create a merge commit" (con lo squash tutto viene trattato come sviluppo).
 
-## 2. Ambiente `produzione-sviluppi` e variabile (Avanza; analogo per Volty se presente nei suoi workflow)
+## 2. Ambiente `produzione` (senza revisore) e variabile degli sviluppi (Avanza; analogo per Volty se presente nei suoi workflow)
+Decisione di Andrea (24/10/2026): niente più tocco umano per i nuovi sviluppi. L'ambiente `produzione` è limitato al ramo `main` e **non ha revisore** (con un revisore fermerebbe ogni rilascio); la variabile `SVILUPPI_RICHIEDONO_APPROVAZIONE` vale `no`.
+```bash
+# ambiente produzione: solo main, NESSUN revisore
+gh api -X PUT repos/sbotz17/avanza/environments/produzione --input - <<'JSON'
+{ "deployment_branch_policy": {"protected_branches": false, "custom_branch_policies": true} }
+JSON
+gh api repos/sbotz17/avanza/environments/produzione/deployment-branch-policies --jq '.branch_policies[].name'   # se non c'e' main:
+# gh api -X POST repos/sbotz17/avanza/environments/produzione/deployment-branch-policies -f name=main
+gh api repos/sbotz17/avanza/environments/produzione --jq '[.protection_rules[]?.type]'   # verifica: NON deve contenere "required_reviewers"
+gh variable set SVILUPPI_RICHIEDONO_APPROVAZIONE --body no -R sbotz17/avanza              # (anche se non impostata vale 'no')
+gh variable list -R sbotz17/avanza | grep SVILUPPI
+```
+Se un ambiente `produzione` con revisore esiste gia', toglilo (Settings > Environments > produzione > Required reviewers) altrimenti ogni rilascio aspetta un tocco.
+**Facoltativo, solo se Andrea vuole tornare all'approvazione manuale degli sviluppi:**
 ```bash
 ID=$(gh api users/sbotz17 --jq .id)
 gh api -X PUT repos/sbotz17/avanza/environments/produzione-sviluppi --input - <<JSON
@@ -36,8 +50,9 @@ JSON
 gh api -X POST repos/sbotz17/avanza/environments/produzione-sviluppi/deployment-branch-policies -f name=main
 gh api repos/sbotz17/avanza/environments/produzione-sviluppi --jq '.protection_rules'      # verifica: deve elencare il revisore
 gh variable set SVILUPPI_APPROVAZIONE_CONFIGURATA --body si -R sbotz17/avanza              # SOLO dopo la verifica sopra
+gh variable set SVILUPPI_RICHIEDONO_APPROVAZIONE --body si -R sbotz17/avanza               # riaccende il tocco
 ```
-Verifica anche che l'ambiente `produzione` esista e sia limitato al ramo `main` (non aggiungere un revisore: fermerebbe anche le correzioni).
+Regole di lettura della variabile: assente, vuota o `no` = nessun tocco; **qualunque altro valore** (anche un errore di battitura) = tocco richiesto, e se l'ambiente non e' configurato il rilascio degli sviluppi si ferma (meglio fermi che senza controllo).
 
 ## 3. Variabili e permessi di Actions (Avanza)
 ```bash

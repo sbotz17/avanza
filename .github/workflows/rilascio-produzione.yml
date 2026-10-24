@@ -2,14 +2,17 @@
 # Passi di pubblicazione IDENTICI a quelli di sempre (Hosting live + funzione githubWebhook con gcloud). I controlli completi
 # (backup coerente, prova su copia, confronto dei dati) si accendono SOLO con la variabile PRODUZIONE_CONTROLLI_COMPLETI = true.
 # Revisione di sicurezza del 24/10/2026 (audit docs/progetto/test/2026-10-24-audit-rilascio-produzione.md), SEMPRE attivi:
-#   - classifica: ricalcola se cio' che esce e' una CORREZIONE o un NUOVO SVILUPPO; gli sviluppi passano dall'ambiente produzione-sviluppi (Andrea);
+#   - classifica: ricalcola se cio' che esce e' una CORREZIONE o un NUOVO SVILUPPO e scrive nel riepilogo cosa sta per uscire.
+#     Decisione di Andrea del 24/10/2026: NESSUN tocco umano per gli sviluppi, di default. Il tocco sull'ambiente produzione-sviluppi si
+#     riaccende solo con la variabile SVILUPPI_RICHIEDONO_APPROVAZIONE = si (assente, vuota o 'no' = nessun tocco; qualsiasi altro valore
+#     = tocco richiesto, per non aprire il rilascio per un errore di battitura). Tutti gli altri controlli restano SEMPRE attivi;
 #   - prerequisiti: segreti e variabili esistono ed e' la chiave del progetto giusto, PRIMA di toccare qualcosa;
 #   - il commit e' la testa attuale di main (nessun rilascio di versioni vecchie con "Re-run");
 #   - il contenuto e' IDENTICO a un commit di staging con controlli verdi e pubblicazione di test riuscita (sito, regole, funzione);
 #   - la build di produzione non contiene la configurazione di test;
 #   - dopo il deploy: smoke test (sito, cache, funzione, login) e, se fallisce, RITORNO AUTOMATICO alla versione precedente;
 #   - tag ultimo-rilascio-ok aggiornato a ogni rilascio verificato.
-# L'ambiente GitHub "produzione" (limitato al ramo main) e' dove Andrea puo' mettere il revisore obbligatorio. Leggi .github/README-CI.md.
+# L'ambiente GitHub "produzione" e' limitato al ramo main e NON ha revisore (se ne mettesse uno fermerebbe anche le correzioni). Leggi .github/README-CI.md.
 # NON PROVATO su GitHub: questi flussi non sono eseguibili fuori da GitHub Actions; i singoli script sono stati provati in locale.
 name: rilascio-produzione
 
@@ -34,7 +37,8 @@ jobs:
       test_obbligatori: ${{ vars.TEST_RILASCIO_NON_OBBLIGATORI != 'si' }}
 
   # ---------------------------------------------------------------------------
-  # CLASSIFICA cio' che sta per uscire: correzione (rilascio autonomo) o nuovo sviluppo (serve Andrea).
+  # CLASSIFICA cio' che sta per uscire: correzione o nuovo sviluppo. Entrambi escono in automatico con tutti i controlli;
+  # il tocco di Andrea per gli sviluppi serve solo con SVILUPPI_RICHIEDONO_APPROVAZIONE = si.
   # ---------------------------------------------------------------------------
   classifica:
     if: github.ref == 'refs/heads/main'
@@ -47,6 +51,8 @@ jobs:
       tipo: ${{ steps.c.outputs.tipo }}
       motivo: ${{ steps.c.outputs.motivo }}
       regole_cambiate: ${{ steps.c.outputs.regole_cambiate }}
+      # 'no' = nessun tocco di Andrea (valore predefinito); 'si' = tocco richiesto. Calcolato una sola volta qui e usato dagli altri job.
+      richiede_approvazione: ${{ steps.rich.outputs.richiede }}
     env:
       GH_TOKEN: ${{ github.token }}
       AVVISI_URL: ${{ secrets.AVVISI_URL }}
@@ -67,17 +73,57 @@ jobs:
           bash .claude/scripts/classifica-rilascio.sh | tee /tmp/classifica.txt
           { echo "### Classificazione del rilascio"; echo; echo "- Tipo: **$(grep '^tipo=' "$GITHUB_OUTPUT" | tail -1 | cut -d= -f2)**"; } >> "$GITHUB_STEP_SUMMARY"
 
-      # Un nuovo sviluppo esce solo dopo il tocco di Andrea sull'ambiente "produzione-sviluppi". Se quell'ambiente non e' stato
-      # configurato con il revisore obbligatorio, GitHub lo crea senza protezioni e il tocco non verrebbe mai chiesto: per questo
-      # il rilascio si ferma finche' Andrea non conferma con la variabile SVILUPPI_APPROVAZIONE_CONFIGURATA = si (vedi README-CI.md).
-      - name: Se e' uno sviluppo, l'approvazione di Andrea e' configurata?
+      # Il tocco di Andrea per gli sviluppi e' FACOLTATIVO. Assente, vuota o 'no' -> 'no' (decisione del 24/10/2026).
+      # Qualsiasi altro valore ('si' o un errore di battitura) -> 'si': nel dubbio si chiede il tocco, mai il contrario.
+      - name: Il tocco di Andrea per gli sviluppi e' richiesto?
+        id: rich
+        env:
+          VARIABILE: ${{ vars.SVILUPPI_RICHIEDONO_APPROVAZIONE }}
+        run: |
+          V="$(printf '%s' "$VARIABILE" | tr '[:upper:]' '[:lower:]' | tr -d '[:space:]')"
+          if [ -z "$V" ] || [ "$V" = "no" ]; then R=no; else R=si; fi
+          echo "richiede=$R" >> "$GITHUB_OUTPUT"
+          echo "SVILUPPI_RICHIEDONO_APPROVAZIONE='$VARIABILE' -> approvazione umana degli sviluppi richiesta: $R"
+
+      # Cosa sta per uscire, per il registro docs/progetto/rilasci.md (solo informativo: non decide nulla).
+      - name: Riepilogo di cio' che sta per uscire
+        env:
+          TIPO: ${{ steps.c.outputs.tipo }}
+          MOTIVO: ${{ steps.c.outputs.motivo }}
+          REGOLE: ${{ steps.c.outputs.regole_cambiate }}
+          BASE: ${{ steps.c.outputs.base }}
+          RICHIEDE: ${{ steps.rich.outputs.richiede }}
+        run: |
+          {
+            echo "### Cosa sta per uscire in produzione"
+            echo
+            echo "- Commit: \`$(git rev-parse --short HEAD)\` ($(git log -1 --format=%cI))"
+            echo "- Confronto con: \`${BASE:-non individuata}\`"
+            echo "- Tipo: **${TIPO}** - ${MOTIVO}"
+            echo "- Regole/indici Firestore cambiati: ${REGOLE} (se si', vanno pubblicati con Setup Firestore)"
+            echo "- Tocco di Andrea richiesto per gli sviluppi: ${RICHIEDE}"
+            if [ -n "$BASE" ] && git cat-file -e "${BASE}^{commit}" 2>/dev/null; then
+              echo "- Task citati: $(git log --format='%s%n%b' "$BASE..HEAD" | grep -oE '\bT-[0-9]+\b' | sort -u | paste -sd' ' - | sed 's/^$/nessuno/')"
+              echo "- Pull request citate: $(git log --format='%s%n%b' "$BASE..HEAD" | grep -oE '(#|pull request )[0-9]+' | sort -u | paste -sd' ' - | sed 's/^$/nessuna/')"
+              echo
+              echo "Commit inclusi (primi 40):"
+              echo '```'
+              git log --oneline --no-decorate "$BASE..HEAD" | head -n 40
+              echo '```'
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # Solo con SVILUPPI_RICHIEDONO_APPROVAZIONE = si: l'ambiente "produzione-sviluppi" deve avere il revisore obbligatorio. Se non e' stato
+      # configurato, GitHub lo crea senza protezioni e il tocco non verrebbe mai chiesto: per questo il rilascio si ferma finche' Andrea non conferma
+      # con la variabile SVILUPPI_APPROVAZIONE_CONFIGURATA = si (vedi README-CI.md). Con 'no' questo passo non c'entra.
+      - name: Se e' uno sviluppo e il tocco e' richiesto, l'approvazione di Andrea e' configurata?
         id: cfg
-        if: steps.c.outputs.tipo != 'correzione' && vars.SVILUPPI_APPROVAZIONE_CONFIGURATA != 'si'
+        if: steps.c.outputs.tipo != 'correzione' && steps.rich.outputs.richiede != 'no' && vars.SVILUPPI_APPROVAZIONE_CONFIGURATA != 'si'
         env:
           MOTIVO: ${{ steps.c.outputs.motivo }}
         run: |
-          echo "Questo rilascio e' un NUOVO SVILUPPO ($MOTIVO), ma l'ambiente GitHub 'produzione-sviluppi' non risulta configurato con il revisore obbligatorio."
-          echo "Rilascio FERMATO, la produzione non e' stata toccata. Andrea: crea l'ambiente produzione-sviluppi con te come revisore e imposta la variabile SVILUPPI_APPROVAZIONE_CONFIGURATA = si (passi in .github/README-CI.md)."
+          echo "Questo rilascio e' un NUOVO SVILUPPO ($MOTIVO) e SVILUPPI_RICHIEDONO_APPROVAZIONE chiede il tocco di Andrea, ma l'ambiente GitHub 'produzione-sviluppi' non risulta configurato con il revisore obbligatorio."
+          echo "Rilascio FERMATO, la produzione non e' stata toccata. Andrea: o crei l'ambiente produzione-sviluppi con te come revisore e imposti SVILUPPI_APPROVAZIONE_CONFIGURATA = si, oppure imposti SVILUPPI_RICHIEDONO_APPROVAZIONE = no (passi in .github/README-CI.md)."
           exit 1
 
       - name: Avviso WhatsApp - configurazione dell'approvazione mancante
@@ -92,12 +138,14 @@ jobs:
         run: |
           python3 .claude/scripts/avvisa-whatsapp.py anomalia "Rilascio fermato: lo script che decide se e' una correzione o uno sviluppo e' fallito. Produzione intatta. Dettagli nell'esito su GitHub."
 
-  # Il tocco di Andrea: solo per i nuovi sviluppi (le correzioni saltano questo passo). Revisore obbligatorio da configurare sull'ambiente.
+  # Il tocco di Andrea: FACOLTATIVO, solo per i nuovi sviluppi e solo con SVILUPPI_RICHIEDONO_APPROVAZIONE = si (le correzioni saltano questo passo).
+  # Con 'no' (predefinito) il job viene saltato e non c'e' nessun tocco umano. Revisore obbligatorio da configurare sull'ambiente.
   approvazione-sviluppo:
     # Dipende anche da `controlli`: Andrea non riceve la richiesta di tocco se la CI e' rossa (il rilascio si fermerebbe comunque).
-    # Con `controlli` fallito o saltato questo job viene saltato, e `rilascio` richiede comunque controlli == success.
+    # Con `controlli` o `classifica` falliti o saltati questo job viene saltato, e `rilascio` richiede comunque controlli e classifica == success.
+    # Fail-closed: il job si salta SOLO se l'output vale esattamente 'no' (un output vuoto o strano richiede il tocco).
     needs: [classifica, controlli]
-    if: needs.classifica.outputs.tipo != 'correzione'
+    if: needs.classifica.outputs.tipo != 'correzione' && needs.classifica.outputs.richiede_approvazione != 'no'
     runs-on: ubuntu-latest
     environment: produzione-sviluppi
     steps:
@@ -106,8 +154,9 @@ jobs:
   # ---------------------------------------------------------------------------
   rilascio:
     needs: [controlli, classifica, approvazione-sviluppo]
-    # Si parte solo se: controlli verdi, classificazione riuscita e (per gli sviluppi) approvazione di Andrea. Nel dubbio non si parte.
-    if: ${{ !cancelled() && github.ref == 'refs/heads/main' && needs.controlli.result == 'success' && needs.classifica.result == 'success' && (needs.approvazione-sviluppo.result == 'success' || needs.approvazione-sviluppo.result == 'skipped') }}
+    # Si parte solo se: controlli verdi, classificazione riuscita e approvazione a posto. "A posto" = approvata da Andrea, oppure saltata
+    # perche' NON dovuta (correzione, oppure sviluppo con SVILUPPI_RICHIEDONO_APPROVAZIONE = no). Un salto per qualunque altro motivo NON basta. Nel dubbio non si parte.
+    if: ${{ !cancelled() && github.ref == 'refs/heads/main' && needs.controlli.result == 'success' && needs.classifica.result == 'success' && (needs.approvazione-sviluppo.result == 'success' || (needs.approvazione-sviluppo.result == 'skipped' && (needs.classifica.outputs.tipo == 'correzione' || needs.classifica.outputs.richiede_approvazione == 'no'))) }}
     runs-on: ubuntu-latest
     timeout-minutes: 90
     environment: produzione

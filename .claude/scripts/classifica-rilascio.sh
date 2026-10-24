@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Classifica CIO' CHE STA PER ANDARE IN PRODUZIONE (correzione oppure nuovo sviluppo) rifacendo i conti sul serio al momento del rilascio,
 # con lo stesso criterio della promozione (classifica-modifica.py): non ci si fida dell'etichetta messa sulla pull request di promozione.
-# I nuovi sviluppi hanno bisogno della validazione di Andrea (ambiente GitHub produzione-sviluppi): lo applica rilascio-produzione.yml.
+# Dal 24/10/2026 il tipo NON ferma piu' il rilascio da solo: il tocco di Andrea (ambiente produzione-sviluppi) serve solo con SVILUPPI_RICHIEDONO_APPROVAZIONE=si; lo applica rilascio-produzione.yml.
 # Nel dubbio (base non trovata, elenco non leggibile, nessuna modifica) il risultato e' "sviluppo".
 #
 # Confronto: dall'ultima versione buona (tag ultimo-rilascio-ok, se e' antenato di HEAD), altrimenti dal commit precedente di main
