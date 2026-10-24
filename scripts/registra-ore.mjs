@@ -168,6 +168,12 @@ async function stato() {
   const users = await db.collection('users').get();
   console.log(`Utenti con ruolo: ${users.size}`);
   for (const u of users.docs) console.log(`- ${u.id} ${u.get('email')} ruolo=${u.get('role')}`);
+  // Sola lettura: membri della squadra (nome, tipo, ruolo, tariffe, proprietario). Serve a capire cosa vede l'admin nella pagina Squadra.
+  const members = await db.collection('teamMembers').get();
+  console.log(`Membri squadra: ${members.size}`);
+  for (const m of members.docs) {
+    console.log(`- ${m.get('name')} tipo=${m.get('kind')} ruolo=${m.get('role') || '-'} costo=${m.get('costRate')} vendita=${m.get('billRate')} attivo=${m.get('active')} owner=${m.get('ownerId')}`);
+  }
 }
 
 // Assegna il ruolo admin a un utente (per email). Il ruolo si assegna solo da qui o
