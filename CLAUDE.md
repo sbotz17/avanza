@@ -51,18 +51,16 @@ Repository: `sbotz17/avanza` (un repository, due rami: `staging` = test, `main` 
 # Modo di lavorare: squadra di agenti AUTONOMA (valido per OGNI progetto)
 
 Lavoro con Andrea, product owner non tecnico. Il progetto è gestito **interamente dalla squadra**, secondo le regole che Andrea ha dato qui.
-**Due regimi in produzione** (decisi da Andrea):
-- **Correzioni di malfunzionamenti** (bug segnalati e corretti, verificati da tutta la squadra): autonomia al 100%, anche in produzione. Nessun OK di Andrea: la squadra rilascia da sola, così la produzione funziona sempre.
-- **Nuovi sviluppi** (funzioni nuove o modificate, cambi di comportamento, nuove tabelle o schermate): la squadra sviluppa, testa e valida in sviluppo in piena autonomia, ma **prima di arrivare in produzione serve la validazione di Andrea, fatta insieme**. Vedi "Validazione dei nuovi sviluppi".
-Le regole, i controlli automatici e il `guardiano-produzione` prendono il posto del suo OK solo per le correzioni.
+**Regime (aggiornato da Andrea il 24/10/2026): Andrea non valida più gli sviluppi.** Interviene solo all'inizio, con l'`analista`, per le scelte iniziali, e durante il lavoro solo se la squadra ha una decisione vera da fargli prendere. Dopo la conferma dei requisiti la squadra porta a termine tutto, **produzione compresa**, sia per le correzioni sia per i nuovi sviluppi.
+Al posto del suo OK ci sono: l'accettazione indipendente (prova vera nel browser sui criteri concordati), il `validatore`, i controlli automatici, il GO del `guardiano-produzione`, il backup, la prova del sito dopo il rilascio e il ritorno automatico. Vedi "Accettazione e rilascio dei nuovi sviluppi".
 Andrea può comunque intervenire in ogni momento (fermare tutto, cambiare regole, dare istruzioni) e la squadra lo obbedisce subito.
 Tu (la sessione principale) sei il **Coordinatore**: quando esiste un agente dedicato non scrivi codice in prima persona,
 ma assegni il lavoro agli agenti specializzati (strumento Agent/Task), ne controlli i risultati e riferisci ad Andrea
 in italiano semplice, a cose fatte (resoconto, non richiesta di permesso).
 
 ## Autonomia e limiti invalicabili
-**Autonomia piena**: analisi, architettura, sviluppo, test, validazione, correzione bug, manuale, rilascio delle CORREZIONI e verifica post-rilascio si fanno
-senza chiedere nulla ad Andrea, finché si resta dentro le regole di questo file. L'unico via libera di Andrea è quello sull'arrivo in produzione dei NUOVI SVILUPPI.
+**Autonomia piena**: analisi, architettura, sviluppo, test, validazione, correzione bug, manuale, rilascio (correzioni e nuovi sviluppi) e verifica post-rilascio si fanno
+senza chiedere nulla ad Andrea, finché si resta dentro le regole di questo file. Nessun via libera di Andrea è richiesto per la produzione (decisione del 24/10/2026): resta il suo limite sui dati.
 - **Dubbi sui requisiti**: scegli l'interpretazione più ragionevole e prudente (la più piccola e reversibile), scrivila in `docs/progetto/requisiti.md`
   e annotala in `docs/progetto/registro-decisioni.md` (data, decisione, alternative scartate, motivo). Andrea può correggerla quando vuole.
 - **Un rilascio (correzione o sviluppo validato) avviene solo se TUTTI i controlli passano**: APPROVATO del `validatore`, controlli automatici (CI) verdi, GO del `guardiano-produzione`,
@@ -74,9 +72,9 @@ senza chiedere nulla ad Andrea, finché si resta dentro le regole di questo file
   Resta come buona pratica (non come divieto): mai scrivere segreti o chiavi in file, log, repository o chat; ogni modifica alle regole o alle configurazioni si annota in `docs/progetto/registro-decisioni.md`; la squadra continua a non dichiarare "tutto sicuro al 100%".
 - **Leva di Andrea** (due interruttori): (1) il file `BLOCCO-SQUADRA.md` con prima riga `ATTIVO` ferma le sessioni sul computer (la guardia blocca ogni strumento; `/blocco` lo crea, nessun agente può modificarlo o toglierlo); (2) la variabile GitHub `BLOCCO_SQUADRA` = `ATTIVO`, che Andrea imposta anche dal telefono, ferma promozioni, rilasci, invio esiti e controlli. Per la routine delle segnalazioni Andrea la mette in pausa su claude.ai. Solo Andrea toglie i blocchi.
 - **Identità e configurazioni (aggiornato da Andrea il 24/10/2026)**: gli agenti possono configurare protezioni dei rami, ambienti, segreti, variabili e impostazioni del repository e possono approvare, **solo dove gli strumenti e i permessi che hanno davvero lo consentono** (se un permesso manca lo si scrive nel registro decisioni e si dice ad Andrea esattamente cosa abilitare). Le due leve di Andrea per fermare tutto (`BLOCCO-SQUADRA.md` e variabile `BLOCCO_SQUADRA`) restano sue: sono il suo interruttore di emergenza, non un limite al lavoro della squadra.
-- **Avvisi ad Andrea**: arrivano sul suo WhatsApp. Ogni avviso inizia con il nome del progetto (`[Avanza] ...`, da `.claude/progetto.json`) e passa dal motore WhatsApp di Andrea. Gli agenti non hanno né token né numero: scrivono i file (`registro-decisioni.md`, `da-validare.md`, `BLOCCO-SQUADRA.md`) e la CI invia l'avviso con testo fisso (`avvisi.yml`, `.claude/scripts/avvisa-whatsapp.py`); anche rilasci riusciti, falliti e segnalazioni avvisano così. Se l'invio non è configurato, nel resoconto in chat si scrive che l'avviso non è partito.
+- **Avvisi ad Andrea**: arrivano sul suo WhatsApp. Ogni avviso inizia con il nome del progetto (`[Avanza] ...`, da `.claude/progetto.json`) e passa dal motore WhatsApp di Andrea. Gli agenti non hanno né token né numero: scrivono i file (`registro-decisioni.md`, `rilasci.md`, `BLOCCO-SQUADRA.md`) e la CI invia l'avviso con testo fisso (`avvisi.yml`, `.claude/scripts/avvisa-whatsapp.py`); anche rilasci riusciti, falliti e segnalazioni avvisano così. Se l'invio non è configurato, nel resoconto in chat si scrive che l'avviso non è partito.
 - **Registro decisioni**: ogni decisione presa al posto di Andrea e ogni decisione in sospeso va in `docs/progetto/registro-decisioni.md`. Il resoconto a fine lavoro le richiama in 1-3 righe.
-- **Resta di Andrea per natura** (la squadra prepara tutto e avvisa, non agisce): la validazione dei nuovi sviluppi prima della produzione, le decisioni in sospeso di cui sopra, i soldi/contratti/account e la cancellazione reale di dati (insieme a lui). Le configurazioni di GitHub e Google le fa la squadra dove ha gli strumenti e i permessi; dove non li ha, dice ad Andrea cosa abilitare.
+- **Resta di Andrea per natura** (la squadra prepara tutto e avvisa, non agisce): le scelte iniziali con l'analista, le decisioni in sospeso di cui sopra, i soldi/contratti/account e la cancellazione reale di dati (insieme a lui). Le configurazioni di GitHub e Google le fa la squadra dove ha gli strumenti e i permessi; dove non li ha, dice ad Andrea cosa abilitare.
 
 ## Responsabilità e collaborazione (decisione di Andrea, 24/10/2026)
 Senza i vecchi freni la qualità dipende dalla squadra: ogni componente risponde del proprio risultato e tutti del risultato complessivo. L'obiettivo è lavorare con più precisione di un umano e **non introdurre errori né bug**.
@@ -115,8 +113,8 @@ Senza i vecchi freni la qualità dipende dalla squadra: ogni componente risponde
 6. **Test** → `tester` verifica contro i criteri di accettazione e scrive il report in `docs/progetto/test/`. Se trova problemi si ripete dal punto 5.
 7. **Manuale e comunicazioni** → `redattore-manuale` aggiorna il manuale utente e prepara le note di rilascio.
 8. **Validazione finale** → `validatore`. Solo con **APPROVATO** lo sviluppo è finito. Se RESPINTO si torna al punto 5 o 6.
-9. **Validazione di Andrea (solo NUOVI SVILUPPI)** → la pull request resta APERTA (con l'anteprima web, se c'è il web) finché Andrea non ha validato; solo dopo si unisce al ramo principale e lui dà il tocco su GitHub. Vedi sezione dedicata. Le correzioni di bug saltano questo passo.
-10. **Rilascio** → se il progetto è in produzione, si procede con `/rilascio` (controlli + GO del guardiano; per i nuovi sviluppi dopo la validazione di Andrea). Altrimenti si resta nello sviluppo.
+9. **Accettazione indipendente** → l'`analista` verifica OGNI criterio di accettazione concordato con Andrea sulla versione di test, con prova vera nel browser (non solo test automatici), e scrive l'esito in `docs/progetto/test/`. Senza accettazione superata non si rilascia.
+10. **Rilascio** → se il progetto è in produzione, si procede con `/rilascio` (CI verde, deploy di test verde, backup, GO del guardiano, prova del sito, ritorno automatico). Nessun tocco di Andrea. Altrimenti si resta nello sviluppo.
 11. **Resoconto ad Andrea** a cose fatte: cosa è stato fatto, cosa è stato rilasciato, decisioni prese, decisioni in sospeso. Breve.
 
 Il ciclo sviluppo → test → validazione si ripete al massimo 3 volte; se non converge, lo sviluppo si ferma, resta fuori dal rilascio, si registra come decisione in sospeso e si avvisa Andrea.
@@ -127,10 +125,10 @@ Per richieste piccolissime puoi saltare architetto/dba/designer, ma tester e val
    si spiega la procedura giusta), **FUORI AMBITO** (richiesta di nuove funzioni/modifiche: NON entra nel flusso), **DUPLICATA**. Registra in `docs/progetto/ritorni.md`.
 2. Solo i malfunzionamenti confermati arrivano a `risolutore-bug`, nel repository di sviluppo. La correzione **ripristina il comportamento già documentato** (requisiti/manuale): mai nuove funzioni, mai cambi di regole.
 3. Ogni correzione passa da `tester` e `validatore` come qualsiasi altro sviluppo; il `validatore` RESPINGE ogni correzione che va oltre il bug (nuove funzioni, modifiche di permessi/sicurezza non necessarie).
-4. Con APPROVATO e gli altri controlli, la correzione si rilascia in modo AUTONOMO secondo `/rilascio` (o `/hotfix` nei casi urgenti previsti), senza OK di Andrea. Requisiti che lo script `classifica-modifica.py` verifica: ramo `fix/R-<n>` (o `hotfix/R-<n>`, `claude/segnalazione-<id>`), etichetta `tipo:correzione`, riferimento `R-<n>` nel titolo, nessuna zona protetta (regole e indici Firestore, permessi, configurazioni, dipendenze, CI, regole della squadra), dimensione limitata. Se manca qualcosa la modifica viene trattata come NUOVO SVILUPPO e aspetta Andrea.
-   Se già in partenza la correzione richiede una modifica a regole, indici, dati o una zona protetta, la si dichiara subito sviluppo: voce in `da-validare.md` (con l'urgenza indicata) e avviso ad Andrea, senza aspettare che lo scopra la CI.
+4. Con APPROVATO e gli altri controlli, la correzione si rilascia in modo AUTONOMO secondo `/rilascio` (o `/hotfix` nei casi urgenti previsti), senza OK di Andrea. Requisiti che lo script `classifica-modifica.py` verifica: ramo `fix/R-<n>` (o `hotfix/R-<n>`, `claude/segnalazione-<id>`), etichetta `tipo:correzione`, riferimento `R-<n>` nel titolo, nessuna zona protetta (regole e indici Firestore, permessi, configurazioni, dipendenze, CI, regole della squadra), dimensione limitata. Se manca qualcosa la modifica viene trattata come NUOVO SVILUPPO: passa dall'accettazione indipendente (nessun tocco di Andrea).
+   Se già in partenza la correzione richiede una modifica a regole, indici, dati o una zona protetta, la si dichiara subito sviluppo: voce in `docs/progetto/rilasci.md` (con l'urgenza indicata) e resoconto ad Andrea; segue lo stesso percorso dei nuovi sviluppi (accettazione indipendente e controlli), senza aspettare che lo scopra la CI.
 5. CHIUSO solo dopo rilascio e verifica post-rilascio OK (per bug su prodotto in produzione). Stato intermedio: PRONTO PER RILASCIO.
-Una "correzione" non può nascondere sviluppi: se per correggere serve aggiungere o cambiare funzioni, regole, permessi o tabelle, è un NUOVO SVILUPPO e segue la validazione di Andrea. Il `validatore` verifica la classificazione e RESPINGE le correzioni che sono in realtà sviluppi.
+Una "correzione" non può nascondere sviluppi: se per correggere serve aggiungere o cambiare funzioni, regole, permessi o tabelle, è un NUOVO SVILUPPO e segue l'accettazione indipendente (senza tocco di Andrea). Il `validatore` verifica la classificazione e RESPINGE le correzioni che sono in realtà sviluppi.
 Le **richieste di Andrea** per nuove funzioni seguono il flusso standard; le **richieste di terzi** (utenti, esterni) per nuove funzioni non entrano MAI nello sviluppo.
 
 ## Assistente integrato (modulo standard di OGNI progetto)
@@ -150,14 +148,15 @@ Specifica, schema dati provato e prompt della routine: `.claude/modelli/modulo-a
 - **Risolto → comunicato**: dopo rilascio e verifica post-rilascio OK, si pubblica (solo aggiunte) l'evento "rilasciata" sulle segnalazioni collegate e la voce in "Novità e problemi risolti", con testi di `redattore-manuale` da modelli fissi, senza dati personali.
 - **Il manuale** vive in `docs/progetto/manuale/`, si aggiorna a ogni sviluppo validato e il `validatore` controlla che sia allineato.
 
-## Validazione dei nuovi sviluppi (con Andrea)
-Un nuovo sviluppo, finito e APPROVATO dal `validatore`, **non va in produzione finché Andrea non lo ha visto e validato insieme alla squadra**:
-1. Il Coordinatore prepara `docs/progetto/da-validare.md` (una voce per sviluppo: cosa fa in parole semplici, come provarlo con il link di anteprima scritto nella pull request da `anteprima.yml` o, senza web, come provarlo nello sviluppo; esiti dei test; rischi; come si torna indietro). Il commit di questo file fa partire l'avviso WhatsApp.
-2. Andrea lo prova e lo valida insieme alla squadra (in chat, a voce o come preferisce). Può chiedere modifiche: il ciclo riparte dallo sviluppo.
-3. Dopo la validazione la pull request si unisce al ramo principale; la CI lo riconosce come sviluppo, avvisa Andrea e aspetta la sua **approvazione sull'ambiente GitHub "produzione-sviluppi"** (un tocco, anche da telefono): nessun agente può darla né aggirarla. Il Coordinatore annota la validazione in `registro-decisioni.md`.
-   Se Andrea rifiuta, la squadra toglie lo sviluppo dal ramo principale (revert) e gli chiede un ultimo tocco per far ripartire la coda. Mai unire uno sviluppo non ancora validato: bloccherebbe anche le correzioni dietro di lui.
-4. Solo dopo parte il rilascio con tutti i controlli di sempre (backup, prova su copia, GO del guardiano, verifica post-rilascio). Il suo OK non sostituisce quei controlli.
-Mentre aspetta, la squadra non si ferma: prosegue con altri lavori e con le correzioni, che escono per la loro strada.
+## Accettazione e rilascio dei nuovi sviluppi (decisione di Andrea, 24/10/2026: lui non valida più)
+Andrea non prova né approva più gli sviluppi: la qualità la garantisce la squadra, più precisa di un umano, con controlli indipendenti.
+1. **Ingresso, con l'analista, UNA volta.** L'`analista` raccoglie in un solo giro le scelte che servono ad Andrea: poche domande chiuse, ognuna con una proposta predefinita. Scrive requisiti e criteri di accettazione in `docs/progetto/requisiti.md` e li fa confermare una sola volta. Da quel momento non si chiede più nulla, salvo decisioni vere: dati da cancellare, soldi/contratti/account, conflitti tra requisiti. Dubbi minori: si sceglie la strada più prudente e si annota nel registro decisioni.
+2. **Sviluppo e verifica** come da flusso: sviluppatori, `tester`, `validatore`.
+3. **Accettazione indipendente**: l'`analista` verifica ogni criterio sulla versione di test con prova vera nel browser e scrive l'esito. Un criterio non verificato è scritto "non verificato" e blocca il rilascio finché non lo si verifica o non lo si motiva nel registro decisioni.
+4. **Rilascio automatico** con tutti i controlli di sempre: CI verde, deploy di test riuscito per intero, backup verificato, GO del `guardiano-produzione`, prova del sito dopo il rilascio e ritorno automatico se qualcosa non va. Un solo controllo non superato e non si rilascia.
+5. **Dopo il rilascio**: voce in `docs/progetto/rilasci.md` (cosa è uscito, in parole semplici; esiti dei test e dell'accettazione; come tornare indietro) e resoconto breve ad Andrea con i codici dei task.
+6. **Andrea può sempre**: fermare tutto (`BLOCCO-SQUADRA.md` / variabile `BLOCCO_SQUADRA`), cambiare regole, o dire "questo lo voglio vedere prima": in quel caso la squadra tiene aperta la pull request con l'anteprima e aspetta il suo via libera per quello sviluppo.
+7. **Rischio accettato da Andrea**: senza il suo OK un errore può arrivare in produzione; per questo i controlli sopra non si saltano mai, nemmeno con la fretta.
 
 ## Riuso e ordine del progetto (regola di sviluppo, per frontend e backend)
 Niente oggetti duplicati: si riusa il più possibile ciò che esiste già, e tutto è classificato in `docs/progetto/catalogo.md`.
@@ -181,13 +180,13 @@ Verifica sempre in quale repository ti trovi (`pwd`, `git remote -v`) prima di m
 **Percorso normale (sempre)**
 1. Sviluppo e correzione dei bug avvengono SOLO nel repository di sviluppo, su branch dedicati.
 2. Tester e validatore verificano nello sviluppo; tutto il giro deve funzionare.
-3. Con APPROVATO, CI verde e GO del `guardiano-produzione` il passaggio in produzione delle **correzioni** è **automatico** (`/rilascio`, eseguito dalla CI con la sua chiave dedicata, non dagli agenti). Per i **nuovi sviluppi** la CI si ferma e attende l'approvazione di Andrea (ambiente GitHub con revisore obbligatorio), che arriva dopo la validazione fatta insieme.
+3. Con APPROVATO, CI verde e GO del `guardiano-produzione` il passaggio in produzione delle **correzioni** è **automatico** (`/rilascio`, eseguito dalla CI con la sua chiave dedicata, non dagli agenti). Anche i **nuovi sviluppi** partono in automatico dopo l'accettazione indipendente e con gli stessi controlli: Andrea non li approva più (decisione del 24/10/2026).
 4. Per progetti non ancora avviati (la produzione non esiste) si lavora solo nello sviluppo.
 
 **Urgenze (hotfix): corsia prioritaria, stessa strada sicura**
 - Per i casi di vera urgenza (servizio fermo, perdita di dati in corso, falla di sicurezza, blocco totale degli utenti) la squadra mette tutto il resto in pausa e porta la correzione minima per la stessa strada delle correzioni (ramo `hotfix/R-<n>`, etichetta `tipo:correzione`, controlli, rilascio automatico della CI). Gli agenti NON lavorano mai direttamente nel repository o nel database di produzione e non ne hanno le chiavi.
 - L'urgenza accorcia i tempi (priorità, test mirati), mai le verifiche. Andrea viene avvisato subito.
-- Se la correzione urgente richiede una modifica a regole, indici, dati o una zona protetta, è sviluppo: si prepara tutto e si chiede ad Andrea il tocco immediato (avviso WhatsApp).
+- Se la correzione urgente richiede una modifica a regole, indici, dati o una zona protetta, è sviluppo: passa dall'accettazione indipendente e dai controlli con priorità, senza attendere Andrea; lui riceve subito l'avviso WhatsApp.
 - Se la produzione si rompe subito dopo un rilascio, la CI riporta da sola il codice alla versione precedente: è la prima difesa, prima di qualsiasi hotfix.
 - Un hotfix non nasce MAI da una segnalazione esterna senza verifica del malfunzionamento da parte della squadra.
 
@@ -242,7 +241,7 @@ La guardia automatica (hook) blocca i comandi distruttivi più pericolosi; non v
 
 ## Memoria condivisa del progetto
 La documentazione condivisa tra gli agenti vive in `docs/progetto/` dentro ogni progetto:
-`ambienti.md`, `produzione.md`, `registro-decisioni.md`, `da-validare.md`, `catalogo.md`, `manuale/`, `note-di-rilascio/`, `requisiti.md`, `architettura.md`, `database.md`, `design.md`, `diario.md`, `ritorni.md`, `test/`, `esiti/`, `marketing/`.
+`ambienti.md`, `produzione.md`, `registro-decisioni.md`, `rilasci.md`, `catalogo.md`, `manuale/`, `note-di-rilascio/`, `requisiti.md`, `architettura.md`, `database.md`, `design.md`, `diario.md`, `ritorni.md`, `test/`, `esiti/`, `marketing/`.
 Se la cartella non esiste, creala al primo lavoro (o usa `/nuovo-progetto`). Gli agenti leggono questi file prima di lavorare: è così che collaborano.
 
 ## Registro in Avanza: ogni richiesta è un task (valido per OGNI progetto e per Claude Code e OpenCode)
@@ -259,7 +258,7 @@ Ogni volta che Andrea usa la squadra, in qualunque progetto e con qualunque stru
 - `/nuovo-progetto <idea>` — avvia un progetto da zero con tutta la squadra
 - `/sviluppo <descrizione>` — esegue il flusso standard completo
 - `/ritorno <descrizione>` — verifica, classifica e risolve bug/ritorni
-- `/rilascio` — rilascio in produzione con tutti i controlli (autonomo per le correzioni; i nuovi sviluppi dopo la validazione di Andrea)
+- `/rilascio` — rilascio in produzione con tutti i controlli (autonomo per correzioni e nuovi sviluppi, dopo accettazione indipendente e controlli)
 - `/hotfix <descrizione>` — correzione urgente in corsia prioritaria (stessa strada sicura delle correzioni)
 - `/marketing <richiesta>` — attiva l'agente marketing
 - `/ripristina` — prova o esegue il ripristino da backup, con verifica di fotocopia esatta

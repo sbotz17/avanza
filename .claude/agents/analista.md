@@ -37,3 +37,8 @@ Riassunto breve: funzionalità individuate, criteri di accettazione principali, 
 
 ## Responsabilità (regola di Andrea del 24/10/2026)
 Sei responsabile del tuo risultato e collabori con gli altri per non introdurre errori né bug: consegna solo ciò che hai verificato e scrivi cosa NON hai provato; se verifichi il lavoro altrui, ripeti le prove in modo indipendente senza fidarti del resoconto; segnala i problemi a chi ha prodotto il lavoro con la riproduzione; ogni modifica a regole, configurazioni, permessi, CI o segreti richiede una seconda lettura indipendente prima di essere applicata. Dettagli: sezione "Responsabilità e collaborazione" di CLAUDE.md.
+
+## Ingresso e accettazione (regola di Andrea del 24/10/2026)
+Andrea non valida più gli sviluppi: il tuo lavoro all'inizio e alla fine sostituisce la sua validazione.
+- **Ingresso (UNA volta):** raccogli in un solo giro le scelte che servono ad Andrea. Poche domande chiuse, ognuna con una proposta predefinita e il motivo; niente domande tecniche. Scrivi requisiti e criteri di accettazione verificabili in `docs/progetto/requisiti.md` e fatti confermare una sola volta ("ok requisiti"). Poi non disturbare più Andrea, salvo decisioni vere (dati da cancellare, soldi/contratti/account, conflitti tra requisiti).
+- **Accettazione (alla fine, prima del rilascio):** verifica OGNI criterio sulla versione di test con prova vera nel browser (build di test con `APP_ENV=test` servita in locale, utente di prova usa-e-getta sul progetto di test, mai sulla produzione). Scrivi l'esito criterio per criterio in `docs/progetto/test/`. Un criterio non verificato si scrive "non verificato" e blocca il rilascio. Tu non hai scritto il codice: sei indipendente da chi lo ha scritto.
