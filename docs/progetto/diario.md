@@ -2,6 +2,23 @@
 
 ---
 
+## 2026-10-24 — T-19: pagina Squadra, ruolo a tendina e costi orari ben visibili
+
+**Autore**: sviluppatore-frontend (Claude Code)
+**Branch**: `feature/T-19-squadra-ruolo`
+
+Richiesta di Andrea: nel dialogo "Aggiungi membro" il ruolo non era un menu a tendina e non era chiaro dove impostare i costi orari degli agenti (nei dati reali i 12 agenti hanno costo 0).
+- `lib/core/constants.dart`: `kMemberRoles`, i 13 ruoli standard (valori minuscoli, come già salvati: "sviluppatore backend", ...).
+- `lib/pages/admin/team_page.dart`: dialogo reso pubblico (`MemberDialog`, riceve `onSave` invece del servizio, così si prova senza Firebase). "Ruolo" è un menu a tendina con i ruoli standard e "Altro…" (compare il campo di testo libero). Un ruolo già salvato che non è nell'elenco (anche "Tester" con la maiuscola) si preseleziona come "Altro…" con il suo testo e si risalva identico: nessun ruolo viene perso o riscritto. Ruolo vuoto = nessuna scelta e si salva vuoto. Nuova `TeamMembersView` (aiuto se non ci sono membri) e `MissingCostNotice` (avviso in cima se ci sono membri attivi con costo orario 0, con singolare/plurale).
+- `lib/widgets/team_member_tile.dart` (nuovo): riga del membro con "Tipo · Ruolo" in evidenza ("ruolo non impostato" se vuoto), costo e vendita sulla stessa riga, "Costo non impostato" in rosso quando il costo è 0. La riga usa `Material` al posto di un `Container` colorato (il vecchio dava l'avviso Flutter "ListTile background color or ink splashes may be invisible").
+- Nessun cambio a modelli, a `FirestoreService`, alle regole o agli indici Firestore.
+- Test: `test/team_page_test.dart` (21 casi: elenco ruoli, tutte le voci del menu, ruolo standard / Altro / vuoto / esistente fuori elenco, virgola decimale, nome obbligatorio, lista vuota, avviso costo 0 singolare/plurale, membro non attivo, schermo 320 px in tema scuro). Controllo di mutazione: facendo preselezionare nulla per un ruolo fuori elenco, 2 test falliscono.
+- Verifiche (Flutter stable 3.47.8): `flutter analyze` solo i 6 "info" già presenti; `flutter test` tutti verdi. Non provato: la pagina nel browser con Firestore reale (la lista usa lo stream e il dialogo il salvataggio reale), l'aspetto grafico su schermi reali. `pubspec.lock` non committato (riscritto da `flutter pub get`).
+- Come provarlo: accedere come admin, aprire "Squadra"; toccare un agente: Ruolo mostra il menu; impostare il costo orario e salvare; la riga mostra "Costo X/h".
+- Nota: il costo orario del membro è copiato nelle ore al momento della registrazione (`TimeEntry.costRate`): le ore già registrate a costo 0 restano a 0 (non modificate: nessun dato esistente cambia).
+
+---
+
 ## 2026-10-23 — T-11 e T-12: ricorda email al login e chat dell'admin con la squadra
 
 **Autore**: sviluppatore-frontend / sviluppatore-backend (Claude Code)

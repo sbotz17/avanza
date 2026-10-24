@@ -19,6 +19,25 @@ const List<String> kKanbanColumns = [
   'released',
 ];
 
+// Ruoli standard della squadra (menu a tendina di "Aggiungi/Modifica membro").
+// Il valore salvato in Firestore (`teamMembers.role`) è il testo minuscolo
+// dell'elenco; qualsiasi altro testo già salvato resta valido ("Altro…").
+const List<String> kMemberRoles = [
+  'analista',
+  'architetto',
+  'dba',
+  'designer',
+  'sviluppatore backend',
+  'sviluppatore frontend',
+  'tester',
+  'validatore',
+  'gestore ritorni',
+  'risolutore bug',
+  'guardiano produzione',
+  'redattore manuale',
+  'marketing',
+];
+
 const Map<String, String> kKanbanLabels = {
   'backlog': 'Da fare',
   'active': 'In corso',
