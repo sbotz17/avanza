@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       action:
-        description: 'membro (crea/aggiorna un membro), ore (registra ore) migra (sposta i costi dai task al documento riservato e imposta admin i proprietari) admin (assegna il ruolo admin a una email), crea-progetto (crea un progetto reale per l email) oppure elimina-prova (elimina il progetto di prova del test)'
+        description: 'membro (crea/aggiorna un membro), ore (registra ore) migra (sposta i costi dai task al documento riservato e imposta admin i proprietari) admin (assegna il ruolo admin a una email), crea-progetto (crea un progetto reale per l email) oppure elimina-prova (elimina il progetto di prova del test) domande (elenca le domande dell admin senza risposta) rispondi (risponde nella chat del task task_code)'
         default: 'ore'
       email:
         description: 'Email dell utente, solo per action=admin (assegna il ruolo admin)'
@@ -38,6 +38,9 @@ on:
         default: ''
       note:
         description: 'Nota (facoltativa)'
+        default: ''
+      message:
+        description: 'Testo della risposta della squadra alla domanda dell admin (max 2000 caratteri), solo per action=rispondi'
         default: ''
       kind:
         description: 'agent o person, solo per action=membro'
@@ -86,6 +89,7 @@ jobs:
           PHASE: ${{ inputs.phase }}
           HOURS: ${{ inputs.hours }}
           NOTE: ${{ inputs.note }}
+          MESSAGE: ${{ inputs.message }}
           KIND: ${{ inputs.kind }}
           ROLE: ${{ inputs.role }}
           COST_RATE: ${{ inputs.cost_rate }}
