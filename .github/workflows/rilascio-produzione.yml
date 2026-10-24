@@ -1,4 +1,5 @@
-# RILASCIO IN PRODUZIONE (progetto Firebase avanza-b62d7): parte quando main avanza (promozione da staging approvata da Andrea).
+# RILASCIO IN PRODUZIONE (progetto Firebase avanza-b62d7): parte quando main avanza (push) oppure e' avviato a mano / da promozione.yml (workflow_dispatch sul ramo main:
+# un'unione fatta dal bot con GITHUB_TOKEN non fa partire il push, quindi la promozione automatica lo avvia esplicitamente, T-18). Tutti i controlli sotto valgono in entrambi i casi.
 # Passi di pubblicazione IDENTICI a quelli di sempre (Hosting live + funzione githubWebhook con gcloud). I controlli completi
 # (backup coerente, prova su copia, confronto dei dati) si accendono SOLO con la variabile PRODUZIONE_CONTROLLI_COMPLETI = true.
 # Revisione di sicurezza del 24/10/2026 (audit docs/progetto/test/2026-10-24-audit-rilascio-produzione.md), SEMPRE attivi:

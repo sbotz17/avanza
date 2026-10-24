@@ -12,28 +12,40 @@ Regole per chi esegue: un passo alla volta; **verifica dopo ogni passo** (comand
 Prima di iniziare: `gh auth status` (account sbotz17, permessi `repo`, `workflow`, `admin:repo_hook`) e `gcloud auth list`.
 
 ## 1. Protezione dei rami (ruleset) — Avanza, Volty (e Commerciali se ha `main`)
-Regole: nessuna cancellazione, nessun push forzato, solo pull request (0 approvazioni richieste: l'approvazione di Andrea vale sugli ambienti), controlli obbligatori. L'amministratore del repository può scavalcare (emergenze).
+Regole: nessuna cancellazione, nessun push forzato, solo pull request (0 approvazioni richieste: nessun tocco umano), controlli obbligatori **dove la pull request può produrli**. L'amministratore del repository può scavalcare (emergenze).
 Controlli obbligatori (nomi esatti dei job):
-- Avanza: `controlli`, `zone-protette`, `regole`, `nessun-segreto`, `blocco`.
+- Avanza, solo su `staging`: `controlli`, `zone-protette`, `regole`, `nessun-segreto`, `blocco`.
 - Volty: `test`, `nessun-segreto`, `migrazioni`, `zone-protette`, `blocco`.
+**Avanza — `main` senza controlli obbligatori (T-18, promozione automatica):** la pull request `staging -> main` la apre e la unisce il bot (`GITHUB_TOKEN`), e le pull request aperte dal bot NON fanno partire i workflow `pull_request`: i controlli obbligatori non comparirebbero mai e la pull request resterebbe `BLOCKED` (la promozione lo scrive nel riepilogo e non unisce). Le stesse verifiche sono già obbligatorie su `staging` (prima di entrarvi) e `promuovi-staging.sh` controlla i controlli verdi della testa di `staging`; il rilascio rifà CI, test, build e confronto con `staging`. Alternativa se si vogliono comunque i controlli su `main`: aprire la pull request con un token che faccia partire i workflow (token personale o app GitHub, che la squadra non ha): decisione di Andrea, da rivalutare.
 ```bash
-REPO=sbotz17/avanza   # poi sbotz17/volty-flutter, con i controlli di Volty
-cat > /tmp/ruleset.json <<'JSON'
-{ "name": "Protezione main e staging", "target": "branch", "enforcement": "active",
+REPO=sbotz17/avanza   # per Volty vedi sotto
+cat > /tmp/ruleset-staging.json <<'JSON'
+{ "name": "Protezione staging", "target": "branch", "enforcement": "active",
   "bypass_actors": [ { "actor_id": 5, "actor_type": "RepositoryRole", "bypass_mode": "always" } ],
-  "conditions": { "ref_name": { "include": ["refs/heads/main", "refs/heads/staging"], "exclude": [] } },
+  "conditions": { "ref_name": { "include": ["refs/heads/staging"], "exclude": [] } },
   "rules": [ { "type": "deletion" }, { "type": "non_fast_forward" },
     { "type": "pull_request", "parameters": { "required_approving_review_count": 0, "dismiss_stale_reviews_on_push": false, "require_code_owner_review": false, "require_last_push_approval": false, "required_review_thread_resolution": false } },
     { "type": "required_status_checks", "parameters": { "strict_required_status_checks_policy": false,
       "required_status_checks": [ {"context":"controlli"}, {"context":"zone-protette"}, {"context":"regole"}, {"context":"nessun-segreto"}, {"context":"blocco"} ] } } ] }
 JSON
-gh api -X POST repos/$REPO/rulesets --input /tmp/ruleset.json
+cat > /tmp/ruleset-main.json <<'JSON'
+{ "name": "Protezione main", "target": "branch", "enforcement": "active",
+  "bypass_actors": [ { "actor_id": 5, "actor_type": "RepositoryRole", "bypass_mode": "always" } ],
+  "conditions": { "ref_name": { "include": ["refs/heads/main"], "exclude": [] } },
+  "rules": [ { "type": "deletion" }, { "type": "non_fast_forward" },
+    { "type": "pull_request", "parameters": { "required_approving_review_count": 0, "dismiss_stale_reviews_on_push": false, "require_code_owner_review": false, "require_last_push_approval": false, "required_review_thread_resolution": false } } ] }
+JSON
+gh api -X POST repos/$REPO/rulesets --input /tmp/ruleset-staging.json
+gh api -X POST repos/$REPO/rulesets --input /tmp/ruleset-main.json
 gh api repos/$REPO/rulesets --jq '.[].name'     # verifica
 ```
+Volty (un solo ruleset per `main` e `staging`, come prima, con i controlli di Volty): usare il file dell'esempio precedente cambiando `REPO` e l'elenco `required_status_checks`; la promozione di Volty è un altro flusso.
 **Prova obbligatoria dopo l'attivazione:** aprire una pull request di prova verso `staging` e controllare che tutti i controlli richiesti compaiano e passino. Se uno non compare mai (nome diverso), la PR resta bloccata: correggere il nome nel ruleset (`gh api -X PUT repos/$REPO/rulesets/<id>`), non togliere la protezione.
-Nota: l'unione di `staging` → `main` deve essere "Create a merge commit" (con lo squash tutto viene trattato come sviluppo).
+**Prova della promozione automatica (T-18):** Actions > promozione > *Run workflow* con `solo_verifica` = true: deve dire se la testa di `staging` sarebbe unita, senza unire. Poi osservare la prima promozione vera.
+Nota: l'unione di `staging` → `main` deve essere "Create a merge commit" (con lo squash tutto viene trattato come sviluppo e il rilascio non ritrova il contenuto): la promozione usa `--merge`. L'impostazione *Allow auto-merge* NON serve (la promozione unisce direttamente); servono invece i *merge commit* consentiti e *Allow GitHub Actions to create and approve pull requests* (sezione 3). Il bot unisce con il proprio token: nessuna delle regole sopra lo ostacola (0 approvazioni, nessun controllo obbligatorio su `main`).
 
 ## 2. Ambiente `produzione` (senza revisore) e variabile degli sviluppi (Avanza; analogo per Volty se presente nei suoi workflow)
+> **Eccezione temporanea:** per la PRIMA promozione (sezione 7) il revisore sull'ambiente `produzione` si TIENE (o si rimette) e si toglie solo dopo il primo rilascio riuscito.
 Decisione di Andrea (24/10/2026): niente più tocco umano per i nuovi sviluppi. L'ambiente `produzione` è limitato al ramo `main` e **non ha revisore** (con un revisore fermerebbe ogni rilascio); la variabile `SVILUPPI_RICHIEDONO_APPROVAZIONE` vale `no`.
 ```bash
 # ambiente produzione: solo main, NESSUN revisore
@@ -70,6 +82,7 @@ gh variable list -R sbotz17/avanza
 Per Volty: variabili `SQUADRA_CI_ATTIVA=si`, `NOME_PROGETTO=Volty` e quelle elencate in testa a `rilascio-produzione.yml`; i segreti Supabase/Vercel/WhatsApp li fornisce Andrea (mai in chat): `gh secret set NOME -R sbotz17/volty-flutter` (il valore si digita nel terminale). `GCS_BUCKET` e `GCS_CHIAVE_JSON` di Volty sono già impostati da Andrea.
 
 ## 4. CODEOWNERS (Avanza)
+**Stato (T-18): NON attivo** (esiste solo `.github/CODEOWNERS.esempio`; nessun ruleset richiede la revisione dei Code Owners). Finché non lo è, gli script di promozione e rilascio (`.claude/scripts/`, `.github/`) possono essere cambiati da chi riesce a far entrare una modifica in `staging`, e il job `unione` li esegue con permessi di scrittura: rischio accettato (decisione di Andrea sull'autonomia, 24/10/2026), registrato in `registro-decisioni.md`.
 `git mv .github/CODEOWNERS.esempio .github/CODEOWNERS` su un ramo `feature/`, pull request verso `staging`. Controllare il contenuto prima: deve nominare solo `@sbotz17`.
 
 ## 5. Webhook di Commerciali (aggiorna i task in Avanza)
@@ -97,5 +110,15 @@ gcloud billing budgets list --billing-account="$BILLING"
 ```
 Le notifiche vanno per email agli amministratori della fatturazione (comportamento predefinito).
 
-## 7. Chiusura
+## 7. PRIMA promozione `staging -> main` (non automatica) e accensione della promozione automatica (T-18)
+`main` (`4e66a0e`) è molto indietro rispetto a `staging` (decine di file, regole Firestore della sottocollezione chat comprese). Il primo salto lo fa il `guardiano-produzione` con un amministratore, un passo alla volta, fermandosi al primo imprevisto:
+1. **Backup verificato** prima di tutto: variabile `BUCKET_BACKUP_FIRESTORE` (bucket con blocco di conservazione) e `PRODUZIONE_CONTROLLI_COMPLETI=true`; provare il backup (azione `backup` di "Registra ore squadra" o `backup-giornaliero.yml`) fino a "IDENTICO". Senza backup verificato non si procede.
+2. **Tag `ultimo-rilascio-ok`** su `main` `4e66a0e`, ma solo dopo aver verificato che coincida con ciò che è in produzione (sito e funzione).
+3. **Revisore sull'ambiente `produzione`** per questo primo salto (eccezione temporanea): si toglie subito dopo.
+4. **Unione manuale** della prima PR `staging -> main` con **merge commit**, in fascia a basso traffico. `SQUADRA_CI_ATTIVA` resta `no`, quindi **la PR non si apre da sola e va aperta a mano** (da `staging` verso `main`); il suo corpo non riporta la dimensione del salto: guardarla con `git diff --stat origin/main origin/staging` e controllare con `git diff origin/main origin/staging -- firestore.rules firestore.indexes.json` se le regole Firestore differiscono. Tra l'unione e il passo 5 il nuovo codice gira con le vecchie regole: la chat dei task può non funzionare in quella finestra (nessuna perdita di dati), quindi fascia a basso traffico e passo 5 subito dopo.
+5. **Subito dopo**: pubblicare le regole con "Setup Firestore" da `main` (con backup) e controllare a mano login e chat nel browser; scrivere cosa non è provato.
+6. **Solo dopo**: togliere il revisore, `SQUADRA_CI_ATTIVA=si`, poi Actions > promozione > *Run workflow* con `solo_verifica=true` (prova a secco), poi osservare la prima promozione vera.
+Da quel momento la promozione è automatica con i controlli verdi, **tranne** quando `firestore.rules` o `firestore.indexes.json` differiscono tra `staging` e `main`: in quel caso si ferma ("serve una persona"): pubblicare le regole con Setup Firestore e unire a mano la PR.
+
+## 8. Chiusura
 Annotare in `docs/progetto/registro-decisioni.md` cosa è stato applicato e verificato, aggiornare `docs/progetto/ambienti.md` (rami protetti, ambienti), e riferire ad Andrea in italiano: cosa è fatto, cosa è stato verificato davvero e cosa no.
