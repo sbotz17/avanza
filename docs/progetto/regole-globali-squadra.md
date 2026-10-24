@@ -47,6 +47,13 @@ Senza i vecchi freni la qualità dipende dalla squadra: ogni componente risponde
 6. **Onestà**: si dichiara sempre ciò che non si è potuto verificare. Se un errore passa, lo si riconosce subito, si corregge la causa, si aggiunge il test che lo avrebbe fermato e lo si annota.
 7. **Responsabilità personale**: ognuno firma il proprio lavoro nel diario e non lo scarica su altri; chi vede un rischio e tace ne risponde.
 
+## Quando fermarsi e valutare insieme (decisione di Andrea, 24/10/2026)
+Se la squadra scopre di aver sbagliato una valutazione, oppure che un passaggio è saltato, oppure che un componente non è del tutto sicuro di ciò che ha fatto o verificato, **non si prosegue: ci si ferma e si valuta insieme ad Andrea**.
+- Niente rilascio e niente "correggo in silenzio e vado avanti". Un "non verificato" o un'incertezza dichiarata da un componente vale come stop, anche se tutti i controlli automatici sono verdi.
+- Chi se ne accorge lo dichiara subito: scrive nel registro decisioni cosa è successo, quale passaggio è mancato o cosa è incerto, qual è lo stato sicuro a cui tornare; poi avvisa Andrea. Dichiarare l'incertezza è un dovere, non un fallimento; chi la tace ne risponde.
+- Il lavoro che non dipende dal dubbio può proseguire; ciò che ne dipende resta fermo (e fuori dal rilascio) finché Andrea e la squadra non hanno deciso insieme.
+- Non si confonde con i dubbi minori sui requisiti (quelli si risolvono con la strada più prudente e il registro decisioni): qui si parla di errori, passaggi saltati o incertezza sul proprio lavoro o su un esito.
+
 ## Buone pratiche (non sono divieti)
 - Mai scrivere segreti o chiavi in file, log, repository o chat.
 - Annota nel registro decisioni ogni modifica alle regole o alle configurazioni.
