@@ -207,7 +207,7 @@ async function importaTask() {
   for (const c of codici) console.log(`  ${c}`);
 }
 
-// Sola lettura: elenca i progetti con proprietario, codice cliente e task.
+// Sola lettura: elenca i progetti con proprietario, codice cliente, task e contatore dei codici T-N.
 async function stato() {
   const projects = await db.collection('projects').get();
   console.log(`Progetti: ${projects.size}`);
@@ -215,6 +215,12 @@ async function stato() {
     const tasks = await p.ref.collection('tasks').get();
     const codes = tasks.docs.map((t) => `${t.get('taskCode') || '-'}:${t.get('status')}`).join(', ');
     console.log(`- ${p.get('name')} (${p.id}) owner=${p.get('ownerId')} url=${p.get('githubUrl')} task=${tasks.size}${codes ? ` [${codes}]` : ''}`);
+    // R-4, sola lettura: il contatore deve essere maggiore del massimo T-N esistente (altrimenti il prossimo task avrebbe un codice duplicato).
+    const numeri = tasks.docs.map((t) => Number(t.get('taskNumber') || String(t.get('taskCode') || '').replace(/^T-/, '') || 0)).filter(Number.isFinite);
+    const massimo = numeri.length ? Math.max(...numeri) : 0;
+    const contatore = p.get('nextTaskNumber');
+    const esito = (contatore ?? 1) > massimo ? 'ok' : 'ATTENZIONE: contatore azzerato o indietro, il prossimo codice sarebbe duplicato';
+    console.log(`    contatore nextTaskNumber=${contatore ?? '(assente)'} massimo T-N esistente=${massimo ? `T-${massimo}` : '-'} -> ${esito}`);
   }
   const users = await db.collection('users').get();
   console.log(`Utenti con ruolo: ${users.size}`);

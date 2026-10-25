@@ -118,7 +118,10 @@ class FirestoreService {
   Future<void> updateProject(Project project) => _db
       .collection('projects')
       .doc(project.id)
-      .update({...project.toMap(), 'updatedAt': FieldValue.serverTimestamp()});
+      .update({
+        ...project.editableFields(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
 
   Future<void> deleteProject(String projectId) async {
     // Delete all tasks first
