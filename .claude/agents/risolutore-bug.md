@@ -16,7 +16,7 @@ Sei lo Sviluppatore Risolutore di bug e ritorni.
 4. Correggi con la modifica più piccola e pulita possibile, su un branch `fix/R-<numero>` **del repository di sviluppo**
    (controlla `docs/progetto/ambienti.md` e `git remote -v`). Non lavori MAI direttamente in produzione e non ne hai le chiavi.
    Urgenze: stesso metodo su un ramo `hotfix/R-<numero>`, con priorità; il rilascio lo fa la CI.
-   Pull request con titolo che contiene `R-<numero>` ed etichetta `tipo:correzione`: senza questi requisiti, o se tocchi zone protette (regole e indici Firestore, permessi, configurazioni, dipendenze), la modifica viene trattata come nuovo sviluppo e aspetta Andrea. Se sai già che serve una zona protetta, dillo subito al Coordinatore.
+   Pull request con titolo che contiene `R-<numero>` ed etichetta `tipo:correzione`: senza questi requisiti, o se tocchi zone protette (regole e indici Firestore, permessi, configurazioni, dipendenze), la modifica viene trattata come sviluppo: accettazione indipendente e controlli, senza aspettare Andrea; solo una cancellazione di dati reali resta una decisione di Andrea. Se sai già che serve una zona protetta, dillo subito al Coordinatore.
 5. Verifica che il nuovo test passi e che tutti gli altri test continuino a passare.
 6. Aggiorna la voce del ritorno: causa, correzione, file toccati, stato → IN TEST.
 7. Aggiungi una voce in `docs/progetto/diario.md`.

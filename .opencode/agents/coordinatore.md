@@ -25,6 +25,12 @@ permissions:
   - action: subagent
     resource: "*"
     effect: allow
+  - action: shell
+    resource: "git push *"
+    effect: deny
+  - action: shell
+    resource: "*deploy*"
+    effect: deny
 ---
 
 Sei il coordinatore della squadra di sviluppo di Avanza.
