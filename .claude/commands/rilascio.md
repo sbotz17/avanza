@@ -1,22 +1,19 @@
 ---
-description: Rilascio in produzione con il protocollo di sicurezza completo: autonomo per correzioni e nuovi sviluppi (nessun tocco di Andrea): servono accettazione indipendente, controlli verdi e GO del guardiano
-argument-hint: <cosa rilasciare, oppure vuoto per tutto ciò che è pronto>
+description: "Prepara e verifica un rilascio con la CI"
 ---
-Prepara ed esegui il PASSAGGIO IN PRODUZIONE seguendo la sezione Ambienti e il Protocollo produzione di CLAUDE.md. Richiesta: $ARGUMENTS
 
-Correzioni e nuovi sviluppi: non serve l'OK di Andrea (decisione del 24/10/2026), lo sostituiscono l'accettazione indipendente dell'`analista` (per gli sviluppi), il `validatore`, i controlli automatici (CI verde, deploy di test verde per intero), il GO del `guardiano-produzione`, lo smoke test dopo il rilascio e il ritorno automatico (vedi punto 2b). Priorità assoluta: nessun dato perso o alterato, nessuna configurazione persa, nessun disservizio. Nel dubbio: NO-GO, non si rilascia, si registra e si avvisa Andrea.
+Segui `AGENTS.md`, `CLAUDE.md` e la skill `squadra-rilascio`.
 
-0. Se esiste `BLOCCO-SQUADRA.md` attivo: fermati.
-1. Leggi docs/progetto/ambienti.md e produzione.md. Se mancano informazioni sulla produzione (repository, database, configurazioni, backup, come si pubblica): NO-GO, decisione in sospeso in registro-decisioni.md, avviso ad Andrea.
-2. Ogni elemento da rilasciare deve avere l'APPROVATO del `validatore` nel repository di sviluppo. Ciò che non lo ha NON si rilascia. Per le correzioni nate da segnalazioni esterne: esito `confermato` del gestore-ritorni, controllo zone protette e dimensione superati, tetto giornaliero di rilasci da segnalazioni rispettato; altrimenti resta in attesa (decisione in sospeso).
-2b. Classifica ogni elemento: CORREZIONE (ripristina il comportamento documentato; PR con etichetta `tipo:correzione`) o NUOVO SVILUPPO (tutto il resto, nel dubbio). I nuovi sviluppi richiedono in piu' l'esito dell'accettazione indipendente dell'`analista` (prova vera nel browser sui criteri concordati, in `docs/progetto/test/`): senza, non si rilascia. Nessun tocco di Andrea (la CI salta il job `approvazione-sviluppo` finche' la variabile `SVILUPPI_RICHIEDONO_APPROVAZIONE` non e' `si`); se Andrea dice "questo lo voglio vedere prima", la pull request resta aperta con l'anteprima e si aspetta il suo via libera per quello sviluppo. Intanto continua con altro.
-3. Il rilascio ha due parti da ordinare con cura: (a) database Firestore (regole di sicurezza e indici solo additivi, già provati sull'ambiente di test `avanza-test`, controllati da `controlla-regole.py`; pubblicati con il workflow "Setup Firestore"), (b) Cloud Functions e web su Firebase Hosting (provati sull'ambiente di test, poi promozione da `staging` a `main` con la CI). Avanza è solo web: nessun passo su store o installer. Il backup comprende il database Firestore (export su bucket) e la copia delle configurazioni.
-4. `dba`: piano di modifica a regole, indici e dati solo additivo e reversibile, con rollback. Nessun DROP/TRUNCATE/DELETE/UPDATE di massa: se servono, il rilascio di quella parte NON avviene (decisione in sospeso).
-5. `guardiano-produzione` FASE 1 (checklist completa): backup verificato, prova generale su copia con confronto prima/dopo, rollback provato, diff delle configurazioni, rischio di disservizio, controlli automatici (CI verde). Registra tutto in produzione.md.
-6. NO-GO del guardiano: fermati, scrivi cosa manca nel registro decisioni, avvisa Andrea (e' un'informazione, non una richiesta di permesso). Non forzare, non aggirare.
-7. Con GO: scrivi in produzione.md il riepilogo in italiano semplice (cosa cambia per gli utenti, backup e prove con risultati, rischi residui, come si torna indietro). Non si attende alcuna risposta di Andrea (ne' per le correzioni ne' per gli sviluppi).
-8. Esecuzione: la promozione e il deploy li fa la CI (`promozione.yml`, `rilascio-produzione.yml`) con la sua chiave dedicata: gli agenti non usano credenziali di produzione. Se la CI non è configurata, il rilascio NON avviene e si segnala ad Andrea cosa serve (vedi `modelli/ci/README-CI.md`). Un passo alla volta; al primo imprevisto stop.
-9. `guardiano-produzione` FASE 3: verifica post-rilascio in sola lettura e confronto con i valori registrati. Se la verifica non è completa l'esito NON è OK. Anomalia: rollback del codice, avviso immediato ad Andrea, ripristino dati solo alle condizioni di `/ripristina`.
-10. Comunicazione agli utenti: solo con esito post-rilascio OK, pubblica (solo aggiunte, da modelli fissi, mai dati personali) l'evento "rilasciata" sulle segnalazioni collegate ai ritorni risolti e la voce in "Novità e problemi risolti" preparata da `redattore-manuale`.
-11. Aggiorna diario.md, produzione.md e `rilasci.md` (puoi copiare il riepilogo "Cosa sta per uscire in produzione" del job `classifica`); porta a CHIUSO i ritorni corrispondenti solo con esito post-rilascio OK.
-12. Resoconto breve ad Andrea a cose fatte: cosa è stato rilasciato, verifiche, decisioni in sospeso.
+Richiesta: $ARGUMENTS
+
+1. `guardiano-produzione` compila la checklist e da' GO/NO-GO.
+2. Verifica: APPROVATO del `validatore`, accettazione indipendente (per gli sviluppi), backup verificato,
+   rollback provato, CI verde, deploy di test verde per intero.
+3. La promozione e il rilascio li fa SOLO la CI con la sua chiave dedicata. Gli agenti non usano credenziali
+   di produzione e non fanno deploy manuali.
+4. Se la CI non e' configurata o un controllo manca: NO-GO, decisione in sospeso in `registro-decisioni.md`,
+   avviso ad Andrea.
+5. Dopo il rilascio: verifica in sola lettura e prova del sito. Anomalia: rollback del codice e avviso
+   immediato ad Andrea.
+
+Riferisci l'esito in italiano semplice.

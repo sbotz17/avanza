@@ -1,6 +1,6 @@
 ---
 description: Backup verificato del database (obbligatorio prima di OGNI variazione al database, di qualsiasi genere; si conservano gli ultimi 20)
-argument-hint: <opzionale: quale database>
+argument-hint: "<opzionale: quale database>"
 ---
 Esegui un BACKUP VERIFICATO del database. $ARGUMENTS
 

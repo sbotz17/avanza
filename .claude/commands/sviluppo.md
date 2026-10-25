@@ -1,9 +1,22 @@
 ---
-description: Esegue il flusso completo analisi → sviluppo → test → validazione per una funzionalità
-argument-hint: <cosa vuoi sviluppare>
+description: "Avvia il flusso completo per un nuovo sviluppo"
 ---
-Esegui il FLUSSO STANDARD DI SVILUPPO descritto in CLAUDE.md per questa richiesta:
 
-$ARGUMENTS
+Segui `AGENTS.md`, `CLAUDE.md` e la skill `squadra-sviluppo`.
 
-Lavora SOLO nel repository di sviluppo (verifica docs/progetto/ambienti.md e git remote -v); non toccare la produzione. Applica la regola di riuso (cerca in catalogo.md e nel codice, riusa, crea solo se serve e registra nel catalogo). Coinvolgi solo gli agenti necessari (analista sempre; architetto, dba, designer-frontend se pertinenti), poi sviluppatori (in parallelo se i blocchi sono indipendenti), poi `tester` e infine `validatore`. Tester e validatore sono sempre obbligatori. Massimo 3 cicli di correzione. Lavora su un ramo `feature/...` (o sul ramo assegnato dalla sessione) con pull request verso `staging`, mai verso `main`. Se è un NUOVO SVILUPPO: a fine lavoro, con APPROVATO, la pull request resta aperta, prepari `docs/progetto/da-validare.md` (cosa fa, link di anteprima, test, rischi) e lo fai arrivare nel ramo (parte l'avviso WhatsApp); dopo la validazione di Andrea la pull request si unisce e lui approva su GitHub. Se invece è una correzione di un malfunzionamento, segui `/ritorno`. Concludi con un resoconto breve per Andrea: cosa è stato fatto, come provarlo, cosa resta aperto.
+Richiesta di Andrea: $ARGUMENTS
+
+1. `analista` -> requisiti e criteri di accettazione (una sola volta con Andrea, se servono scelte).
+2. `architetto` / `dba` / `designer-frontend` solo se servono.
+3. `sviluppatore-backend` e/o `sviluppatore-frontend`, su ramo `feature/...` creato da `staging`; PR verso
+   `staging`, mai verso `main`.
+4. Se si toccano accessi, ruoli, permessi, dati personali, pagamenti, file o input: carica la skill
+   `squadra-sicurezza-app` e fai fare una seconda lettura a un agente diverso da chi ha scritto il codice.
+5. `tester` (obbligatorio), poi `redattore-manuale`, poi `validatore`.
+6. Accettazione indipendente: prova vera nel browser di OGNI criterio concordato con Andrea, scritta in
+   `docs/progetto/test/`. Un criterio non provato blocca il rilascio.
+7. Aggiorna `docs/progetto/da-validare.md` e i nodi di memoria; commit e PR. Non unire mai la PR.
+8. Con APPROVATO, accettazione completa, CI verde e GO del `guardiano-produzione` il rilascio e' automatico:
+   non serve un'altra approvazione di Andrea.
+
+Riferisci a cose fatte, in italiano semplice. Non dichiarare completato senza SUPERATO e APPROVATO.
