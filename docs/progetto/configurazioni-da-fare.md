@@ -122,3 +122,40 @@ Da quel momento la promozione è automatica con i controlli verdi, **tranne** qu
 
 ## 8. Chiusura
 Annotare in `docs/progetto/registro-decisioni.md` cosa è stato applicato e verificato, aggiornare `docs/progetto/ambienti.md` (rami protetti, ambienti), e riferire ad Andrea in italiano: cosa è fatto, cosa è stato verificato davvero e cosa no.
+
+## 9. Collegamento di Avanza a TUTTI i progetti: creare la GitHub App e salvare il segreto (T-20, fase 1)
+**A cosa serve:** con una "GitHub App" tua, installata una volta su tutti i tuoi repository (anche quelli futuri), GitHub avvisa Avanza di ogni ramo, pull request e approvazione. Avanza crea da sola il progetto di un repository nuovo e aggiorna i task che hanno già il codice `T-N`. I task non si creano da soli. L'App ha permessi di **sola lettura** e si disinstalla con un clic.
+**Quando farlo:** dopo che questa modifica è arrivata in produzione (promozione da `staging` a `main`). Prima non serve: la funzione che riceve gli eventi non c'è ancora nella nuova versione.
+**Non verificato dalla squadra:** nomi esatti dei menu e dei campi di GitHub (la documentazione di GitHub non era consultabile e i passi non sono stati provati); il fatto che il service account della CI possa creare segreti in Google Secret Manager (vedi passo B3). Se un nome non corrisponde, scrivi alla squadra: aggiorna questa pagina.
+
+### Parte A — Creare l'App su GitHub (una volta, circa 10-15 minuti, dal sito github.com, senza terminale)
+1. Accedi a GitHub come `sbotz17`. Foto del profilo (in alto a destra) > **Settings** > in fondo a sinistra **Developer settings** > **GitHub Apps** > **New GitHub App**.
+2. **GitHub App name:** `Avanza collegamento` (se il nome è occupato aggiungi un suffisso). **Homepage URL:** `https://avanza-b62d7.web.app`.
+3. **Webhook:** lascia **Active** acceso. **Webhook URL:** `https://us-central1-avanza-b62d7.cloudfunctions.net/githubWebhook`. **Webhook secret:** una stringa casuale lunga (almeno 32 caratteri: fattela generare dal tuo gestore di password). **Non scriverla in chat e non salvarla in un file del progetto.** Tienila a portata di mano: serve ancora al passo B1.
+4. **Repository permissions**, tutti **Read-only** (sola lettura): **Metadata** (obbligatorio), **Contents**, **Pull requests**. Nessun altro permesso e **nessuno in scrittura**.
+5. **Subscribe to events:** spunta **Push**, **Pull request**, **Pull request review**, **Repository**. (Se un evento non compare, manca il permesso corrispondente del punto 4.)
+6. **Where can this GitHub App be installed?** scegli **Only on this account**. Poi **Create GitHub App**.
+7. Nella pagina dell'App, menu a sinistra **Install App** > **Install** accanto al tuo account > scegli **All repositories** > **Install**. Così vale anche per i repository che creerai.
+8. **Non generare** la "Private key" né il "Client secret": non servono.
+
+### Parte B — Salvare il segreto in Avanza (senza terminale)
+1. Su GitHub apri il repository `sbotz17/avanza` > **Settings** > **Secrets and variables** > **Actions** > **New repository secret**. **Name:** `GH_APP_WEBHOOK_SECRET` (esattamente così: GitHub non accetta nomi che iniziano per `GITHUB_`). **Secret:** incolla lo stesso valore del Webhook secret del passo A3. **Add secret.**
+2. Scheda **Actions** > a sinistra **Imposta segreto GitHub App** > **Run workflow** > scegli `produzione` > **Run workflow**. Parte solo da `main` (cioè dopo la promozione).
+3. Aspetta il segno verde. Il flusso scrive il segreto in Google Secret Manager con il nome `GITHUB_APP_WEBHOOK_SECRET` e lo rilegge con la stessa identità della funzione. **Se è rosso**, il messaggio dice cosa fare, senza terminale. Le due strade: (a) sul sito Google Cloud Console > **IAM e amministrazione** > **IAM**, dai al service account della CI (`firebase-adminsdk-fbsvc@avanza-b62d7.iam.gserviceaccount.com`) il ruolo **Secret Manager Admin** e rilancia; oppure (b) Google Cloud Console > **Secret Manager** > **Crea segreto**, nome `GITHUB_APP_WEBHOOK_SECRET`, incolla il valore, e nella scheda **Autorizzazioni** del segreto dai **Secret Manager Secret Accessor** a quello stesso service account.
+4. Entro 2-10 minuti la funzione legge il nuovo segreto (copia in memoria a tempo). Se non esiste ancora, la funzione continua a funzionare solo con il segreto di oggi: nessun danno.
+5. Controllo: nella pagina dell'App > **Advanced** > **Recent deliveries** deve comparire una consegna `ping` con risposta **200** (se vedi 401 il segreto non coincide con quello del passo A3).
+
+*Perché questa strada e non gcloud:* si digita il segreto solo in due moduli web (GitHub App e segreto GitHub), il flusso non lo stampa mai (GitHub lo maschera) e controlla da solo che la funzione riesca a leggerlo. Alternative scartate: variabile d'ambiente della funzione (il segreto resterebbe visibile nella configurazione e servirebbe modificare due flussi di pubblicazione); comando `gcloud secrets` da terminale (funziona, ma richiede un terminale con il login Google).
+
+### Parte C — Accendere la creazione automatica dei progetti (la fa la squadra, con te al corrente)
+Finché non è acceso, la funzione **non crea nulla** (si comporta come prima; aggancia solo l'identificativo del repository ai progetti già esistenti).
+1. Actions > **Registra ore squadra** > Run workflow: `action = collegamento-stato` (sola lettura) per vedere lo stato di partenza.
+2. `action = collegamento`, `note = attiva`, `email = bottiandrea83@gmail.com`, `github_url = https://github.com/sbotz17/avanza`. L'esito deve riportare come proprietario l'uid `ffbUiSphhBW1qQi3lUzzvTfKXY32` e l'account ammesso `sbotz17`: **se l'uid è diverso, fermarsi**. Il flusso fa prima il backup (se il bucket è configurato).
+3. Per **spegnere**: `action = collegamento`, `note = spegni` (effetto entro un minuto, i progetti già creati restano). Per **escludere** un repository: aggiungi l'argomento (topic) `avanza-ignora` al repository su GitHub. Per **riammettere** un progetto eliminato: `action = collegamento`, `note = riammetti`, `github_url` = indirizzo del repository.
+4. Tetti: 5 progetti nuovi al giorno (predefinito). Fork e repository archiviati non creano mai progetti.
+
+### Prova su ambiente di test (facoltativa, consigliata prima della Parte C in produzione)
+Una GitHub App ha un solo indirizzo, quindi per provare sul test serve una **seconda App** (es. `Avanza collegamento (prova)`) con webhook URL `https://us-central1-avanza-test-c33ef.cloudfunctions.net/githubWebhook`, un segreto diverso, installata **solo su un repository di prova**. Il segreto GitHub si chiama `GH_APP_WEBHOOK_SECRET_TEST` e il flusso si lancia con `ambiente = test`.
+
+### Tornare indietro
+Disinstalla l'App (GitHub > Settings > Applications > Installed GitHub Apps > Configure > Uninstall) e/o `collegamento` con `note = spegni`. I progetti già creati restano (sono dati: toglierli sarebbe una cancellazione reale, da decidere con te). I webhook dei singoli repository non vengono toccati.

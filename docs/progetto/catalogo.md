@@ -82,6 +82,18 @@ Aggiornare a ogni nuovo oggetto o modifica significativa.
 | `buildUpdate` | `functions/src/lib/taskUpdater.ts` | Costruisce l'aggiornamento Firestore applicando la logica di avanzamento (no retrocessione, idempotenza note) | `githubWebhook.ts` |
 | `writeUpdate` | `functions/src/lib/firestoreWriter.ts` | Esegue la transazione atomica su Firestore (status + fasi + nota) | `githubWebhook.ts` |
 | Interfacce condivise | `functions/src/lib/types.ts` | Tipi TypeScript condivisi tra i moduli Cloud Function (`GithubEvent`, `DesiredUpdate`, ecc.) | Tutti i moduli `lib/` |
+| `authenticateWebhook` | `functions/src/lib/authenticate.ts` | [T-20] Autentica la richiesta con due segreti (storico e GitHub App), restituisce l'origine (`webhook` / `github-app`); 401/500 senza mai esporre segreti | `githubWebhook.ts` |
+| `createWebhookSecrets`, `createSecretReader` | `functions/src/lib/secrets.ts` | [T-20] Lettura dei segreti da Secret Manager con copia a tempo; il segreto dell'App e' facoltativo (assente = si usa solo lo storico) | `githubWebhook.ts` |
+| `processEvent` | `functions/src/lib/eventProcessor.ts` | [T-20] Elabora un evento autenticato: progetto noto -> aggancio + aggiornamento task; progetto sconosciuto -> creazione con tutti i controlli; log strutturato per ogni esito | `githubWebhook.ts` |
+| `logEvent`, `cleanDelivery` | `functions/src/lib/eventLog.ts` | [T-20] Registro strutturato degli eventi (esito + motivo, senza dati personali) | `eventProcessor.ts` |
+| `createProjectForRepo` | `functions/src/lib/projectCreator.ts` | [T-20] Crea il progetto di un repository sconosciuto in una transazione (ID deterministico, tetto giornaliero, lapide dei progetti eliminati, intestatario admin verificato) | `eventProcessor.ts` |
+| `syncProjectLink`, `applyRepositoryAction` | `functions/src/lib/projectLink.ts` | [T-20] Aggancia un progetto esistente al repository (aggiunge `githubRepoId`, aggiorna l'indirizzo se rinominato) e segna archiviazione/cancellazione del repository | `eventProcessor.ts` |
+| `resolveProjectForRepo` | `functions/src/lib/projectResolver.ts` | [T-20] Estende `resolveProject`: cerca per identificativo numerico del repository e poi per indirizzo | `eventProcessor.ts`, `projectLink.ts` |
+| `generateClientCode`, `buildProjectData`, `buildClientAccessData`, `normalizeGithubUrl` | `functions/src/lib/projectFactory.ts` | [T-20] UNICA implementazione di codice cliente, forma dei documenti progetto/accesso cliente e confronto indirizzi (prima era scritta nello script e nell'app) | `projectCreator.ts`, `projectResolver.ts`, `scripts/registra-ore.mjs` |
+| `extractRepoInfo`, `isIgnoredRepo`, `creationBlockReason`, `cleanText`, `isGithubRepoUrl`, `IGNORE_TOPIC` | `functions/src/lib/repoInfo.ts` | [T-20] Legge e valida i dati del repository dal payload (testo non fidato ripulito); esclusioni: topic `avanza-ignora`, fork, archiviato | `eventProcessor.ts` |
+| `loadLinkConfig`, `parseLinkConfig` | `functions/src/lib/linkConfig.ts` | [T-20] Legge/valida `githubCollegamento/config` (interruttore spento se incompleto), copia 60 s | `eventProcessor.ts` |
+| `repoRef`, `autoProjectId`, `dayRef`, `dayKey` | `functions/src/lib/linkStore.ts` | [T-20] Riferimenti ai documenti di supporto (registro repository, contatore giornaliero) e ID deterministico del progetto | `projectCreator.ts`, `projectLink.ts` |
+| `isProjectCreatingEvent`, `TRUSTED_REVIEW_ASSOCIATIONS` | `functions/src/lib/eventRouter.ts` | [T-20] Quali eventi possono far nascere un progetto; chi puo' far avanzare un task con un'approvazione | `eventProcessor.ts` |
 
 ---
 
@@ -90,6 +102,8 @@ Aggiornare a ogni nuovo oggetto o modifica significativa.
 | Nome | Percorso | Scopo | Usato in |
 |------|----------|-------|----------|
 | `registra-ore.mjs` | `scripts/registra-ore.mjs` | Azioni della squadra su Firestore (Admin SDK): `membro`, `ore`, `importa-task`, `stato`, `admin`, `crea-progetto`, `elimina-prova`, `migra`; [T-12] `domande` (sola lettura) e `rispondi` (chat admin-squadra) | Workflow "Registra ore squadra" |
+| `registra-ore.mjs` azioni `collegamento`, `collegamento-stato` | `scripts/registra-ore.mjs` | [T-20] Accende/spegne la creazione automatica dei progetti, riammette un repository escluso, mostra lo stato (scrive solo `githubCollegamento/config` e lo stato del registro `githubRepos`) | Workflow "Registra ore squadra" |
+| `imposta-segreto-app.yml` | `.github/workflows/imposta-segreto-app.yml` | [T-20] Porta il segreto della GitHub App dal segreto GitHub `GH_APP_WEBHOOK_SECRET` a Secret Manager (`GITHUB_APP_WEBHOOK_SECRET`), senza terminale; produzione solo da `main` | A mano (workflow_dispatch) |
 
 ---
 

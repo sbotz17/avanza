@@ -196,3 +196,14 @@ Seguite le specifiche di `docs/architettura-integrazione-github.md`:
 - PR_MERGED → status `review` (non `validated`; quello è compito di PR_APPROVED)
 - `FieldValue.arrayUnion` per le note (idempotenza a livello Firestore)
 - Transazione atomica per status e fasi (protezione da race condition)
+
+## 2026-10-25 — T-20 fase 1: collegamento automatico ai repository GitHub (sviluppatore-backend)
+**Ramo:** `feature/T-20-fase1` (da `feature/T-20-collegamento-progetti`). Nessun deploy, nessun workflow, nulla in produzione.
+**Cosa:** `githubWebhook` accetta anche gli eventi di una GitHub App personale (secondo segreto), crea il progetto di un repository sconosciuto (intestato all'admin configurato, con tetti, esclusioni e senza duplicati), non fa risorgere i progetti eliminati, promuove a Validato solo le approvazioni di OWNER/MEMBER/COLLABORATOR, registra ogni evento (anche non agganciato) con log strutturato. Nessun task viene creato.
+**File nuovi:** `functions/src/lib/{authenticate,secrets,eventProcessor,eventLog,projectCreator,projectLink,projectFactory,repoInfo,linkConfig,linkStore}.ts`; test `functions/src/test/{authenticate,repoInfo,projectCreator,eventProcessor,githubWebhook,webhookFlow}.test.ts` e aiuti `functions/src/test/helpers/{fakeFirestore,testDb,fixtures}.ts`; `.github/workflows/imposta-segreto-app.yml`.
+**File modificati:** `functions/src/githubWebhook.ts` (ora sottile: autentica e delega), `functions/src/lib/{hmac,eventRouter,projectResolver,types}.ts`, `functions/src/index.ts` (commento), `functions/src/test/{hmac,eventRouter}.test.ts`, `scripts/registra-ore.mjs` (crea-progetto usa il modulo condiviso; nuove azioni `collegamento`, `collegamento-stato`), `.github/workflows/registra-ore.yml` (passo di build, azione di sola lettura), documentazione (`docs/database.md`, `docs/progetto/{database,architettura,catalogo,ambienti,configurazioni-da-fare,registro-decisioni}.md`).
+**Come provarlo:**
+- `cd functions && npm ci && npm run build && npm test` (usa un Firestore in memoria).
+- Stessi test contro il Firestore vero: dalla radice `firebase emulators:exec --only firestore --project demo-avanza "npm --prefix functions test"` (richiede Java).
+- Azioni dello script e regole: vedi il resoconto (prove sull'emulatore Firestore + Auth, nessun dato reale).
+**Non coperto:** nessuna prova con GitHub reale (consegne, firma, topic nei payload), nessun deploy della funzione, il workflow `imposta-segreto-app.yml` non e' mai stato eseguito su GitHub (provato solo il suo shell con un gcloud finto), interfaccia (etichetta "creato automaticamente", "ultimo aggiornamento da GitHub", elenco eventi non agganciati) NON fatta: resta alla parte frontend.
