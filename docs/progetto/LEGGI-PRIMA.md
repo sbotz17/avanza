@@ -1,5 +1,5 @@
 # Avanza — stato rapido
-> Aggiornato: 2026-10-23 · da: coordinatore
+> Aggiornato: 2026-10-25 · da: coordinatore · indice del progetto: `indice.md`
 
 <!-- ISTRUZIONI PER IL COORDINATORE
      Mantieni questo file ≤ 60 righe. Aggiornalo dopo ogni task completato.
@@ -13,16 +13,16 @@
 - Ruoli: `admin` vede tutto; `client` solo i progetti collegati col codice progetto e il dettaglio dei task
 
 ## Ambienti
-- Test → ramo `staging`, progetto Firebase `avanza-test` (DA CREARE da Andrea: finché non c'è, anteprime e test non pubblicano nulla)
+- Test → ramo `staging`, progetto Firebase `avanza-test-c33ef` (creato; anteprime e test pubblicano)
 - Prod → ramo `main`, progetto Firebase `avanza-b62d7`, database `(default)` in `eur3` (solo CI)
 - Branch di lavoro: da `origin/staging` → PR verso `staging`. Mai PR né push verso `main` da parte degli agenti.
 
 ## Stato attuale
-- In produzione: webhook GitHub → task, ruoli admin/cliente, costi e produttività, progetti reali Avanza e Volty
-- In lavorazione: allineamento alla squadra (regole, agenti, CI, ambienti)
-- Da validare con Andrea: allineamento ambienti e regole di protezione (vedi `da-validare.md`)
+- In produzione (versione del 23/10): webhook GitHub → task, ruoli admin/cliente, costi e produttività, progetti reali Avanza, Volty e Commerciali
+- In `staging`, NON ancora in produzione: login con Ricorda email, chat task, pagina Squadra con ruolo a tendina, correzione contatore T-N (R-4), collegamento GitHub fase 1 (spento), promozione automatica (spenta fino alla prima promozione), regola "quando fermarsi"
+- Prossimo passo: prima promozione staging→main CON Andrea (audit-completa, backup + prova di ripristino, tag di ritorno): `memoria/rilascio-e-promozione.md`
 - Bug aperti: — (dettaglio in `ritorni.md`)
-- Decisioni in sospeso: 11 azioni di Andrea su Google e GitHub (dettaglio in `registro-decisioni.md`)
+- In sospeso per Andrea: giorno della prima promozione, costi orari (li imposta lui), accensione del collegamento GitHub, budget Google (a mano), segreti di Volty (`registro-decisioni.md`)
 
 ## Ultimi cambiamenti rilevanti
 <!-- formato: AAAA-MM-GG · cosa · chi -->
@@ -30,6 +30,7 @@
 - 2026-10-23 · progetti reali Avanza e Volty; test E2E sul progetto reale; sito senza service worker · coordinatore
 - 2026-10-23 · accesso unico con ruoli, sessione persistente, regole senza accesso anonimo · coordinatore
 - 2026-10-23 · costi, squadra e produttività (`taskCosts` solo admin) · coordinatore
+- 2026-10-25 · T-17 Squadra, T-18 collegamento GitHub (fase 1), T-19 contatore task (R-4), regole sincronizzate da squadraalphalab · coordinatore
 
 ## Mappa rapida — cosa leggere per ogni task
 
