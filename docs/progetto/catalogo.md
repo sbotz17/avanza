@@ -10,7 +10,7 @@ Aggiornare a ogni nuovo oggetto o modifica significativa.
 | Nome | Percorso | Scopo | Usato in |
 |------|----------|-------|----------|
 | `Task` | `lib/models/task.dart` | Modello dati del task (con campi `taskCode`, `taskNumber`, `githubBranch?`, `githubPrNumber?`) | Ovunque nel frontend |
-| `Project` | `lib/models/project.dart` | Modello dati del progetto (con `nextTaskNumber`) | Home, project page, firestore_service |
+| `Project` | `lib/models/project.dart` | Modello dati del progetto (con `nextTaskNumber`); `copyWith` conserva il contatore; [R-4] `editableFields()` = unici campi scrivibili dalla modifica (name, description, githubUrl) | Home, project page, firestore_service (`updateProject`), `test/project_counter_test.dart`, `test/firestore_service_update_project_test.dart` (tester: prova di `updateProject` con piattaforma Firestore finta) |
 | `ChatMessage`, `canShowTaskChat` | `lib/models/chat_message.dart` | [T-12] Messaggio della chat admin-squadra (`fromMap`/`toMap`, `cleanText`) e regola "chi vede la chat" (admin e task non `validated`/`released`) | `firestore_service.dart`, `task_chat.dart`, `task_detail_page.dart`, `test/chat_message_test.dart` |
 
 ---
@@ -82,6 +82,27 @@ Aggiornare a ogni nuovo oggetto o modifica significativa.
 | `buildUpdate` | `functions/src/lib/taskUpdater.ts` | Costruisce l'aggiornamento Firestore applicando la logica di avanzamento (no retrocessione, idempotenza note) | `githubWebhook.ts` |
 | `writeUpdate` | `functions/src/lib/firestoreWriter.ts` | Esegue la transazione atomica su Firestore (status + fasi + nota) | `githubWebhook.ts` |
 | Interfacce condivise | `functions/src/lib/types.ts` | Tipi TypeScript condivisi tra i moduli Cloud Function (`GithubEvent`, `DesiredUpdate`, ecc.) | Tutti i moduli `lib/` |
+| `authenticateWebhook` | `functions/src/lib/authenticate.ts` | [T-20] Autentica la richiesta con due segreti (storico e GitHub App), restituisce l'origine (`webhook` / `github-app`); 401/500 senza mai esporre segreti | `githubWebhook.ts` |
+| `createWebhookSecrets`, `createSecretReader` | `functions/src/lib/secrets.ts` | [T-20] Lettura dei segreti da Secret Manager con copia a tempo; il segreto dell'App e' facoltativo (assente = si usa solo lo storico) | `githubWebhook.ts` |
+| `processEvent` | `functions/src/lib/eventProcessor.ts` | [T-20] Elabora un evento autenticato: progetto noto -> aggancio + aggiornamento task; progetto sconosciuto -> creazione con tutti i controlli; log strutturato per ogni esito | `githubWebhook.ts` |
+| `logEvent`, `cleanDelivery` | `functions/src/lib/eventLog.ts` | [T-20] Registro strutturato degli eventi (esito + motivo, senza dati personali) | `eventProcessor.ts` |
+| `createProjectForRepo` | `functions/src/lib/projectCreator.ts` | [T-20] Crea il progetto di un repository sconosciuto in una transazione (ID deterministico, tetto giornaliero, lapide dei progetti eliminati, intestatario admin verificato) | `eventProcessor.ts` |
+| `syncProjectLink`, `applyRepositoryAction` | `functions/src/lib/projectLink.ts` | [T-20] Aggancia un progetto esistente al repository (aggiunge `githubRepoId`, aggiorna l'indirizzo se rinominato) e segna archiviazione/cancellazione del repository | `eventProcessor.ts` |
+| `resolveProjectForRepo` | `functions/src/lib/projectResolver.ts` | [T-20] Estende `resolveProject`: cerca per identificativo numerico del repository e poi per indirizzo | `eventProcessor.ts`, `projectLink.ts` |
+| `generateClientCode`, `buildProjectData`, `buildClientAccessData`, `normalizeGithubUrl` | `functions/src/lib/projectFactory.ts` | [T-20] UNICA implementazione di codice cliente, forma dei documenti progetto/accesso cliente e confronto indirizzi (prima era scritta nello script e nell'app) | `projectCreator.ts`, `projectResolver.ts`, `scripts/registra-ore.mjs` |
+| `extractRepoInfo`, `isIgnoredRepo`, `creationBlockReason`, `cleanText`, `isGithubRepoUrl`, `IGNORE_TOPIC` | `functions/src/lib/repoInfo.ts` | [T-20] Legge e valida i dati del repository dal payload (testo non fidato ripulito); esclusioni: topic `avanza-ignora`, fork, archiviato | `eventProcessor.ts` |
+| `loadLinkConfig`, `parseLinkConfig` | `functions/src/lib/linkConfig.ts` | [T-20] Legge/valida `githubCollegamento/config` (interruttore spento se incompleto), copia 60 s | `eventProcessor.ts` |
+| `repoRef`, `autoProjectId`, `dayRef`, `dayKey` | `functions/src/lib/linkStore.ts` | [T-20] Riferimenti ai documenti di supporto (registro repository, contatore giornaliero) e ID deterministico del progetto | `projectCreator.ts`, `projectLink.ts` |
+| `ownerIsConsistent` | `functions/src/lib/repoInfo.ts` | [T-20] `owner.login`, `full_name`, proprietario e nome dell'indirizzo devono coincidere: un payload incoerente non crea progetti | `eventProcessor.ts` |
+| `HANDLED_EVENT_TYPES` | `functions/src/lib/eventRouter.ts` | [T-20] Elenco dei tipi di evento elaborati (gli altri sono registrati come ignorati) | `eventProcessor.ts` |
+| `PRIMARY_SECRET_NAME`, `APP_SECRET_NAME` | `functions/src/lib/secrets.ts` | [T-20] Nomi dei due segreti in Secret Manager | `secrets.ts`, test |
+| `CONFIG_COLLECTION`, `CONFIG_DOC`, `DEFAULT_MAX_NEW_PROJECTS_PER_DAY`, `resetLinkConfigCache` | `functions/src/lib/linkConfig.ts` | [T-20] Percorso del documento di configurazione, tetto predefinito, azzeramento della copia in memoria (solo test) | `linkStore.ts`, `eventProcessor.ts`, test |
+| `REPOS_COLLECTION`, tipo `RepoState` | `functions/src/lib/linkStore.ts` | [T-20] Collezione del registro dei repository e suoi stati (`tracked`, `excluded`, `readmitted`) | `projectCreator.ts`, `projectLink.ts` |
+| `CLIENT_CODE_ALPHABET`, `CLIENT_CODE_LENGTH`, tipo `NewProjectInput` | `functions/src/lib/projectFactory.ts` | [T-20] Alfabeto e lunghezza del codice cliente, forma dell'input per costruire un progetto | `projectFactory.ts`, test |
+| Tipi `AuthResult`, `CreateResult`, `ProcessDeps`, `ProcessResult`, `Outcome`, `EventLogEntry`, `ResolvedProject`, `SyncResult`; tipi in `types.ts` (`EventSource`, `LinkConfig`, `RepoInfo`) | `functions/src/lib/*.ts` | [T-20] Esiti e parametri dei moduli del collegamento | moduli `lib/` |
+| `extractTaskCode`, `extractBranch` | `functions/src/lib/eventRouter.ts` | Estrae il codice `T-N` da ramo o titolo; nome del ramo da un riferimento git (preesistenti, censiti ora) | `eventRouter.ts` |
+| `FakeFirestore`, `makeTestDb`, fixture di prova | `functions/src/test/helpers/` | [T-20] Firestore in memoria (con transazioni ottimistiche) o emulatore vero se c'e' `FIRESTORE_EMULATOR_HOST`; payload e documenti di prova condivisi dai test | test del collegamento |
+| `isProjectCreatingEvent`, `TRUSTED_REVIEW_ASSOCIATIONS` | `functions/src/lib/eventRouter.ts` | [T-20] Quali eventi possono far nascere un progetto; chi puo' far avanzare un task con un'approvazione | `eventProcessor.ts` |
 
 ---
 
@@ -90,6 +111,8 @@ Aggiornare a ogni nuovo oggetto o modifica significativa.
 | Nome | Percorso | Scopo | Usato in |
 |------|----------|-------|----------|
 | `registra-ore.mjs` | `scripts/registra-ore.mjs` | Azioni della squadra su Firestore (Admin SDK): `membro`, `ore`, `importa-task`, `stato`, `admin`, `crea-progetto`, `elimina-prova`, `migra`; [T-12] `domande` (sola lettura) e `rispondi` (chat admin-squadra) | Workflow "Registra ore squadra" |
+| `registra-ore.mjs` azioni `collegamento`, `collegamento-stato` | `scripts/registra-ore.mjs` | [T-20] Accende/spegne la creazione automatica dei progetti, riammette un repository escluso, mostra lo stato (scrive solo `githubCollegamento/config` e lo stato del registro `githubRepos`) | Workflow "Registra ore squadra" |
+| `imposta-segreto-app.yml` | `.github/workflows/imposta-segreto-app.yml` | [T-20] Porta il segreto della GitHub App dal segreto GitHub `GH_APP_WEBHOOK_SECRET` a Secret Manager (`GITHUB_APP_WEBHOOK_SECRET`), senza terminale; produzione solo da `main` | A mano (workflow_dispatch) |
 
 ---
 

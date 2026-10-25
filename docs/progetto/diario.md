@@ -196,3 +196,24 @@ Seguite le specifiche di `docs/architettura-integrazione-github.md`:
 - PR_MERGED → status `review` (non `validated`; quello è compito di PR_APPROVED)
 - `FieldValue.arrayUnion` per le note (idempotenza a livello Firestore)
 - Transazione atomica per status e fasi (protezione da race condition)
+
+## 2026-10-25 — T-20 fase 1: collegamento automatico ai repository GitHub (sviluppatore-backend)
+**Ramo:** `feature/T-20-fase1` (da `feature/T-20-collegamento-progetti`). Nessun deploy, nessun workflow, nulla in produzione.
+**Cosa:** `githubWebhook` accetta anche gli eventi di una GitHub App personale (secondo segreto), crea il progetto di un repository sconosciuto (intestato all'admin configurato, con tetti, esclusioni e senza duplicati), non fa risorgere i progetti eliminati, promuove a Validato solo le approvazioni di OWNER/MEMBER/COLLABORATOR, registra ogni evento (anche non agganciato) con log strutturato. Nessun task viene creato.
+**File nuovi:** `functions/src/lib/{authenticate,secrets,eventProcessor,eventLog,projectCreator,projectLink,projectFactory,repoInfo,linkConfig,linkStore}.ts`; test `functions/src/test/{authenticate,repoInfo,projectCreator,eventProcessor,githubWebhook,webhookFlow}.test.ts` e aiuti `functions/src/test/helpers/{fakeFirestore,testDb,fixtures}.ts`; `.github/workflows/imposta-segreto-app.yml`.
+**File modificati:** `functions/src/githubWebhook.ts` (ora sottile: autentica e delega), `functions/src/lib/{hmac,eventRouter,projectResolver,types}.ts`, `functions/src/index.ts` (commento), `functions/src/test/{hmac,eventRouter}.test.ts`, `scripts/registra-ore.mjs` (crea-progetto usa il modulo condiviso; nuove azioni `collegamento`, `collegamento-stato`), `.github/workflows/registra-ore.yml` (passo di build, azione di sola lettura), documentazione (`docs/database.md`, `docs/progetto/{database,architettura,catalogo,ambienti,configurazioni-da-fare,registro-decisioni}.md`).
+**Come provarlo:**
+- `cd functions && npm ci && npm run build && npm test` (usa un Firestore in memoria).
+- Stessi test contro il Firestore vero: dalla radice `firebase emulators:exec --only firestore --project demo-avanza "npm --prefix functions test"` (richiede Java).
+- Azioni dello script e regole: vedi il resoconto (prove sull'emulatore Firestore + Auth, nessun dato reale).
+**Non coperto:** nessuna prova con GitHub reale (consegne, firma, topic nei payload), nessun deploy della funzione, il workflow `imposta-segreto-app.yml` non e' mai stato eseguito su GitHub (provato solo il suo shell con un gcloud finto), interfaccia (etichetta "creato automaticamente", "ultimo aggiornamento da GitHub", elenco eventi non agganciati) NON fatta: resta alla parte frontend.
+
+### Aggiornamento 2026-10-25 (T-20 fase 1, dopo il GO condizionato del guardiano)
+D1 creazione solo dalla GitHub App + coerenza del proprietario (`eventProcessor.ts`, `repoInfo.ts`: `ownerIsConsistent`); D3 `secrets.ts` (codice 9 = segreto assente) con nuovo `test/secrets.test.ts`; D5/D6 passo di controllo in `.github/workflows/registra-ore.yml`; D8 ambiente `produzione`/`test` e BLOCCO-SQUADRA.md in `imposta-segreto-app.yml`; guida riordinata (`configurazioni-da-fare.md`, sezione 9); registro decisioni con D1-D9 e impatto sulle approvazioni. Prove: `npm run build` e `npm test` verdi (anche su emulatore Firestore), mutazioni su ogni correzione, shell dei flussi provato con scenari locali. Non provato: GitHub e Google reali.
+
+## 2026-10-25 — R-4: modificare un progetto azzerava il contatore dei codici T-N (risolutore-bug)
+**Ramo:** `fix/R-4-T-19-contatore-task` (da `origin/staging`). Task in Avanza: **T-19** (registrato dal Coordinatore con `importa-task`; unico task con quel codice: T-18 = collegamento, T-17 = Squadra).
+**Causa:** `Project.copyWith` non portava `nextTaskNumber` (valeva 1) e `updateProject` scriveva l'intera `toMap()`.
+**Correzione:** `copyWith` conserva il contatore; `updateProject` scrive solo `Project.editableFields()` (name, description, githubUrl) + `updatedAt`. Azione `stato` di `registra-ore.mjs` (solo lettura) stampa contatore e massimo T-N per progetto.
+**Test:** `test/project_counter_test.dart` (6): i primi due falliscono sul codice precedente (atteso 7, trovato 1). `test/firestore_service_update_project_test.dart` (3, del tester: verifica che `updateProject` scriva solo i campi modificabili); `flutter test` 90 verdi (81 + 6 + 3), `flutter analyze` 6 info gia' presenti.
+**Non provato:** Firestore reale (il servizio e' provato fino a una piattaforma Firestore finta, non contro Firestore reale), browser, esecuzione dello script `stato` (richiede credenziali: solo `node --check` e prova della logica di calcolo in isolamento).

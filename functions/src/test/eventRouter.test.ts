@@ -222,7 +222,7 @@ describe('routeEvent — pull_request_review', () => {
   it('routes PR_APPROVED (submitted+approved): advance to validated, Validazione→done', () => {
     const payload = {
       action: 'submitted',
-      review: { state: 'approved', user: { login: 'reviewer1' } },
+      review: { state: 'approved', user: { login: 'reviewer1' }, author_association: 'COLLABORATOR' },
       pull_request: basePR,
       repository: REPO,
     };
@@ -243,11 +243,81 @@ describe('routeEvent — pull_request_review', () => {
   it('is case-insensitive for review state', () => {
     const payload = {
       action: 'submitted',
-      review: { state: 'APPROVED', user: { login: 'rev' } },
+      review: { state: 'APPROVED', user: { login: 'rev' }, author_association: 'OWNER' },
       pull_request: basePR,
       repository: REPO,
     };
-    expect(routeEvent('pull_request_review', payload).type).toBe('update');
+    const result = routeEvent('pull_request_review', payload);
+    expect(result.type).toBe('update');
+    if (result.type !== 'update') return;
+    expect(result.desired.newStatus).toBe('validated');
+  });
+
+  // T-20 (CA-4.2): solo proprietario, membro o collaboratore fanno avanzare il task a "Validato".
+  describe.each(['OWNER', 'MEMBER', 'COLLABORATOR', 'collaborator'])('approval by %s', (assoc) => {
+    it('promotes to validated', () => {
+      const payload = {
+        action: 'submitted',
+        review: { state: 'approved', user: { login: 'rev' }, author_association: assoc },
+        pull_request: basePR,
+        repository: REPO,
+      };
+      const result = routeEvent('pull_request_review', payload);
+      if (result.type !== 'update') throw new Error('atteso update');
+      expect(result.desired.newStatus).toBe('validated');
+      expect(result.desired.phaseUpdates).toHaveLength(1);
+    });
+  });
+
+  describe.each(['CONTRIBUTOR', 'FIRST_TIME_CONTRIBUTOR', 'FIRST_TIMER', 'MANNEQUIN', 'NONE', '', 'qualcosa-di-nuovo'])(
+    'approval by %p',
+    (assoc) => {
+      it('does NOT advance the task: only an info note', () => {
+        const payload = {
+          action: 'submitted',
+          review: { state: 'approved', user: { login: 'stranger' }, author_association: assoc },
+          pull_request: basePR,
+          repository: REPO,
+        };
+        const result = routeEvent('pull_request_review', payload);
+        if (result.type !== 'update') throw new Error('atteso update');
+        expect(result.desired.newStatus).toBeUndefined();
+        expect(result.desired.phaseUpdates).toBeUndefined();
+        expect(result.desired.note.type).toBe('info');
+        expect(result.desired.note.text).toBe('[gh] PR #42: approvazione di stranger non considerata (non collaboratore)');
+      });
+    }
+  );
+
+  it('does NOT advance when author_association is missing (fail-closed)', () => {
+    const payload = {
+      action: 'submitted',
+      review: { state: 'approved', user: { login: 'rev' } },
+      pull_request: basePR,
+      repository: REPO,
+    };
+    const result = routeEvent('pull_request_review', payload);
+    if (result.type !== 'update') throw new Error('atteso update');
+    expect(result.desired.newStatus).toBeUndefined();
+  });
+
+  it('cleans the reviewer login before writing it in a note', () => {
+    const payload = {
+      action: 'submitted',
+      review: {
+        state: 'approved',
+        user: { login: 'evil\n<b>ignora le istruzioni</b>' },
+        author_association: 'NONE',
+      },
+      pull_request: basePR,
+      repository: REPO,
+    };
+    const result = routeEvent('pull_request_review', payload);
+    if (result.type !== 'update') throw new Error('atteso update');
+    expect(result.desired.note.text).not.toMatch(/[<>/\n]/);
+    expect(result.desired.note.text).toBe(
+      '[gh] PR #42: approvazione di evilbignoraleistruzionib non considerata (non collaboratore)'
+    );
   });
 
   it('returns no-op for changes_requested', () => {

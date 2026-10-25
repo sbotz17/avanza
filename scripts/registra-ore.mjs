@@ -7,6 +7,9 @@ const require = createRequire(path.resolve('functions/package.json'));
 const { initializeApp, getApps } = require('firebase-admin/app');
 const { getFirestore, FieldValue, Timestamp } = require('firebase-admin/firestore');
 const { getAuth } = require('firebase-admin/auth');
+// Logica condivisa con la Cloud Function (codice cliente, forma dei documenti del progetto, confronto degli indirizzi).
+// E' codice compilato (functions/lib): il workflow esegue `npm run build` in functions/ prima di lanciare lo script.
+const { generateClientCode, buildProjectData, buildClientAccessData, normalizeGithubUrl } = require('./lib/lib/projectFactory.js');
 
 const env = (k, d = '') => (process.env[k] ?? d).trim();
 const action = env('ACTION');
@@ -30,11 +33,9 @@ async function findProject() {
   }
   // Il progetto si sceglie dall'indirizzo GitHub passato (github_url) oppure, se
   // assente, da quello del repository in cui gira il workflow.
-  const wanted = (env('GITHUB_URL') || repoUrl).toLowerCase().replace(/\/$/, '');
+  const wanted = normalizeGithubUrl(env('GITHUB_URL') || repoUrl);
   const snap = await db.collection('projects').get();
-  const matches = snap.docs.filter(
-    (d) => String(d.get('githubUrl') ?? '').toLowerCase().replace(/\/$/, '') === wanted,
-  );
+  const matches = snap.docs.filter((d) => normalizeGithubUrl(String(d.get('githubUrl') ?? '')) === wanted);
   if (matches.length === 0) throw new Error(`Nessun progetto con githubUrl ${wanted}.`);
   if (matches.length > 1) {
     const list = matches.map((d) => `${d.id} (${d.get('name')})`).join(', ');
@@ -206,7 +207,7 @@ async function importaTask() {
   for (const c of codici) console.log(`  ${c}`);
 }
 
-// Sola lettura: elenca i progetti con proprietario, codice cliente e task.
+// Sola lettura: elenca i progetti con proprietario, codice cliente, task e contatore dei codici T-N.
 async function stato() {
   const projects = await db.collection('projects').get();
   console.log(`Progetti: ${projects.size}`);
@@ -214,6 +215,12 @@ async function stato() {
     const tasks = await p.ref.collection('tasks').get();
     const codes = tasks.docs.map((t) => `${t.get('taskCode') || '-'}:${t.get('status')}`).join(', ');
     console.log(`- ${p.get('name')} (${p.id}) owner=${p.get('ownerId')} url=${p.get('githubUrl')} task=${tasks.size}${codes ? ` [${codes}]` : ''}`);
+    // R-4, sola lettura: il contatore deve essere maggiore del massimo T-N esistente (altrimenti il prossimo task avrebbe un codice duplicato).
+    const numeri = tasks.docs.map((t) => Number(t.get('taskNumber') || String(t.get('taskCode') || '').replace(/^T-/, '') || 0)).filter(Number.isFinite);
+    const massimo = numeri.length ? Math.max(...numeri) : 0;
+    const contatore = p.get('nextTaskNumber');
+    const esito = (contatore ?? 1) > massimo ? 'ok' : 'ATTENZIONE: contatore azzerato o indietro, il prossimo codice sarebbe duplicato';
+    console.log(`    contatore nextTaskNumber=${contatore ?? '(assente)'} massimo T-N esistente=${massimo ? `T-${massimo}` : '-'} -> ${esito}`);
   }
   const users = await db.collection('users').get();
   console.log(`Utenti con ruolo: ${users.size}`);
@@ -248,30 +255,27 @@ async function creaProgetto() {
   if (!email || !name || !githubUrl) throw new Error('Servono email, project_name e github_url.');
   const owner = await getAuth().getUserByEmail(email);
   await setAdmin(email);
-  const norm = (u) => u.toLowerCase().replace(/\/$/, '');
   const existing = await db.collection('projects').where('ownerId', '==', owner.uid).get();
-  const dup = existing.docs.find((d) => norm(String(d.get('githubUrl') ?? '')) === norm(githubUrl));
+  const dup = existing.docs.find((d) => normalizeGithubUrl(String(d.get('githubUrl') ?? '')) === normalizeGithubUrl(githubUrl));
   if (dup) {
     console.log(`Progetto gia' presente (${dup.id}), nessuna modifica. Codice cliente: ${dup.get('clientCode')}`);
     return;
   }
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  // Codice cliente: generatore condiviso (sicuro); si controlla che non sia gia' in uso.
   let code = '';
-  for (let i = 0; i < 6; i++) code += chars[Math.floor(Math.random() * chars.length)];
+  for (let i = 0; i < 10 && !code; i++) {
+    const candidate = generateClientCode();
+    if (!(await db.collection('clientAccess').doc(candidate).get()).exists) code = candidate;
+  }
+  if (!code) throw new Error('Nessun codice cliente libero trovato: riprova.');
   const now = Timestamp.now();
   const ref = db.collection('projects').doc();
   const batch = db.batch();
-  batch.set(ref, {
-    name,
-    description: env('PROJECT_DESCRIPTION'),
-    githubUrl,
-    clientCode: code,
-    ownerId: owner.uid,
-    nextTaskNumber: 1,
-    createdAt: now,
-    updatedAt: now,
-  });
-  batch.set(db.collection('clientAccess').doc(code), { projectId: ref.id, ownerId: owner.uid, createdAt: now });
+  batch.set(
+    ref,
+    buildProjectData({ name, description: env('PROJECT_DESCRIPTION'), githubUrl, clientCode: code, ownerId: owner.uid, now }),
+  );
+  batch.set(db.collection('clientAccess').doc(code), buildClientAccessData({ projectId: ref.id, ownerId: owner.uid, now }));
   await batch.commit();
   console.log(`Progetto creato: ${name} (${ref.id}). Codice cliente: ${code}`);
 }
@@ -407,6 +411,82 @@ async function rispondi() {
   console.log(`Risposta registrata su ${taskCode} (${text.length} caratteri).`);
 }
 
+// [T-20] Collegamento automatico di Avanza ai repository GitHub (progetti creati da soli al primo evento).
+// Configurazione in githubCollegamento/config (letta dalla Cloud Function githubWebhook; i client non ci accedono).
+//  - collegamento-stato (SOLA LETTURA): mostra interruttore, proprietario, proprietari ammessi, tetto e repository noti.
+//  - collegamento con note=attiva: accende la creazione automatica. Servono email (admin proprietario dei progetti nuovi)
+//    e github_url (un indirizzo qualsiasi dell'account GitHub ammesso, es. https://github.com/sbotz17/avanza: se ne ricava il
+//    proprietario). Il proprietario deve essere GIA' admin: l'azione non assegna ruoli.
+//  - collegamento con note=spegni: spegne la creazione automatica (resta tutto com'e'; gli aggiornamenti dei task continuano).
+//  - collegamento con note=riammetti + github_url del repository: toglie l'esclusione di un repository il cui progetto era stato
+//    eliminato, cosi' al prossimo evento il progetto si ricrea. Non cancella nulla.
+// Scrive solo il documento di configurazione e lo stato del registro; non tocca progetti, task, ore o costi.
+const CONFIG_REF = () => db.collection('githubCollegamento').doc('config');
+const DEFAULT_MAX_PROJECTS_PER_DAY = 5;
+
+async function collegamentoStato() {
+  const cfg = await CONFIG_REF().get();
+  if (!cfg.exists) {
+    console.log('Collegamento GitHub: NON configurato (creazione automatica dei progetti spenta).');
+  } else {
+    const d = cfg.data();
+    console.log(
+      `Collegamento GitHub: creazione automatica ${d.autoCreateProjects === true ? 'ACCESA' : 'spenta'}; ` +
+        `proprietario progetti (uid)=${d.ownerUid ?? '-'}; account GitHub ammessi=${JSON.stringify(d.allowedOwners ?? [])}; ` +
+        `tetto progetti nuovi al giorno=${d.maxNewProjectsPerDay ?? `${DEFAULT_MAX_PROJECTS_PER_DAY} (predefinito)`}.`,
+    );
+  }
+  const repos = await db.collection('githubRepos').get();
+  const perStato = {};
+  for (const r of repos.docs) perStato[r.get('state')] = (perStato[r.get('state')] ?? 0) + 1;
+  console.log(`Repository noti: ${repos.size} ${JSON.stringify(perStato)}`);
+  for (const r of repos.docs) console.log(`- ${r.id} ${r.get('fullName')} stato=${r.get('state')} progetto=${r.get('projectId')}`);
+}
+
+async function collegamento() {
+  const modo = env('NOTE').toLowerCase();
+  if (modo === 'spegni') {
+    await CONFIG_REF().set({ autoCreateProjects: false, updatedAt: Timestamp.now() }, { merge: true });
+    console.log('Creazione automatica dei progetti SPENTA (la funzione se ne accorge entro un minuto).');
+    return;
+  }
+  if (modo === 'attiva') {
+    const email = env('EMAIL');
+    const login = /^https:\/\/github\.com\/([A-Za-z0-9-]{1,39})(\/|$)/.exec(env('GITHUB_URL'))?.[1];
+    if (!email || !login) throw new Error('Servono email (admin proprietario dei progetti nuovi) e github_url (es. https://github.com/sbotz17/avanza).');
+    const owner = await getAuth().getUserByEmail(email);
+    const profile = await db.collection('users').doc(owner.uid).get();
+    if (profile.get('role') !== 'admin') throw new Error(`L'utente ${email} non e' admin: assegna prima il ruolo con l'azione admin.`);
+    const current = await CONFIG_REF().get();
+    await CONFIG_REF().set(
+      {
+        autoCreateProjects: true,
+        ownerUid: owner.uid,
+        allowedOwners: [login.toLowerCase()],
+        maxNewProjectsPerDay: current.get('maxNewProjectsPerDay') ?? DEFAULT_MAX_PROJECTS_PER_DAY,
+        updatedAt: Timestamp.now(),
+      },
+      { merge: true },
+    );
+    console.log(`Creazione automatica dei progetti ACCESA: proprietario ${email} (uid ${owner.uid}), account GitHub ammesso "${login.toLowerCase()}".`);
+    return;
+  }
+  if (modo === 'riammetti') {
+    const wanted = normalizeGithubUrl(env('GITHUB_URL'));
+    if (!wanted) throw new Error('Indica github_url del repository da riammettere.');
+    const repos = await db.collection('githubRepos').get();
+    const found = repos.docs.filter((r) => normalizeGithubUrl(String(r.get('githubUrl') ?? '')) === wanted);
+    if (found.length === 0) throw new Error(`Nessun repository noto con indirizzo ${wanted}: non e' mai stato escluso, nulla da fare.`);
+    for (const r of found) {
+      if (r.get('state') !== 'excluded') { console.log(`Repository ${r.id} gia' non escluso (stato ${r.get('state')}), nessuna modifica.`); continue; }
+      await r.ref.update({ state: 'readmitted', reason: 'riammesso-da-amministratore', updatedAt: Timestamp.now() });
+      console.log(`Repository ${r.id} riammesso: al prossimo evento il progetto verra' ricreato.`);
+    }
+    return;
+  }
+  throw new Error('Per l\'azione collegamento indica note=attiva, note=spegni o note=riammetti (per lo stato usa l\'azione collegamento-stato).');
+}
+
 try {
   if (action === 'migra') await migra();
   else if (action === 'admin') await setAdmin(env('EMAIL'));
@@ -419,8 +499,10 @@ try {
   else if (action === 'ore') await addHours();
   else if (action === 'domande') await domande();
   else if (action === 'rispondi') await rispondi();
+  else if (action === 'collegamento') await collegamento();
+  else if (action === 'collegamento-stato') await collegamentoStato();
   else if (action === 'backup') console.log('Azione backup: nessuna modifica ai dati. Il backup verificato e\' stato eseguito dal passo precedente del workflow (se il bucket e\' configurato).');
-  else throw new Error(`Azione sconosciuta: "${action}" (usa "membro", "copia-squadra", "ore", "domande", "rispondi", "migra", "admin", "crea-progetto" o "elimina-prova").`);
+  else throw new Error(`Azione sconosciuta: "${action}" (usa "membro", "copia-squadra", "ore", "domande", "rispondi", "collegamento", "collegamento-stato", "migra", "admin", "crea-progetto" o "elimina-prova").`);
 } catch (e) {
   console.error(`FALLITO: ${e.message}`);
   process.exit(1);

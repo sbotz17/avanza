@@ -61,7 +61,18 @@ class Project {
         githubUrl: githubUrl ?? this.githubUrl,
         clientCode: clientCode,
         ownerId: ownerId,
+        // Il contatore non cambia mai con una modifica: solo createTask lo incrementa.
+        nextTaskNumber: nextTaskNumber,
         createdAt: createdAt,
         updatedAt: DateTime.now(),
       );
+
+  /// Gli unici campi che la modifica di un progetto puo' scrivere (nome,
+  /// descrizione, indirizzo GitHub). Mai contatore, codice cliente,
+  /// proprietario o data di creazione: `updateProject` usa solo questa mappa.
+  Map<String, dynamic> editableFields() => {
+        'name': name,
+        'description': description,
+        'githubUrl': githubUrl,
+      };
 }
