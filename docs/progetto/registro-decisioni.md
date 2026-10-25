@@ -247,3 +247,8 @@ Stesso ramo `feature/T-20-fase1`. Nessuna modifica a `firestore.rules`, indici, 
 ## 2026-10-25 — R-4: la correzione tocca una zona protetta (scripts/registra-ore.mjs)
 - Su richiesta del Coordinatore, la correzione di R-4 include una modifica di **sola lettura** all'azione `stato` di `scripts/registra-ore.mjs` (zona protetta in `.claude/zone-protette.json`). Per `classifica-modifica.py` la pull request sara' quindi trattata come nuovo sviluppo (accettazione indipendente), non come correzione autonoma. Alternativa: spostare la modifica dello script in una pull request separata e lasciare la correzione dell'app (3 file piu' test) classificabile come correzione.
 - Decisione in sospeso (dati): se `stato` mostra contatori azzerati sui progetti reali, la correzione dei dati si decide con Andrea (backup, elenco record, prova su copia).
+
+## 2026-10-25 — R-4 (T-19): validazione e classificazione
+- Validatore: APPROVATO come **nuovo sviluppo** (zona protetta `scripts/registra-ore.mjs` e 413 righe contro il massimo 400 per le correzioni); separare lo script non basterebbe. Quindi niente etichetta `tipo:correzione`: passa dall'accettazione indipendente e dai controlli, senza tocco di Andrea.
+- Codice T-19 verificato: in Avanza è unico (T-17 Squadra, T-18 collegamento, T-19 questa correzione). I contatori reali dei progetti NON sono stati letti: si leggono con l'azione `stato` dopo il merge. Se qualche contatore risulta azzerato, la correzione dei dati è una decisione con Andrea (backup, elenco dei record, prova su copia).
+- Non verificato: Firestore reale, browser, esecuzione di `stato` sui dati reali.
