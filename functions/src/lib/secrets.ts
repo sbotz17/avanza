@@ -23,7 +23,10 @@ export function createSecretReader(projectId: string): SecretReader {
       });
       return version.payload?.data?.toString() ?? '';
     } catch (err) {
-      if ((err as { code?: number }).code === 5) return null; // NOT_FOUND
+      // 5 = NOT_FOUND (segreto o versione inesistente); 9 = FAILED_PRECONDITION (ultima versione disabilitata o distrutta):
+      // per la funzione il segreto "non c'e'" e si continua con quello storico (nessun 500 per le richieste non firmate).
+      const code = (err as { code?: number }).code;
+      if (code === 5 || code === 9) return null;
       throw err;
     }
   };

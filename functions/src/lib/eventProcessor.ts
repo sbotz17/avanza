@@ -5,7 +5,7 @@ import { loadLinkConfig } from './linkConfig';
 import { createProjectForRepo } from './projectCreator';
 import { applyRepositoryAction, syncProjectLink } from './projectLink';
 import { resolveProjectForRepo } from './projectResolver';
-import { creationBlockReason, extractRepoInfo, isIgnoredRepo } from './repoInfo';
+import { creationBlockReason, extractRepoInfo, isIgnoredRepo, ownerIsConsistent } from './repoInfo';
 import { writeUpdate } from './firestoreWriter';
 import { resolveTask } from './taskResolver';
 import { buildUpdate } from './taskUpdater';
@@ -120,10 +120,16 @@ async function tryCreateProject(deps: ProcessDeps, repo: RepoInfo, source: Event
   const blocked = creationBlockReason(repo);
   if (blocked) return { outcome: 'scartato', reason: blocked };
 
+  // Solo la GitHub App (segreto dedicato, installata sui soli repository dell'account) puo' far nascere un progetto:
+  // il segreto storico e' copiato in ogni webhook per-repository e continua a servire solo per aggiornare i task.
+  if (source !== 'github-app') return { outcome: 'non_agganciato', reason: 'creazione_solo_da_github_app' };
+
   const config = await (deps.getConfig ?? (() => loadLinkConfig(deps.db)))();
   // Interruttore spento o configurazione incompleta: si torna al comportamento di prima (solo aggiornamenti).
   if (!config) return { outcome: 'non_agganciato', reason: 'creazione_spenta' };
 
+  // owner.login, full_name e html_url devono dire la stessa cosa, e quel proprietario deve essere tra quelli ammessi.
+  if (!ownerIsConsistent(repo)) return { outcome: 'scartato', reason: 'proprietario_incoerente' };
   if (!config.allowedOwners.includes(repo.ownerLogin)) return { outcome: 'scartato', reason: 'proprietario_non_ammesso' };
 
   const created = await createProjectForRepo(deps.db, repo, config, source, deps.now?.());

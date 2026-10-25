@@ -13,6 +13,9 @@ import {
 } from './helpers/fixtures';
 import { makeTestDb } from './helpers/testDb';
 
+// Contro l'emulatore le transazioni concorrenti (ripetute da Firestore in caso di conflitto) possono superare i 5 secondi predefiniti.
+jest.setTimeout(30_000);
+
 const t = makeTestDb();
 const { db } = t;
 const NOW = new Date('2026-10-25T10:00:00Z');
@@ -62,11 +65,36 @@ describe(`processEvent — repository sconosciuto (${t.kind})`, () => {
     expect((await run('pull_request', prEvent({ id: 13, html_url: 'https://github.com/sbotz17/c', name: 'c', full_name: 'sbotz17/c' }, 'closed'))).outcome).toBe('creato');
   });
 
-  it('works with events signed by the historical per-repository secret as well', async () => {
+  it('D1: an event signed with the HISTORICAL per-repository secret never creates a project', async () => {
     const r = await run('push', pushEvent(), 'webhook');
-    expect(r.outcome).toBe('creato');
+    expect(r).toMatchObject({ outcome: 'non_agganciato', reason: 'creazione_solo_da_github_app' });
+    expect(await projectIds()).toEqual([]);
+    expect((await db.collection('githubRepos').get()).size).toBe(0);
+    expect((await db.collection('clientAccess').get()).size).toBe(0);
+    // ...mentre dalla GitHub App lo stesso evento crea il progetto e ne registra l'origine
+    expect((await run('push', pushEvent(), 'github-app')).outcome).toBe('creato');
     const ids = await projectIds();
-    expect((await db.collection('projects').doc(ids[0]).get()).get('autoCreatedSource')).toBe('webhook');
+    expect((await db.collection('projects').doc(ids[0]).get()).get('autoCreatedSource')).toBe('github-app');
+  });
+
+  it.each([
+    ['owner.login differs from the URL owner', { owner: { login: 'sbotz17' }, full_name: 'sbotz17/prova-x', html_url: 'https://github.com/qualcun-altro/prova-x' }],
+    ['owner.login differs from full_name', { owner: { login: 'sbotz17' }, full_name: 'qualcun-altro/prova-x' }],
+    ['full_name differs from the URL', { full_name: 'sbotz17/altro-nome' }],
+    ['name differs from the URL', { name: 'altro-nome' }],
+    ['URL not on github.com', { html_url: 'https://example.com/sbotz17/prova-x' }],
+    ['URL with extra path', { html_url: 'https://github.com/sbotz17/prova-x/tree/x' }],
+  ])('D1: an incoherent payload never creates a project (%s)', async (_label, over) => {
+    const r = await run('push', pushEvent(over as Record<string, unknown>));
+    expect(r.outcome).toBe('scartato');
+    expect(['proprietario_incoerente', 'indirizzo_non_valido']).toContain(r.reason);
+    expect(await projectIds()).toEqual([]);
+    expect((await db.collection('githubRepos').get()).size).toBe(0);
+  });
+
+  it('D1: the coherent owner must still be one of the allowed owners', async () => {
+    const r = await run('push', pushEvent({ owner: { login: 'estraneo' }, full_name: 'estraneo/prova-x', html_url: 'https://github.com/estraneo/prova-x' }));
+    expect(r).toMatchObject({ outcome: 'scartato', reason: 'proprietario_non_ammesso' });
   });
 
   it('does NOT create anything when the switch is off or the configuration is missing (CA-7.3)', async () => {

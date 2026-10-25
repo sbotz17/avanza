@@ -4,6 +4,9 @@ import { autoProjectId, dayKey } from '../lib/linkStore';
 import { CONFIG_ON, OWNER_UID, repoPayload, seedAdmin } from './helpers/fixtures';
 import { makeTestDb } from './helpers/testDb';
 
+// Contro l'emulatore le transazioni concorrenti (ripetute da Firestore in caso di conflitto) possono superare i 5 secondi predefiniti.
+jest.setTimeout(30_000);
+
 const t = makeTestDb();
 const { db } = t;
 const NOW = new Date('2026-10-25T10:00:00Z');

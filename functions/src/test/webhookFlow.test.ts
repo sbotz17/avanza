@@ -29,6 +29,9 @@ jest.mock('firebase-functions/v2', () => ({ logger: { info: jest.fn(), warn: jes
 import { githubWebhookHandler } from '../githubWebhook';
 import { resetLinkConfigCache } from '../lib/linkConfig';
 
+// Contro l'emulatore le transazioni concorrenti (ripetute da Firestore in caso di conflitto) possono superare i 5 secondi predefiniti.
+jest.setTimeout(30_000);
+
 const t = makeTestDb();
 holder.db = t.db;
 const { db } = t;

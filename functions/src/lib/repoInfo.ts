@@ -74,3 +74,22 @@ export function creationBlockReason(
   if (!isGithubRepoUrl(info.htmlUrl) || info.name.length === 0) return 'indirizzo_non_valido';
   return null;
 }
+
+/**
+ * Coerenza del proprietario (T-20, D1): `owner.login`, `full_name` e `html_url` devono indicare lo stesso proprietario
+ * (e lo stesso nome di repository). Un payload incoerente non puo' far nascere un progetto: il controllo sul proprietario
+ * ammesso si farebbe su un campo mentre l'indirizzo salvato punterebbe altrove.
+ */
+export function ownerIsConsistent(info: RepoInfo): boolean {
+  const m = /^https:\/\/github\.com\/([^/]+)\/([^/]+)$/i.exec(info.htmlUrl);
+  if (!m) return false;
+  const [urlOwner, urlName] = [m[1].toLowerCase(), m[2].toLowerCase()];
+  const [fullOwner, fullName] = info.fullName.toLowerCase().split('/');
+  return (
+    info.ownerLogin !== '' &&
+    info.ownerLogin === urlOwner &&
+    info.ownerLogin === fullOwner &&
+    fullName === urlName &&
+    info.name.toLowerCase() === urlName
+  );
+}
