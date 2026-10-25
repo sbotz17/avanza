@@ -27,7 +27,7 @@ Ogni documento rappresenta un progetto di sviluppo.
 |---|---|---|---|
 | `githubRepoId` | int | `githubWebhook` | Identificativo numerico stabile del repository su GitHub. Aggiunto al primo evento ricevuto (anche ai progetti registrati a mano); permette di riconoscere il repository anche dopo una rinomina o un trasferimento. Non viene mai sovrascritto se diverso. |
 | `autoCreated` | bool | `githubWebhook` | `true` solo per i progetti creati in automatico dal collegamento. |
-| `autoCreatedSource` | String | `githubWebhook` | `github-app` (GitHub App personale) o `webhook` (webhook del singolo repository): da quale canale e' arrivato l'evento che ha creato il progetto. |
+| `autoCreatedSource` | String | `githubWebhook` | Canale dell'evento che ha creato il progetto: oggi sempre `github-app` (la creazione e' consentita solo agli eventi firmati con il segreto della GitHub App; il valore `webhook` e' previsto dal tipo ma non viene scritto). |
 | `githubUrlPrecedente` | String | `githubWebhook` | Vecchio indirizzo, conservato quando il repository viene rinominato/trasferito e `githubUrl` si aggiorna. |
 | `githubArchived` | bool | `githubWebhook` | Repository archiviato (`true`) o riattivato (`false`). Il progetto resta con tutta la sua storia. |
 | `githubDeleted` | bool | `githubWebhook` | Repository cancellato su GitHub: il progetto resta (ore, costi e task sono dati reali). |

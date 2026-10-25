@@ -47,7 +47,7 @@
 | `GITHUB_TOKEN` | automatico di GitHub | anteprime Hosting, test E2E (crea e cancella un branch) | automatico |
 | `GITHUB_WEBHOOK_SECRET` | Firebase Secret Manager (`avanza-b62d7`) | verifica della firma dei webhook | presente |
 | `GITHUB_APP_WEBHOOK_SECRET` | Firebase Secret Manager (`avanza-b62d7`, e nel progetto di test per la prova) | verifica della firma degli eventi della GitHub App personale (T-20); facoltativo: finche' non esiste la funzione usa solo il segreto storico | da creare (vedi `configurazioni-da-fare.md` sezione 9) |
-| `GH_APP_WEBHOOK_SECRET`, `GH_APP_WEBHOOK_SECRET_TEST` | segreti GitHub | valore da portare in Secret Manager con il workflow "Imposta segreto GitHub App" (il nome non puo' iniziare con GITHUB_) | da creare da Andrea |
+| `GH_APP_WEBHOOK_SECRET`, `GH_APP_WEBHOOK_SECRET_TEST` | segreti GitHub (preferibilmente segreto dell'ambiente `produzione` per il primo) | valore da portare in Secret Manager con il workflow "Imposta segreto GitHub App" (il nome non puo' iniziare con GITHUB_) | da creare da Andrea |
 | `TEST_USER_EMAIL`, `TEST_USER_PASSWORD` | segreti GitHub | usati dal vecchio test E2E: non servono più | da eliminare |
 | `GCS_BUCKET`, `GCS_CHIAVE_JSON` | segreti GitHub | backup su bucket con blocco di conservazione (nomi dai modelli CI) | da creare |
 | `AVVISI_URL`, `AVVISI_TOKEN`, `AVVISI_NUMERO` | segreti GitHub (ambiente `avvisi`) | avvisi WhatsApp ad Andrea (nomi dai modelli CI) | da creare |
