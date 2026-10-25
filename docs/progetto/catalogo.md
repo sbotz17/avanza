@@ -10,7 +10,7 @@ Aggiornare a ogni nuovo oggetto o modifica significativa.
 | Nome | Percorso | Scopo | Usato in |
 |------|----------|-------|----------|
 | `Task` | `lib/models/task.dart` | Modello dati del task (con campi `taskCode`, `taskNumber`, `githubBranch?`, `githubPrNumber?`) | Ovunque nel frontend |
-| `Project` | `lib/models/project.dart` | Modello dati del progetto (con `nextTaskNumber`) | Home, project page, firestore_service |
+| `Project` | `lib/models/project.dart` | Modello dati del progetto (con `nextTaskNumber`); `copyWith` conserva il contatore; [R-4] `editableFields()` = unici campi scrivibili dalla modifica (name, description, githubUrl) | Home, project page, firestore_service (`updateProject`), `test/project_counter_test.dart` |
 | `ChatMessage`, `canShowTaskChat` | `lib/models/chat_message.dart` | [T-12] Messaggio della chat admin-squadra (`fromMap`/`toMap`, `cleanText`) e regola "chi vede la chat" (admin e task non `validated`/`released`) | `firestore_service.dart`, `task_chat.dart`, `task_detail_page.dart`, `test/chat_message_test.dart` |
 
 ---
