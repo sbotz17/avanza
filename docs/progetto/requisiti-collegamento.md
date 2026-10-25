@@ -230,3 +230,10 @@ Rispondi con "ok" per accettare tutte le proposte, oppure indicami il numero che
 - **Nessuna prova sul sistema reale**: non ho letto i dati di produzione né eseguito workflow; i fatti sui dati (3 progetti, proprietario, task "In test / QA") li prendo dalla richiesta e dai documenti. Non ho verificato se Avanza/Volty sono pubblici.
 - **Codice**: ho letto `githubWebhook.ts`, `eventRouter.ts`, `projectResolver.ts`, `taskResolver.ts`, `taskUpdater.ts`, `firestoreWriter.ts`, `types.ts`, `scripts/registra-ore.mjs`, `firestore.rules` e controllato l'assenza di rendering HTML/Markdown nell'app; non ho eseguito test né analizzato il report Costi con task a ore zero.
 - **Accettazione**: nessun criterio di questo documento è ancora verificato. Tutti sono "non verificato" fino allo sviluppo e alla prova sulla versione di test.
+
+---
+## Decisioni di Andrea (25/10/2026, risposta alle 4 domande chiuse)
+1. **Strada A: GitHub App personale, a fasi.** Confermata.
+2. **Repository che entrano:** tutti, anche privati e futuri, **esclusi fork e archiviati** (e quelli marcati "non tracciare"). I progetti nascono intestati ad Andrea.
+3. **Task senza codice `T-N`: NON si creano da soli.** I task li crea solo la squadra (azione `importa-task`). Quindi la "Fase 2" con task automatici da ramo/PR senza codice è **esclusa**. Resta: progetto creato da solo al primo evento di un repository nuovo; aggiornamento di stato dei task esistenti; note CI; ore e squadra come oggi.
+4. **Task vecchi in "In test/QA":** Andrea chiede di **aggiornarli in base allo stato reale che la squadra dichiara**, in collaborazione con la squadra. Procedura: per ogni task prova concreta (ramo/PR, rilascio, esito test) → stato aggiornato con una nota che cita la prova; mai in massa alla cieca; con backup verificato prima, elenco dei task toccati e nota su ciascuno; chi non ha prova resta com'è.
