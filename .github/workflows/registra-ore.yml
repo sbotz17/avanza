@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       action:
-        description: 'membro (crea/aggiorna un membro), ore (registra ore) migra (sposta i costi dai task al documento riservato e imposta admin i proprietari) admin (assegna il ruolo admin a una email), crea-progetto (crea un progetto reale per l email) oppure elimina-prova (elimina il progetto di prova del test) domande (elenca le domande dell admin senza risposta) rispondi (risponde nella chat del task task_code)'
+        description: 'membro (crea/aggiorna un membro), ore (registra ore) migra (sposta i costi dai task al documento riservato e imposta admin i proprietari) admin (assegna il ruolo admin a una email), crea-progetto (crea un progetto reale per l email) oppure elimina-prova (elimina il progetto di prova del test) domande (elenca le domande dell admin senza risposta) rispondi (risponde nella chat del task task_code) collegamento (T-20: note=attiva con email e github_url, spegni, riammetti con github_url del repository) collegamento-stato (sola lettura)'
         default: 'ore'
       email:
         description: 'Email dell utente, solo per action=admin (assegna il ruolo admin)'
@@ -69,6 +69,11 @@ jobs:
         run: npm ci
         working-directory: functions
 
+      # Lo script usa la logica condivisa con la Cloud Function (functions/src/lib/projectFactory.ts): serve la versione compilata.
+      - name: Build (logica condivisa con la funzione)
+        run: npm run build
+        working-directory: functions
+
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v2
         with:
@@ -77,10 +82,10 @@ jobs:
       # Regola di Andrea (24/10/2026): prima di OGNI variazione al database un backup nuovo e verificato (serie incrementale, ultimi 20).
       # Le azioni di sola lettura (stato, domande) non lo richiedono. Se il bucket non e' configurato lo si dichiara qui sotto.
       - uses: google-github-actions/setup-gcloud@v2
-        if: vars.BUCKET_BACKUP_FIRESTORE != '' && inputs.action != 'stato' && inputs.action != 'domande'
+        if: vars.BUCKET_BACKUP_FIRESTORE != '' && inputs.action != 'stato' && inputs.action != 'domande' && inputs.action != 'collegamento-stato'
 
       - name: Backup verificato prima della variazione
-        if: vars.BUCKET_BACKUP_FIRESTORE != '' && inputs.action != 'stato' && inputs.action != 'domande'
+        if: vars.BUCKET_BACKUP_FIRESTORE != '' && inputs.action != 'stato' && inputs.action != 'domande' && inputs.action != 'collegamento-stato'
         env:
           BUCKET: ${{ vars.BUCKET_BACKUP_FIRESTORE }}
           FIRESTORE_PROJECT: avanza-b62d7
@@ -89,7 +94,7 @@ jobs:
           .claude/scripts/backup-firestore.sh backup
 
       - name: Backup NON eseguito (bucket non configurato)
-        if: vars.BUCKET_BACKUP_FIRESTORE == '' && inputs.action != 'stato' && inputs.action != 'domande'
+        if: vars.BUCKET_BACKUP_FIRESTORE == '' && inputs.action != 'stato' && inputs.action != 'domande' && inputs.action != 'collegamento-stato'
         run: |
           echo "::warning::Variazione al database SENZA backup: manca la variabile BUCKET_BACKUP_FIRESTORE (bucket dei backup non ancora creato). Va detto ad Andrea."
 
