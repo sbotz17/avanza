@@ -1,0 +1,139 @@
+name: Imposta segreto GitHub App
+
+# T-20 (collegamento di Avanza a tutti i progetti). Porta il segreto del webhook della GitHub App personale di Andrea
+# da un segreto di GitHub (che Andrea inserisce dal sito, senza terminale) a Google Secret Manager, dove la funzione
+# `githubWebhook` lo legge a ogni avvio (nome: GITHUB_APP_WEBHOOK_SECRET). Il segreto non compare mai nei log, nel repository, in chat.
+#
+#  - produzione: legge il segreto GitHub `GH_APP_WEBHOOK_SECRET`, scrive nel progetto avanza-b62d7. Parte SOLO dal ramo main
+#    (cioe' da cio' che e' arrivato da staging), come "Setup Firestore". Rispetta BLOCCO_SQUADRA.
+#  - test: legge `GH_APP_WEBHOOK_SECRET_TEST`, scrive nel progetto di test (variabile PROGETTO_FIREBASE_TEST). Mai sulla produzione
+#    (salvavita-test.sh). Utile per provare una seconda GitHub App di prova.
+# Idempotente: se il segreto ha gia' lo stesso valore non aggiunge una versione; non cancella ne' disattiva versioni precedenti.
+# Dopo la scrittura rilegge il segreto con il service account della CI e confronta il valore (NON e' verificato che coincida con quello
+# con cui gira la funzione: la verifica vera e' il ping 200 in Recent deliveries della GitHub App). Se la lettura fallisce il passo fallisce con le istruzioni.
+# Il nome GH_APP_... (e non GITHUB_...) e' obbligatorio: GitHub vieta i segreti che iniziano con GITHUB_.
+on:
+  workflow_dispatch:
+    inputs:
+      ambiente:
+        description: 'test (progetto di test) oppure produzione (avanza-b62d7, solo dal ramo main)'
+        type: choice
+        options: [test, produzione]
+        default: test
+
+permissions:
+  contents: read
+
+concurrency:
+  group: imposta-segreto-app-${{ inputs.ambiente }}
+  cancel-in-progress: false
+
+jobs:
+  imposta:
+    runs-on: ubuntu-latest
+    # Produzione: ambiente GitHub `produzione` (limitato al ramo main dalla sua regola di distribuzione; vi si possono tenere i segreti
+    # di produzione come segreti dell'ambiente, leggibili solo dai job su main). Test: ambiente `test` (GitHub lo crea al primo uso, senza regole).
+    environment: ${{ inputs.ambiente == 'produzione' && 'produzione' || 'test' }}
+    env:
+      AMBIENTE: ${{ inputs.ambiente }}
+      PROGETTO_PROD: avanza-b62d7
+      PROGETTO_TEST: ${{ vars.PROGETTO_FIREBASE_TEST || 'avanza-test' }}
+      NOME_SEGRETO: GITHUB_APP_WEBHOOK_SECRET
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Controlli prima di toccare qualsiasi cosa
+        id: cfg
+        env:
+          RIF: ${{ github.ref }}
+          BLOCCO_VAR: ${{ vars.BLOCCO_SQUADRA }}
+          # Si caricano solo i segreti dell'ambiente scelto (un'espressione "a && b || ''" non puo' ripiegare su un altro segreto).
+          SA_TEST: ${{ inputs.ambiente != 'produzione' && secrets.FIREBASE_SERVICE_ACCOUNT_TEST || '' }}
+          SA_PROD: ${{ inputs.ambiente == 'produzione' && secrets.FIREBASE_SERVICE_ACCOUNT || '' }}
+          VALORE_PROD: ${{ inputs.ambiente == 'produzione' && secrets.GH_APP_WEBHOOK_SECRET || '' }}
+          VALORE_TEST: ${{ inputs.ambiente != 'produzione' && secrets.GH_APP_WEBHOOK_SECRET_TEST || '' }}
+        run: |
+          set +x
+          if [ "$BLOCCO_VAR" = "ATTIVO" ]; then echo "::error::BLOCCO_SQUADRA attivo: operazione sospesa"; exit 1; fi
+          if [ -f BLOCCO-SQUADRA.md ] && head -n1 BLOCCO-SQUADRA.md | grep -qi '^ATTIVO'; then echo "::error::BLOCCO-SQUADRA.md attivo: operazione sospesa"; exit 1; fi
+          if [ "$AMBIENTE" = "produzione" ]; then
+            if [ "$RIF" != "refs/heads/main" ]; then
+              echo "::error::Il segreto di PRODUZIONE si imposta solo dal ramo main (ramo scelto: $RIF)."; exit 1
+            fi
+            [ -n "$SA_PROD" ] || { echo "::error::Manca il segreto FIREBASE_SERVICE_ACCOUNT."; exit 1; }
+            VALORE="$VALORE_PROD"; NOME_GH="GH_APP_WEBHOOK_SECRET"; PROGETTO="$PROGETTO_PROD"
+          else
+            PROGETTO="$PROGETTO_TEST" SA_TEST="$SA_TEST" bash .claude/scripts/salvavita-test.sh
+            [ -n "$SA_TEST" ] || { echo "::error::Manca il segreto FIREBASE_SERVICE_ACCOUNT_TEST."; exit 1; }
+            VALORE="$VALORE_TEST"; NOME_GH="GH_APP_WEBHOOK_SECRET_TEST"; PROGETTO="$PROGETTO_TEST"
+          fi
+          if [ -z "$VALORE" ]; then
+            echo "::error::Manca il segreto GitHub $NOME_GH (Settings > Secrets and variables > Actions > New repository secret). Il valore e' lo stesso segreto scritto nel campo Webhook secret della GitHub App."; exit 1
+          fi
+          if [ "${#VALORE}" -lt 32 ]; then
+            echo "::error::Il segreto $NOME_GH e' troppo corto (meno di 32 caratteri): genera una stringa casuale lunga e rimettila sia nella GitHub App sia qui."; exit 1
+          fi
+          echo "progetto=$PROGETTO" >> "$GITHUB_OUTPUT"
+          echo "Ambiente: $AMBIENTE; progetto Google: $PROGETTO; segreto GitHub $NOME_GH presente (lunghezza ${#VALORE}, valore non mostrato)."
+
+      - name: Authenticate to Google Cloud (produzione)
+        if: inputs.ambiente == 'produzione'
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+
+      - name: Authenticate to Google Cloud (test)
+        if: inputs.ambiente != 'produzione'
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_TEST }}
+
+      - name: Setup gcloud
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Scrivi il segreto in Secret Manager e verifica la lettura
+        env:
+          PROGETTO: ${{ steps.cfg.outputs.progetto }}
+          VALORE_PROD: ${{ inputs.ambiente == 'produzione' && secrets.GH_APP_WEBHOOK_SECRET || '' }}
+          VALORE_TEST: ${{ inputs.ambiente != 'produzione' && secrets.GH_APP_WEBHOOK_SECRET_TEST || '' }}
+        run: |
+          set +x
+          # Il valore si sceglie qui, mai con un'espressione "a || b" (un segreto vuoto di produzione non deve ripiegare su quello di test).
+          if [ "$AMBIENTE" = "produzione" ]; then VALORE="$VALORE_PROD"; else VALORE="$VALORE_TEST"; fi
+          # Via gli a-capo finali (copia/incolla): la funzione li toglie comunque, qui il confronto deve essere coerente.
+          VALORE="$(printf '%s' "$VALORE")"
+          ERR="$(mktemp)"
+          aiuto() {
+            echo "::error::$1"
+            echo "Se il service account non ha il permesso, ci sono due strade senza terminale:"
+            echo " 1) Google Cloud Console > IAM e amministrazione > IAM: dare al service account della CI il ruolo 'Secret Manager Admin' (poi rilanciare questo flusso);"
+            echo " 2) Google Cloud Console > Secret Manager > Crea segreto: nome $NOME_SEGRETO, valore = lo stesso segreto della GitHub App; poi, nello stesso segreto, scheda Autorizzazioni, dare 'Secret Manager Secret Accessor' al service account della funzione."
+            echo "Dettaglio dell'errore di Google (non contiene il segreto):"; tail -n 5 "$ERR" || true
+            exit 1
+          }
+
+          if ! gcloud secrets describe "$NOME_SEGRETO" --project="$PROGETTO" >/dev/null 2>"$ERR"; then
+            if grep -qi "not found\|NOT_FOUND" "$ERR"; then
+              gcloud secrets create "$NOME_SEGRETO" --replication-policy=automatic --project="$PROGETTO" >/dev/null 2>"$ERR" \
+                || aiuto "Non riesco a creare il segreto $NOME_SEGRETO nel progetto $PROGETTO."
+              echo "Segreto $NOME_SEGRETO creato nel progetto $PROGETTO."
+            else
+              aiuto "Non riesco a leggere lo stato del segreto $NOME_SEGRETO nel progetto $PROGETTO."
+            fi
+          fi
+
+          ATTUALE="$(gcloud secrets versions access latest --secret="$NOME_SEGRETO" --project="$PROGETTO" 2>/dev/null || true)"
+          if [ "$ATTUALE" = "$VALORE" ]; then
+            echo "Il segreto in Secret Manager ha gia' questo valore: nessuna nuova versione."
+          else
+            printf '%s' "$VALORE" | gcloud secrets versions add "$NOME_SEGRETO" --data-file=- --project="$PROGETTO" >/dev/null 2>"$ERR" \
+              || aiuto "Non riesco ad aggiungere una versione al segreto $NOME_SEGRETO."
+            echo "Nuova versione del segreto aggiunta (le precedenti restano, non vengono cancellate)."
+          fi
+
+          LETTO="$(gcloud secrets versions access latest --secret="$NOME_SEGRETO" --project="$PROGETTO" 2>"$ERR")" \
+            || aiuto "Il segreto e' stato scritto ma NON riesco a rileggerlo con l'identita' della funzione."
+          if [ "$LETTO" != "$VALORE" ]; then
+            echo "::error::Il valore riletto non coincide con quello scritto."; exit 1
+          fi
+          echo "OK: il segreto $NOME_SEGRETO e' in Secret Manager ($PROGETTO) e la funzione puo' leggerlo. Valore non mostrato."

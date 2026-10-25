@@ -4,11 +4,15 @@ import { githubWebhookHandler } from './githubWebhook';
 /**
  * Cloud Function: githubWebhook
  *
- * Receives GitHub webhook events (push, pull_request, pull_request_review)
- * and automatically updates the corresponding task in Firestore.
+ * Receives GitHub webhook events (push, pull_request, pull_request_review, repository)
+ * and automatically updates the corresponding task in Firestore. T-20: events from the personal GitHub App
+ * are accepted too, and the project of an unknown repository can be created automatically (switch and
+ * settings in the Firestore document githubCollegamento/config; off by default).
  *
  * Deployed region: us-central1
- * Secret: GITHUB_WEBHOOK_SECRET (Secret Manager, read at runtime)
+ * Secrets (Secret Manager, read at runtime, never in code or logs):
+ *   GITHUB_WEBHOOK_SECRET      per-repository webhooks (required)
+ *   GITHUB_APP_WEBHOOK_SECRET  GitHub App (optional until created; see docs/progetto/configurazioni-da-fare.md, section 9)
  *
  * Setup:
  *   1. Create secret: gcloud secrets create GITHUB_WEBHOOK_SECRET --data-file=-

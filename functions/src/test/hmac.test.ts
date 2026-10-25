@@ -38,4 +38,16 @@ describe('verifySignature', () => {
     const sig = makeSignature(BODY, SECRET).substring(0, 10);
     expect(verifySignature(BODY, sig, SECRET)).toBe(false);
   });
+
+  it('rejects every signature when the secret is empty (T-20: an empty key must never authenticate)', () => {
+    const sigWithEmptyKey = makeSignature(BODY, '');
+    expect(verifySignature(BODY, sigWithEmptyKey, '')).toBe(false);
+  });
+
+  it('accepts either of two secrets when each is verified in turn (historical and GitHub App)', () => {
+    const second = 'second-secret-of-the-github-app';
+    const sig = makeSignature(BODY, second);
+    expect(verifySignature(BODY, sig, SECRET)).toBe(false);
+    expect(verifySignature(BODY, sig, second)).toBe(true);
+  });
 });

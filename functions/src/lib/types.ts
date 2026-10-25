@@ -56,12 +56,23 @@ export interface TaskSnapshot {
 
 export interface RepositoryInfo {
   html_url: string;
+  // Campi facoltativi usati dal collegamento automatico dei progetti (T-20). Mai fidarsi del tipo: si validano in repoInfo.ts.
+  id?: number;
+  name?: string;
+  full_name?: string;
+  description?: string | null;
+  fork?: boolean;
+  archived?: boolean;
+  private?: boolean;
+  topics?: string[];
+  owner?: { login?: string };
 }
 
 export interface PushPayload {
   ref: string;       // "refs/heads/feature/T-3-login"
   created: boolean;  // true = new branch, false = additional commits
   commits: Array<{ id: string; message: string }>;
+  deleted?: boolean; // true = ramo cancellato
   repository: RepositoryInfo;
 }
 
@@ -82,6 +93,8 @@ export interface PullRequestReviewPayload {
   review: {
     state: string;
     user: { login: string };
+    // OWNER | MEMBER | COLLABORATOR | CONTRIBUTOR | FIRST_TIMER | FIRST_TIME_CONTRIBUTOR | MANNEQUIN | NONE
+    author_association?: string;
   };
   pull_request: {
     number: number;
@@ -96,3 +109,34 @@ export type GitHubPayload =
   | PullRequestPayload
   | PullRequestReviewPayload
   | Record<string, unknown>;
+
+// ---- Collegamento automatico dei progetti (T-20, fase 1) ----
+
+/** Origine di un evento firmato: webhook del singolo repository (segreto storico) o GitHub App personale (secondo segreto). */
+export type EventSource = 'webhook' | 'github-app';
+
+/** Configurazione del collegamento, letta da githubCollegamento/config (scritta solo dallo script di amministrazione). */
+export interface LinkConfig {
+  /** Interruttore "crea progetti": solo il valore booleano true lo accende. */
+  autoCreateProjects: boolean;
+  /** uid dell'admin a cui si intestano i progetti creati in automatico (mai ricavato dall'evento). */
+  ownerUid: string;
+  /** Proprietari ammessi dei repository (login GitHub, minuscolo). */
+  allowedOwners: string[];
+  /** Tetto di progetti nuovi al giorno (ora italiana). */
+  maxNewProjectsPerDay: number;
+}
+
+/** Dati del repository ricavati (e validati) da un evento. */
+export interface RepoInfo {
+  id: number | null;
+  htmlUrl: string;
+  name: string;
+  fullName: string;
+  ownerLogin: string;
+  description: string;
+  fork: boolean;
+  archived: boolean;
+  isPrivate: boolean;
+  topics: string[];
+}

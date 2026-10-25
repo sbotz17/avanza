@@ -1,6 +1,6 @@
 # Avanza — Schema dati (Firestore)
 
-Ultimo aggiornamento: 2026-10-23
+Ultimo aggiornamento: 2026-10-25 (T-20: collegamento automatico ai repository GitHub)
 
 ---
 
@@ -20,6 +20,20 @@ Ogni documento rappresenta un progetto di sviluppo.
 | `nextTaskNumber` | int | si | `1` | Contatore progressivo per la generazione di `taskCode` nei task. Viene incrementato atomicamente ad ogni creazione di task (vedi transazione in `createTask`). Progetti pre-esistenti senza questo campo lo ricevono come `1` tramite il default nel `fromFirestore`. |
 | `createdAt` | Timestamp | si | — | Data creazione |
 | `updatedAt` | Timestamp | si | — | Data ultima modifica (aggiornata anche alla creazione di un task) |
+
+**Campi aggiunti dal collegamento automatico ai repository (T-20, solo aggiunte, tutti facoltativi; l'app e le versioni vecchie li ignorano e `updateProject` usa `update`, quindi non li perde):**
+
+| Campo | Tipo | Scritto da | Note |
+|---|---|---|---|
+| `githubRepoId` | int | `githubWebhook` | Identificativo numerico stabile del repository su GitHub. Aggiunto al primo evento ricevuto (anche ai progetti registrati a mano); permette di riconoscere il repository anche dopo una rinomina o un trasferimento. Non viene mai sovrascritto se diverso. |
+| `autoCreated` | bool | `githubWebhook` | `true` solo per i progetti creati in automatico dal collegamento. |
+| `autoCreatedSource` | String | `githubWebhook` | Canale dell'evento che ha creato il progetto: oggi sempre `github-app` (la creazione e' consentita solo agli eventi firmati con il segreto della GitHub App; il valore `webhook` e' previsto dal tipo ma non viene scritto). |
+| `githubUrlPrecedente` | String | `githubWebhook` | Vecchio indirizzo, conservato quando il repository viene rinominato/trasferito e `githubUrl` si aggiorna. |
+| `githubArchived` | bool | `githubWebhook` | Repository archiviato (`true`) o riattivato (`false`). Il progetto resta con tutta la sua storia. |
+| `githubDeleted` | bool | `githubWebhook` | Repository cancellato su GitHub: il progetto resta (ore, costi e task sono dati reali). |
+
+I progetti creati in automatico hanno ID deterministico `gh_<id repository>` (due eventi insieme non possono crearne due) e gli stessi campi base di `crea-progetto` (nome = nome del repository, descrizione, `githubUrl`, `clientCode` di 6 caratteri, `ownerId` = admin configurato, `nextTaskNumber` = 1, date) piu' la voce `clientAccess`. Non hanno task: i task li crea solo la squadra.
+Il webhook non modifica mai `updatedAt` dei progetti (la lista e' ordinata per quel campo).
 
 **Indici**: `ownerId ASC, updatedAt DESC` (query `projectsStream`); `clientCode ASC` (query `projectByClientCode`).
 
@@ -178,3 +192,42 @@ Chat dell'admin con la squadra sul task. **Solo admin proprietario del progetto*
 
 **Indici**: nessun indice composto (query con solo `orderBy('createdAt')`, indice automatico). L'app mostra la chat solo se il task non è `validated`/`released`; la regola Firestore non controlla lo stato del task (la limitazione è di interfaccia, l'accesso resta comunque riservato all'admin).
 Il documento è aggiuntivo: i task esistenti e le versioni vecchie dell'app non sono toccati. Cancellando un task dall'app i messaggi restano (il client non può cancellarli).
+
+---
+
+### `githubCollegamento/config`  (T-20)
+
+Configurazione del collegamento automatico. **Solo Admin SDK**: nessuna regola `match` in `firestore.rules`, quindi qualsiasi client (anche admin) e' respinto per impostazione predefinita (provato sull'emulatore con le regole attuali: 403 per non autenticato, cliente e admin, in lettura, scrittura ed elenco). La scrive solo lo script di amministrazione (workflow "Registra ore squadra", azione `collegamento`); la funzione la legge (copia in memoria di 60 secondi, quindi "spegni" ha effetto entro un minuto, senza ridistribuire).
+
+| Campo | Tipo | Note |
+|---|---|---|
+| `autoCreateProjects` | bool | Interruttore. Solo il valore `true` accende la creazione automatica dei progetti. Se il documento manca o e' incompleto la creazione e' SPENTA (comportamento di prima). |
+| `ownerUid` | String | uid dell'admin a cui si intestano i progetti nuovi. Mai ricavato dall'evento. All'uso la funzione verifica che `users/{uid}.role` sia `admin`. |
+| `allowedOwners` | Array di String | Account GitHub (login, minuscolo) i cui repository possono dare origine a un progetto. |
+| `maxNewProjectsPerDay` | int | Tetto di progetti nuovi al giorno (ora italiana), 1-50, predefinito 5. |
+| `updatedAt` | Timestamp | Ultima modifica. |
+
+### `githubCollegamento/giorno-AAAA-MM-GG`  (T-20)
+
+Contatore dei progetti creati in automatico nel giorno (ora italiana): `progettiCreati` (int) e `updatedAt`. Serve al tetto anti-abuso; aggiornato nella stessa transazione che crea il progetto. Solo Admin SDK. Nessuna cancellazione automatica (cancellare dati si decide con Andrea).
+
+### `githubRepos/{idRepositoryGitHub}`  (T-20)
+
+Registro dei repository noti. **Solo Admin SDK** (come sopra). Serve a non far "risorgere" un progetto eliminato dall'app e a gestire le esclusioni.
+
+| Campo | Tipo | Note |
+|---|---|---|
+| `repoId` | int | Identificativo numerico del repository (e' anche l'ID del documento). |
+| `fullName` | String | `proprietario/nome` al momento della registrazione. |
+| `githubUrl` | String | Indirizzo al momento della registrazione. |
+| `projectId` | String | Progetto collegato. |
+| `state` | String | `tracked` (ha un progetto), `excluded` (non si crea piu' da solo: progetto eliminato dall'app oppure escluso a mano), `readmitted` (esclusione tolta: al prossimo evento il progetto si ricrea e torna `tracked`). |
+| `reason` | String (facoltativo) | `progetto_eliminato`, `riammesso-da-amministratore`, ... |
+| `source` | String | `auto` (creato dal collegamento) o `attach` (progetto esistente agganciato). |
+| `createdAt`, `updatedAt` | Timestamp | |
+
+**Come si riconosce un progetto eliminato**: se per un repository `tracked` arriva un evento e non esiste piu' nessun progetto (ne' per identificativo ne' per indirizzo), il repository passa a `excluded` con motivo `progetto_eliminato` e NON viene ricreato. Limite noto: un progetto di cui nessun evento e' mai arrivato dopo l'attivazione non e' ancora nel registro; se viene eliminato prima del suo primo evento, al primo evento successivo ricompare. Per chiuderlo del tutto servirebbe scrivere la "lapide" dall'app al momento dell'eliminazione (richiede una regola Firestore nuova: proposta per la fase successiva).
+Per riavere un progetto eliminato: azione `collegamento` con `note=riammetti` e `github_url` del repository (non cancella nulla), oppure ricrearlo a mano.
+
+**Indici**: nessun indice nuovo (ricerche per ID, uguaglianza su un solo campo, scansione di `projects` come prima).
+

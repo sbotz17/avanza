@@ -12,6 +12,10 @@ import { createHmac, timingSafeEqual } from 'crypto';
  * @returns true if the signature is valid
  */
 export function verifySignature(body: Buffer, signature: string, secret: string): boolean {
+  // Un segreto vuoto non e' un segreto: con la chiave vuota chiunque saprebbe calcolare una firma valida.
+  if (!secret) {
+    return false;
+  }
   if (!signature || !signature.startsWith('sha256=')) {
     return false;
   }

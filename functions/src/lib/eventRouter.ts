@@ -147,6 +147,18 @@ function routePullRequest(payload: PullRequestPayload): RouterResult {
   return { type: 'no-op' };
 }
 
+/**
+ * Chi puo' far avanzare un task con un'approvazione (T-20, CA-4.2): solo proprietario, membro o collaboratore del repository
+ * (`review.author_association`). Su un repository pubblico chiunque puo' lasciare una recensione: le altre non fanno avanzare nulla.
+ */
+export const TRUSTED_REVIEW_ASSOCIATIONS = ['OWNER', 'MEMBER', 'COLLABORATOR'];
+
+/** Il nome utente GitHub finisce in una nota: solo i caratteri ammessi da GitHub (piu' le parentesi dei bot), lunghezza limitata. */
+function safeLogin(login: unknown): string {
+  const clean = typeof login === 'string' ? login.replace(/[^A-Za-z0-9\-_.[\]]/g, '').slice(0, 45) : '';
+  return clean || 'unknown';
+}
+
 function routePullRequestReview(payload: PullRequestReviewPayload): RouterResult {
   const repoUrl = payload.repository?.html_url;
   if (!repoUrl) return { type: 'no-op' };
@@ -155,14 +167,27 @@ function routePullRequestReview(payload: PullRequestReviewPayload): RouterResult
   const review = payload.review;
 
   if (action === 'submitted' && review?.state?.toLowerCase() === 'approved') {
-    // PR_APPROVED: advance to validated, mark Validazione phase as done
     const pr = payload.pull_request;
     const branch = pr?.head?.ref ?? '';
     const taskCode = extractTaskCode(branch) ?? extractTaskCode(pr?.title ?? '');
     if (!taskCode) return { type: 'no-op' };
 
-    const reviewer = review.user?.login ?? 'unknown';
+    const reviewer = safeLogin(review.user?.login);
     const prNumber = pr?.number ?? 0;
+
+    const association = typeof review.author_association === 'string' ? review.author_association.toUpperCase() : '';
+    if (!TRUSTED_REVIEW_ASSOCIATIONS.includes(association)) {
+      // Approvazione di chi non e' collaboratore (o dato mancante: nel dubbio non ci si fida): resta solo la nota, nessun avanzamento.
+      const untrusted: DesiredUpdate = {
+        note: {
+          type: 'info' as NoteType,
+          text: `[gh] PR #${prNumber}: approvazione di ${reviewer} non considerata (non collaboratore)`,
+        },
+      };
+      return { type: 'update', repoUrl, taskCode, desired: untrusted };
+    }
+
+    // PR_APPROVED: advance to validated, mark Validazione phase as done
     const desired: DesiredUpdate = {
       newStatus: 'validated' as TaskStatus,
       phaseUpdates: [{ phaseName: 'Validazione', newStatus: 'done' }] as PhaseUpdate[],
@@ -176,3 +201,30 @@ function routePullRequestReview(payload: PullRequestReviewPayload): RouterResult
 
   return { type: 'no-op' };
 }
+
+// ---- Eventi che possono far nascere un progetto (T-20) ----
+
+/**
+ * true se l'evento e' "lavoro vero" su un repository: ramo nuovo o aggiornato (non cancellato, non un tag),
+ * attivita' su una pull request, recensione inviata. Solo questi eventi possono far nascere un progetto:
+ * un repository vuoto o appena creato non basta (CA-6.5).
+ */
+export function isProjectCreatingEvent(eventType: string, payload: GitHubPayload): boolean {
+  switch (eventType) {
+    case 'push': {
+      const p = payload as PushPayload;
+      return typeof p.ref === 'string' && p.ref.startsWith('refs/heads/') && p.deleted !== true;
+    }
+    case 'pull_request': {
+      const action = (payload as PullRequestPayload).action;
+      return action === 'opened' || action === 'reopened' || action === 'synchronize' || action === 'closed';
+    }
+    case 'pull_request_review':
+      return (payload as PullRequestReviewPayload).action === 'submitted';
+    default:
+      return false;
+  }
+}
+
+/** Tipi di evento che il webhook elabora; gli altri si registrano come ignorati. */
+export const HANDLED_EVENT_TYPES = ['push', 'pull_request', 'pull_request_review', 'repository'];

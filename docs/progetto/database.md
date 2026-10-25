@@ -14,6 +14,8 @@ Regole di sicurezza in `firestore.rules`, indici in `firestore.indexes.json`, pu
 | `projects/{id}/taskCosts/{taskId}` | ore stimate, ore reali, tariffa del task | solo admin |
 | `projects/{id}/timeEntries/{id}` | registro ore (membro, fase, ore, tariffe congelate) | solo admin |
 | `teamMembers/{id}` | membri della squadra (agenti e persone) con tariffe | solo admin |
+| `githubCollegamento/config`, `githubCollegamento/giorno-AAAA-MM-GG` | [T-20] configurazione del collegamento automatico e contatore giornaliero dei progetti creati | nessun client (solo Admin SDK; nessuna regola = negato) |
+| `githubRepos/{idRepository}` | [T-20] registro dei repository noti (tracciato / escluso / riammesso) | nessun client (solo Admin SDK) |
 
 ## Regole
 - Modifiche sempre additive e idempotenti; nessuna cancellazione di dati reali (limite invalicabile).
