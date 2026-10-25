@@ -9,8 +9,8 @@ name: Imposta segreto GitHub App
 #  - test: legge `GH_APP_WEBHOOK_SECRET_TEST`, scrive nel progetto di test (variabile PROGETTO_FIREBASE_TEST). Mai sulla produzione
 #    (salvavita-test.sh). Utile per provare una seconda GitHub App di prova.
 # Idempotente: se il segreto ha gia' lo stesso valore non aggiunge una versione; non cancella ne' disattiva versioni precedenti.
-# Dopo la scrittura rilegge il segreto con la stessa identita' con cui gira la funzione (stesso service account) e confronta: se la
-# lettura fallisce, la funzione non potrebbe leggerlo e il passo fallisce con le istruzioni da seguire.
+# Dopo la scrittura rilegge il segreto con il service account della CI e confronta il valore (NON e' verificato che coincida con quello
+# con cui gira la funzione: la verifica vera e' il ping 200 in Recent deliveries della GitHub App). Se la lettura fallisce il passo fallisce con le istruzioni.
 # Il nome GH_APP_... (e non GITHUB_...) e' obbligatorio: GitHub vieta i segreti che iniziano con GITHUB_.
 on:
   workflow_dispatch:
