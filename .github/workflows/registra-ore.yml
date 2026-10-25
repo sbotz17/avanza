@@ -61,6 +61,28 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # T-20: le azioni "collegamento" (attiva, spegni, riammetti) cambiano la configurazione che comanda la creazione automatica dei
+      # progetti in PRODUZIONE. Partono solo dal ramo main, non con il blocco di Andrea attivo (BLOCCO_SQUADRA o BLOCCO-SQUADRA.md) e,
+      # se scrivono dati (attiva, riammetti), solo con il bucket dei backup configurato: una variazione senza backup non e' ammessa.
+      # "spegni" (il freno) non richiede il backup. "collegamento-stato" e' sola lettura e resta libera.
+      - name: Controlli delle azioni collegamento (ramo main, blocco, backup)
+        if: inputs.action == 'collegamento'
+        env:
+          RIF: ${{ github.ref }}
+          BLOCCO_VAR: ${{ vars.BLOCCO_SQUADRA }}
+          BUCKET: ${{ vars.BUCKET_BACKUP_FIRESTORE }}
+          NOTA: ${{ inputs.note }}
+        run: |
+          if [ "$BLOCCO_VAR" = "ATTIVO" ]; then echo "::error::BLOCCO_SQUADRA attivo: azione sospesa"; exit 1; fi
+          if [ -f BLOCCO-SQUADRA.md ] && head -n1 BLOCCO-SQUADRA.md | grep -qi '^ATTIVO'; then echo "::error::BLOCCO-SQUADRA.md attivo: azione sospesa"; exit 1; fi
+          if [ "$RIF" != "refs/heads/main" ]; then
+            echo "::error::Le azioni collegamento cambiano la configurazione di PRODUZIONE e partono solo dal ramo main (ramo scelto: $RIF)."; exit 1
+          fi
+          NOTA_MIN="$(printf '%s' "$NOTA" | tr '[:upper:]' '[:lower:]' | tr -d '[:space:]')"
+          if [ "$NOTA_MIN" != "spegni" ] && [ -z "$BUCKET" ]; then
+            echo "::error::Manca la variabile BUCKET_BACKUP_FIRESTORE (bucket dei backup non configurato): le azioni attiva e riammetti NON si eseguono senza un backup verificato. Solo 'spegni' e' sempre ammesso."; exit 1
+          fi
+
       - uses: actions/setup-node@v4
         with:
           node-version: '22'

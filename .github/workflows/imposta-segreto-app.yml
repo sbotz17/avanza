@@ -31,6 +31,9 @@ concurrency:
 jobs:
   imposta:
     runs-on: ubuntu-latest
+    # Produzione: ambiente GitHub `produzione` (limitato al ramo main dalla sua regola di distribuzione; vi si possono tenere i segreti
+    # di produzione come segreti dell'ambiente, leggibili solo dai job su main). Test: ambiente `test` (GitHub lo crea al primo uso, senza regole).
+    environment: ${{ inputs.ambiente == 'produzione' && 'produzione' || 'test' }}
     env:
       AMBIENTE: ${{ inputs.ambiente }}
       PROGETTO_PROD: avanza-b62d7
@@ -44,13 +47,15 @@ jobs:
         env:
           RIF: ${{ github.ref }}
           BLOCCO_VAR: ${{ vars.BLOCCO_SQUADRA }}
-          SA_TEST: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_TEST }}
-          SA_PROD: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
-          VALORE_PROD: ${{ secrets.GH_APP_WEBHOOK_SECRET }}
-          VALORE_TEST: ${{ secrets.GH_APP_WEBHOOK_SECRET_TEST }}
+          # Si caricano solo i segreti dell'ambiente scelto (un'espressione "a && b || ''" non puo' ripiegare su un altro segreto).
+          SA_TEST: ${{ inputs.ambiente != 'produzione' && secrets.FIREBASE_SERVICE_ACCOUNT_TEST || '' }}
+          SA_PROD: ${{ inputs.ambiente == 'produzione' && secrets.FIREBASE_SERVICE_ACCOUNT || '' }}
+          VALORE_PROD: ${{ inputs.ambiente == 'produzione' && secrets.GH_APP_WEBHOOK_SECRET || '' }}
+          VALORE_TEST: ${{ inputs.ambiente != 'produzione' && secrets.GH_APP_WEBHOOK_SECRET_TEST || '' }}
         run: |
           set +x
           if [ "$BLOCCO_VAR" = "ATTIVO" ]; then echo "::error::BLOCCO_SQUADRA attivo: operazione sospesa"; exit 1; fi
+          if [ -f BLOCCO-SQUADRA.md ] && head -n1 BLOCCO-SQUADRA.md | grep -qi '^ATTIVO'; then echo "::error::BLOCCO-SQUADRA.md attivo: operazione sospesa"; exit 1; fi
           if [ "$AMBIENTE" = "produzione" ]; then
             if [ "$RIF" != "refs/heads/main" ]; then
               echo "::error::Il segreto di PRODUZIONE si imposta solo dal ramo main (ramo scelto: $RIF)."; exit 1
@@ -89,8 +94,8 @@ jobs:
       - name: Scrivi il segreto in Secret Manager e verifica la lettura
         env:
           PROGETTO: ${{ steps.cfg.outputs.progetto }}
-          VALORE_PROD: ${{ secrets.GH_APP_WEBHOOK_SECRET }}
-          VALORE_TEST: ${{ secrets.GH_APP_WEBHOOK_SECRET_TEST }}
+          VALORE_PROD: ${{ inputs.ambiente == 'produzione' && secrets.GH_APP_WEBHOOK_SECRET || '' }}
+          VALORE_TEST: ${{ inputs.ambiente != 'produzione' && secrets.GH_APP_WEBHOOK_SECRET_TEST || '' }}
         run: |
           set +x
           # Il valore si sceglie qui, mai con un'espressione "a || b" (un segreto vuoto di produzione non deve ripiegare su quello di test).
