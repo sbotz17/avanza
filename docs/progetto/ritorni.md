@@ -63,3 +63,23 @@
 - Note / storico:
   - 2026-10-22: Prima ricezione — segnalazione generica "il software non funziona per niente". Richiesti dettagli ad Andrea.
   - 2026-10-22: Andrea fornisce dettaglio: "spinner di caricamento non si ferma mai, sia all'accesso sia dopo aver salvato un nuovo progetto." Classificato come confermato. Corretto su `claude/epic-galileo-e9a406` con 4 test unitari (tutti verdi).
+
+---
+
+### R-4 — Modificare un progetto azzera il contatore dei codici T-N
+
+- Data: 2026-10-25
+- Esito verifica: confermato (lettura del codice; riprodotto a livello di modello con un test che falliva prima della correzione: `copyWith` restituiva `nextTaskNumber` 1 invece di 7)
+- Gravità: alta (codici T-N duplicati sui task creati dopo una modifica del progetto)
+- Area: modello `Project` / servizio Firestore / modifica progetto
+- Descrizione: ogni modifica di nome, descrizione o indirizzo GitHub di un progetto dall'app riporta a 1 il contatore con cui `createTask` assegna i codici T-N.
+- Atteso (comportamento documentato, `docs/database.md`): `nextTaskNumber` cambia solo alla creazione di un task (transazione di `createTask`).
+- Origine: validatore di T-20 (segnalazione separata, vedi diario 2026-10-25)
+- Ambiente di segnalazione: sviluppo (il difetto e' nel codice presente anche in produzione)
+- Urgente (corsia hotfix): no
+- Causa: `Project.copyWith` (`lib/models/project.dart`) costruiva un nuovo `Project` senza `nextTaskNumber` (quindi 1 di default) e `FirestoreService.updateProject` faceva `update({...project.toMap(), ...})`, scrivendo tutti i campi, contatore compreso.
+- Correzione: (1) `copyWith` porta `nextTaskNumber`; (2) nuova `Project.editableFields()` (solo `name`, `description`, `githubUrl`) e `updateProject` scrive solo quelle piu' `updatedAt`: non scrive mai `nextTaskNumber`, `clientCode`, `ownerId`, `createdAt`; (3) azione di sola lettura `stato` di `scripts/registra-ore.mjs` ora stampa per ogni progetto `nextTaskNumber` e il massimo T-N esistente, con avviso se il contatore e' indietro (serve a capire se i dati reali sono gia' stati azzerati; NON li corregge).
+- File toccati: `lib/models/project.dart`, `lib/services/firestore_service.dart`, `scripts/registra-ore.mjs` (ZONA PROTETTA: la modifica non e' classificabile come correzione autonoma, vedi registro decisioni), `test/project_counter_test.dart` (6 test), `docs/progetto/{ritorni,diario,catalogo,registro-decisioni}.md`
+- Stato: IN TEST
+- Note / storico:
+  - 2026-10-25: se i contatori reali risultano gia' azzerati, la correzione dei dati (aggiornare `nextTaskNumber` a massimo+1) e' una modifica ai dati reali: da decidere con Andrea, con backup e prova su copia. Non fatta qui.

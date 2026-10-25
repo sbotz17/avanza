@@ -210,3 +210,10 @@ Seguite le specifiche di `docs/architettura-integrazione-github.md`:
 
 ### Aggiornamento 2026-10-25 (T-20 fase 1, dopo il GO condizionato del guardiano)
 D1 creazione solo dalla GitHub App + coerenza del proprietario (`eventProcessor.ts`, `repoInfo.ts`: `ownerIsConsistent`); D3 `secrets.ts` (codice 9 = segreto assente) con nuovo `test/secrets.test.ts`; D5/D6 passo di controllo in `.github/workflows/registra-ore.yml`; D8 ambiente `produzione`/`test` e BLOCCO-SQUADRA.md in `imposta-segreto-app.yml`; guida riordinata (`configurazioni-da-fare.md`, sezione 9); registro decisioni con D1-D9 e impatto sulle approvazioni. Prove: `npm run build` e `npm test` verdi (anche su emulatore Firestore), mutazioni su ogni correzione, shell dei flussi provato con scenari locali. Non provato: GitHub e Google reali.
+
+## 2026-10-25 — R-4: modificare un progetto azzerava il contatore dei codici T-N (risolutore-bug)
+**Ramo:** `fix/R-4-T-19-contatore-task` (da `origin/staging`). Task in Avanza: **T-19** (registrato dal Coordinatore con `importa-task`; unico task con quel codice: T-18 = collegamento, T-17 = Squadra).
+**Causa:** `Project.copyWith` non portava `nextTaskNumber` (valeva 1) e `updateProject` scriveva l'intera `toMap()`.
+**Correzione:** `copyWith` conserva il contatore; `updateProject` scrive solo `Project.editableFields()` (name, description, githubUrl) + `updatedAt`. Azione `stato` di `registra-ore.mjs` (solo lettura) stampa contatore e massimo T-N per progetto.
+**Test:** `test/project_counter_test.dart` (6): i primi due falliscono sul codice precedente (atteso 7, trovato 1). `test/firestore_service_update_project_test.dart` (3, del tester: verifica che `updateProject` scriva solo i campi modificabili); `flutter test` 90 verdi (81 + 6 + 3), `flutter analyze` 6 info gia' presenti.
+**Non provato:** Firestore reale (il servizio e' provato fino a una piattaforma Firestore finta, non contro Firestore reale), browser, esecuzione dello script `stato` (richiede credenziali: solo `node --check` e prova della logica di calcolo in isolamento).
