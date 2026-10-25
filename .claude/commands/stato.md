@@ -1,4 +1,12 @@
 ---
-description: Riepilogo dello stato del progetto
+description: "Riepilogo del progetto: in corso, in sospeso, in accettazione"
 ---
-Leggi docs/progetto/ (requisiti, diario, ritorni, report di test) e lo stato di Git. Riassumi ad Andrea in italiano semplice, in poche righe: cosa è fatto, cosa è in corso, ritorni/bug aperti per gravità, ultimi esiti di test/validazione, decisioni in sospeso e ultime decisioni prese da `registro-decisioni.md`, sviluppi in attesa di validazione di Andrea (`da-validare.md`), eventuale BLOCCO-SQUADRA attivo, prossimo passo consigliato.
+
+Leggi `docs/progetto/registro-decisioni.md`, `docs/progetto/da-validare.md`, `docs/progetto/ritorni.md`,
+`docs/progetto/diario.md` e `git log --oneline -10`.
+
+Riferisci ad Andrea in italiano semplice:
+- cosa e' in corso;
+- cosa e' in accettazione indipendente;
+- decisioni in sospeso;
+- ultimi lavori completati e prossimo passo.

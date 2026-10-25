@@ -195,6 +195,13 @@ Il `validatore` ha RESPINTO la prima consegna per documentazione/registro incomp
 - **Passaggio saltato: prova di ripristino su copia con esito IDENTICO** (Regola d'oro dei dati, punto 5) non fatta prima della copia. Stato sicuro: i 12 membri originali sono intatti e il backup verificato prima della variazione esiste; impegno: prova di ripristino su copia con esito IDENTICO prima del prossimo rilascio in produzione (responsabile: `guardiano-produzione`). Per la regola "quando fermarsi" i due passaggi saltati sono stati comunicati ad Andrea in chat nel resoconto del 25/10/2026 (dopo la scrittura di questa voce; sua risposta non ancora ricevuta).
 - Documentazione: `docs/database.md` aggiornato con `copiedFrom`; manuale utente `docs/progetto/manuale/squadra.md` creato.
 
+## 2026-10-25 — Strumenti della squadra: OpenCode affiancato a Claude Code
+- **Decisione**: aggiunti `opencode.jsonc`, `.opencode/agents/` (14 ruoli, compreso `coordinatore`) e `.opencode/commands/` (14 comandi). Gli agenti OpenCode riusano i testi di `.claude/agents/`, cosi' le due squadre restano allineate; cambiano formato, modello (DeepSeek Flash/V4 Pro) e permessi.
+- **Allineamento**: aggiornati in entrambi gli strumenti i comandi `/sviluppo`, `/stato`, `/hotfix` e `/rilascio`, che citavano ancora la validazione di Andrea (superata dalla decisione del 24/10/2026: accettazione indipendente e rilascio automatico). Aggiunti `/audit` e `/indice` dove mancavano.
+- **Verifica**: `opencode debug config` e `opencode debug agents`; frontmatter YAML di agenti e comandi controllato con un parser su tutti i file dei due strumenti; seconda lettura indipendente del diff.
+- **In sospeso**: task in Avanza non creato perche' il workflow `registra-ore.yml` su `main` non ha l'azione `importa-task`; nessun codice `T-N` inventato.
+- **Ramo**: `feature/opencode-squadra`, PR verso `staging`.
+
 ## 2026-10-25 — T-20: Avanza collegata a tutti i progetti (decisioni di Andrea)
 - Richiesta: "questa app deve essere collegata a tutti i progetti e ogni progetto deve aggiornare autonomamente Avanza". Requisiti: `docs/progetto/requisiti-collegamento.md` (analista).
 - Decisioni di Andrea: (1) GitHub App personale, a fasi; (2) tutti i repository (anche privati e futuri) tranne fork, archiviati e "non tracciare"; (3) i task NON si creano da soli: li crea solo la squadra; (4) i task vecchi si aggiornano in base allo stato reale dichiarato dalla squadra, con prova e nota per ciascuno (niente aggiornamento in massa alla cieca).

@@ -1,6 +1,6 @@
 ---
 description: Censisce gli oggetti del progetto in un catalogo ordinato per categoria e segnala i duplicati
-argument-hint: <opzionale: area da analizzare>
+argument-hint: "<opzionale: area da analizzare>"
 ---
 Costruisci o aggiorna `docs/progetto/catalogo.md` e segnala i duplicati. $ARGUMENTS
 
