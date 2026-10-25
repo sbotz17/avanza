@@ -1,4 +1,4 @@
-import { cleanText, creationBlockReason, extractRepoInfo, isGithubRepoUrl, isIgnoredRepo } from '../lib/repoInfo';
+import { cleanText, creationBlockReason, extractRepoInfo, isGithubRepoUrl, isIgnoredRepo, ownerIsConsistent } from '../lib/repoInfo';
 import { parseLinkConfig } from '../lib/linkConfig';
 import {
   CLIENT_CODE_ALPHABET,
@@ -88,9 +88,54 @@ describe('extractRepoInfo', () => {
 
 describe('cleanText', () => {
   it('collapses whitespace, strips control and line-separator characters and truncates', () => {
-    expect(cleanText('  a b \n\n c  ', 50)).toBe('a b c');
+    expect(cleanText('  a\u2028b \n\n c  ', 50)).toBe('a b c');
     expect(cleanText('abcdef', 3)).toBe('abc');
     expect(cleanText(123, 5)).toBe('');
+  });
+});
+
+describe('cleanText \u2014 caratteri invisibili e bidirezionali (T20-2)', () => {
+  it.each([
+    ['zero-width space', '\u200b'],
+    ['zero-width joiner', '\u200d'],
+    ['left-to-right mark', '\u200e'],
+    ['right-to-left mark', '\u200f'],
+    ['right-to-left override', '\u202e'],
+    ['left-to-right embedding', '\u202a'],
+    ['pop directional formatting', '\u202c'],
+    ['isolate (LRI)', '\u2066'],
+    ['pop directional isolate', '\u2069'],
+    ['word joiner', '\u2060'],
+    ['soft hyphen', '\u00ad'],
+    ['BOM', '\ufeff'],
+    ['NUL', '\u0000'],
+    ['DEL', '\u007f'],
+    ['C1 control', '\u0085'],
+  ])('removes %s', (_name, ch) => {
+    const out = cleanText(`ab${ch}cd`, 50);
+    expect(out).not.toContain(ch);
+    expect(out.replace(/ /g, '')).toBe('abcd');
+  });
+
+  it('keeps ordinary text, accents and emoji', () => {
+    expect(cleanText('Gestionale per elettricisti, citt\u00e0 \u00e8 ok \ud83d\ude00', 100)).toBe('Gestionale per elettricisti, citt\u00e0 \u00e8 ok \ud83d\ude00');
+  });
+
+  it('a description hidden behind bidi overrides is neutralised in the extracted repository info', () => {
+    const info = extractRepoInfo(repo({ description: 'normale\u202egnirts neddih\u202c\u200b fine' }))!;
+    expect(info.description).not.toMatch(/[\u202a-\u202e\u200b-\u200f]/);
+  });
+});
+
+describe('ownerIsConsistent (D1)', () => {
+  it('is true only when owner.login, full_name, URL owner and repository name all agree (case-insensitive)', () => {
+    expect(ownerIsConsistent(extractRepoInfo(repo())!)).toBe(true);
+    expect(ownerIsConsistent(extractRepoInfo(repo({ owner: { login: 'SBotz17' } }))!)).toBe(true);
+    expect(ownerIsConsistent(extractRepoInfo(repo({ owner: { login: 'altro' } }))!)).toBe(false);
+    expect(ownerIsConsistent(extractRepoInfo(repo({ full_name: 'altro/prova-x' }))!)).toBe(false);
+    expect(ownerIsConsistent(extractRepoInfo(repo({ html_url: 'https://github.com/altro/prova-x' }))!)).toBe(false);
+    expect(ownerIsConsistent(extractRepoInfo(repo({ name: 'diverso' }))!)).toBe(false);
+    expect(ownerIsConsistent(extractRepoInfo(repo({ html_url: 'https://example.com/sbotz17/prova-x' }))!)).toBe(false);
   });
 });
 

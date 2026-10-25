@@ -5,11 +5,16 @@ export const IGNORE_TOPIC = 'avanza-ignora';
 
 const GITHUB_REPO_URL = /^https:\/\/github\.com\/[A-Za-z0-9._-]+\/[A-Za-z0-9._-]+$/;
 
-/** Toglie i caratteri di controllo e taglia: il testo che arriva da GitHub e' DATO NON FIDATO e si salva solo come testo semplice. */
+/**
+ * Toglie i caratteri di controllo e quelli invisibili o bidirezionali (zero-width U+200B-200F, separatori U+2028-202E,
+ * isolati bidi U+2066-206F, U+2060-2064, soft hyphen U+00AD, BOM U+FEFF, annotazioni U+FFF9-FFFB), comprime gli spazi e taglia.
+ * Il testo che arriva da GitHub e' DATO NON FIDATO e si salva solo come testo semplice: niente caratteri che ne nascondano
+ * o ne invertano la lettura.
+ */
+const INVISIBLE = /[\u0000-\u001f\u007f-\u009f\u00ad\u200b-\u200f\u2028-\u202e\u2060-\u2064\u2066-\u206f\ufeff\ufff9-\ufffb]/g;
 export function cleanText(value: unknown, max: number): string {
   if (typeof value !== 'string') return '';
-  // eslint-disable-next-line no-control-regex
-  return value.replace(/[\u0000-\u001f\u007f-\u009f\u2028\u2029]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, max);
+  return value.replace(INVISIBLE, ' ').replace(/\s+/g, ' ').trim().slice(0, max);
 }
 
 /** true se e' un indirizzo del tipo https://github.com/<proprietario>/<repository>. */

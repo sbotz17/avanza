@@ -93,6 +93,15 @@ Aggiornare a ogni nuovo oggetto o modifica significativa.
 | `extractRepoInfo`, `isIgnoredRepo`, `creationBlockReason`, `cleanText`, `isGithubRepoUrl`, `IGNORE_TOPIC` | `functions/src/lib/repoInfo.ts` | [T-20] Legge e valida i dati del repository dal payload (testo non fidato ripulito); esclusioni: topic `avanza-ignora`, fork, archiviato | `eventProcessor.ts` |
 | `loadLinkConfig`, `parseLinkConfig` | `functions/src/lib/linkConfig.ts` | [T-20] Legge/valida `githubCollegamento/config` (interruttore spento se incompleto), copia 60 s | `eventProcessor.ts` |
 | `repoRef`, `autoProjectId`, `dayRef`, `dayKey` | `functions/src/lib/linkStore.ts` | [T-20] Riferimenti ai documenti di supporto (registro repository, contatore giornaliero) e ID deterministico del progetto | `projectCreator.ts`, `projectLink.ts` |
+| `ownerIsConsistent` | `functions/src/lib/repoInfo.ts` | [T-20] `owner.login`, `full_name`, proprietario e nome dell'indirizzo devono coincidere: un payload incoerente non crea progetti | `eventProcessor.ts` |
+| `HANDLED_EVENT_TYPES` | `functions/src/lib/eventRouter.ts` | [T-20] Elenco dei tipi di evento elaborati (gli altri sono registrati come ignorati) | `eventProcessor.ts` |
+| `PRIMARY_SECRET_NAME`, `APP_SECRET_NAME` | `functions/src/lib/secrets.ts` | [T-20] Nomi dei due segreti in Secret Manager | `secrets.ts`, test |
+| `CONFIG_COLLECTION`, `CONFIG_DOC`, `DEFAULT_MAX_NEW_PROJECTS_PER_DAY`, `resetLinkConfigCache` | `functions/src/lib/linkConfig.ts` | [T-20] Percorso del documento di configurazione, tetto predefinito, azzeramento della copia in memoria (solo test) | `linkStore.ts`, `eventProcessor.ts`, test |
+| `REPOS_COLLECTION`, tipo `RepoState` | `functions/src/lib/linkStore.ts` | [T-20] Collezione del registro dei repository e suoi stati (`tracked`, `excluded`, `readmitted`) | `projectCreator.ts`, `projectLink.ts` |
+| `CLIENT_CODE_ALPHABET`, `CLIENT_CODE_LENGTH`, tipo `NewProjectInput` | `functions/src/lib/projectFactory.ts` | [T-20] Alfabeto e lunghezza del codice cliente, forma dell'input per costruire un progetto | `projectFactory.ts`, test |
+| Tipi `AuthResult`, `CreateResult`, `ProcessDeps`, `ProcessResult`, `Outcome`, `EventLogEntry`, `ResolvedProject`, `SyncResult`; tipi in `types.ts` (`EventSource`, `LinkConfig`, `RepoInfo`) | `functions/src/lib/*.ts` | [T-20] Esiti e parametri dei moduli del collegamento | moduli `lib/` |
+| `extractTaskCode`, `extractBranch` | `functions/src/lib/eventRouter.ts` | Estrae il codice `T-N` da ramo o titolo; nome del ramo da un riferimento git (preesistenti, censiti ora) | `eventRouter.ts` |
+| `FakeFirestore`, `makeTestDb`, fixture di prova | `functions/src/test/helpers/` | [T-20] Firestore in memoria (con transazioni ottimistiche) o emulatore vero se c'e' `FIRESTORE_EMULATOR_HOST`; payload e documenti di prova condivisi dai test | test del collegamento |
 | `isProjectCreatingEvent`, `TRUSTED_REVIEW_ASSOCIATIONS` | `functions/src/lib/eventRouter.ts` | [T-20] Quali eventi possono far nascere un progetto; chi puo' far avanzare un task con un'approvazione | `eventProcessor.ts` |
 
 ---
