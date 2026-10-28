@@ -1,0 +1,122 @@
+# Prova di accettazione UI VERA nel browser sul sito di TEST (progetto Firebase avanza-test-c33ef). Mai la produzione.
+# Guida: docs/progetto/test/e2e-ui.md. Script: scripts/e2e-ui-test.mjs (guardie in scripts/lib/e2e-ui-logica.mjs).
+#  - crea nel progetto di TEST un utente admin di prova, un progetto con 2 task e 2 membri; apre il sito con Chromium (Playwright),
+#    prova accesso, "Ricorda email", elenco progetti, task, chat, Squadra e "Aggiungi membro"; poi ELIMINA solo i dati creati dal giro;
+#  - parte: a mano (workflow_dispatch), a ogni push su un ramo test/e2e-ui** e, quando questo file e' anche su main, dopo ogni
+#    deploy riuscito di staging ("Deploy Avanza Web", workflow_run: GitHub lo legge solo dal ramo principale);
+#  - usa SOLO il segreto di test FIREBASE_SERVICE_ACCOUNT_TEST: nessun segreto di produzione; rifiuta di partire se progetto, chiave o
+#    sito non sono quelli di test; rispetta BLOCCO_SQUADRA e BLOCCO-SQUADRA.md; permessi minimi (contents: read).
+name: E2E UI (sito di test)
+
+on:
+  push:
+    branches: ['test/e2e-ui**']
+  workflow_dispatch:
+  workflow_run:
+    workflows: ['Deploy Avanza Web']
+    types: [completed]
+    branches: [staging]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: e2e-ui-sito-test
+  cancel-in-progress: false
+
+jobs:
+  e2e-ui:
+    # Dopo il deploy di staging solo se il deploy e' riuscito ed era un push (mai le anteprime delle pull request).
+    if: github.event_name != 'workflow_run' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      PROGETTO: ${{ vars.PROGETTO_FIREBASE_TEST || 'avanza-test-c33ef' }}
+      SITO_URL: https://avanza-test-c33ef.web.app
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Dopo il deploy: lo stesso commit appena pubblicato. Altrimenti il commit del ramo.
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+
+      - name: Blocco di emergenza
+        env:
+          BLOCCO_VAR: ${{ vars.BLOCCO_SQUADRA }}
+        run: |
+          if [ "$BLOCCO_VAR" = "ATTIVO" ]; then echo "::error::BLOCCO_SQUADRA attivo: prova sospesa"; exit 1; fi
+          if [ -f BLOCCO-SQUADRA.md ] && head -n1 BLOCCO-SQUADRA.md | grep -qi '^ATTIVO'; then echo "::error::BLOCCO-SQUADRA.md attivo: prova sospesa"; exit 1; fi
+
+      - name: Salvavita - solo progetto e chiave di TEST
+        env:
+          SA_TEST: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_TEST }}
+        run: |
+          bash .claude/scripts/salvavita-test.sh
+          if [ -z "$SA_TEST" ]; then
+            echo "::error::Manca il segreto FIREBASE_SERVICE_ACCOUNT_TEST: la prova sul sito di test non puo' partire."
+            exit 1
+          fi
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Test unitari della prova (logica, guardie e pulizia, senza rete)
+        run: node --test scripts/test/*.test.mjs
+
+      - name: Admin SDK (dipendenze delle funzioni)
+        run: npm ci --no-audit --no-fund
+        working-directory: functions
+
+      # Playwright e Chromium vanno in una cartella temporanea: nessuna dipendenza viene aggiunta al progetto.
+      - name: Playwright e Chromium (cartella temporanea)
+        run: |
+          mkdir -p "$RUNNER_TEMP/e2e-tools"
+          cd "$RUNNER_TEMP/e2e-tools" || exit 1
+          npm init -y > /dev/null
+          npm install --no-audit --no-fund playwright@1.56.1
+          npx playwright install --with-deps chromium
+          echo "E2E_TOOLS_DIR=$RUNNER_TEMP/e2e-tools" >> "$GITHUB_ENV"
+
+      - name: Chiave di TEST su file (solo per questo giro, rimossa alla fine)
+        env:
+          SA_TEST: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_TEST }}
+        run: |
+          umask 077
+          printf '%s' "$SA_TEST" > "$RUNNER_TEMP/sa-test.json"
+          echo "GOOGLE_APPLICATION_CREDENTIALS=$RUNNER_TEMP/sa-test.json" >> "$GITHUB_ENV"
+
+      - name: Ora del commit atteso sul sito (solo dopo il deploy di staging)
+        if: github.event_name == 'workflow_run'
+        run: echo "E2E_RIFERIMENTO_ISO=$(git log -1 --format=%cI)" >> "$GITHUB_ENV"
+
+      - name: Prova UI nel browser sul sito di test
+        id: prova
+        run: node scripts/e2e-ui-test.mjs
+
+      - name: Riepilogo
+        if: always()
+        run: |
+          if [ -f e2e-risultati/rapporto.md ]; then cat e2e-risultati/rapporto.md >> "$GITHUB_STEP_SUMMARY"; fi
+
+      # Rete di sicurezza: se lo script e' stato interrotto di colpo, elimina comunque i dati del giro (stessa pulizia, stesse guardie).
+      - name: Pulizia di sicurezza dei dati del giro
+        if: always()
+        run: |
+          if [ -f e2e-risultati/run-id.txt ] && [ -f "${GOOGLE_APPLICATION_CREDENTIALS:-/nonesiste}" ]; then
+            node scripts/e2e-ui-test.mjs --pulisci "$(cat e2e-risultati/run-id.txt)"
+          else
+            echo "Nessun giro da ripulire."
+          fi
+
+      - name: Rimuovi la chiave di TEST dal disco
+        if: always()
+        run: rm -f "$RUNNER_TEMP/sa-test.json"
+
+      - name: Risultati (screenshot dei fallimenti e finale, rapporto)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-ui-risultati
+          path: e2e-risultati/
+          if-no-files-found: ignore
+          retention-days: 14
