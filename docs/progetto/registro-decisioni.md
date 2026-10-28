@@ -273,3 +273,16 @@ Stesso ramo `feature/T-20-fase1`. Nessuna modifica a `firestore.rules`, indici, 
 - **Autorizzazione T-18 (collegamento di tutti i progetti)**: Andrea autorizza la squadra a modificare i flussi di GitHub necessari al collegamento. Resta il suo via libera in chat per l'**accensione** della creazione automatica dei progetti.
 - **Segreto della GitHub App**: Andrea autorizza la scrittura in produzione del segreto, lasciando alla squadra la scelta del valore. Decisione operativa: il valore NON viene scritto in chat né in file; lo genera Andrea sul proprio computer con un comando che lo copia negli appunti senza mostrarlo e lo incolla due volte (impostazioni della App e segreto GitHub `GH_APP_WEBHOOK_SECRET` dell'ambiente `produzione`). Il workflow `imposta-segreto-app.yml` lo scrive in Secret Manager solo dal ramo `main`, quindi dopo la prima promozione.
 - Non verificato: la presenza di `docs/progetto/indice.md` e `task.md` in questo repository e la conformità del lavoro già fatto alle skill nuove (da verificare con l'audit-completa prima della prima promozione).
+
+## 2026-10-28 — La squadra esegue tutto; Andrea non fa test né merge
+
+**Decisione di Andrea** (chat del 28/10/2026): la squadra fa tutto, test compresi; Andrea non prova
+funzioni, dispositivi o link e non unisce pull request.
+
+- Fonte: `sbotz17/squadraalphalab` (`CLAUDE.md` e `DECISIONI.md`), con seconda lettura indipendente.
+- Prove reali con build locale, browser automatizzato, emulatori, utenti e dati di test, canali di anteprima;
+  se serve un dispositivo/account/acquisto personale l'area è `BLOCCATA` e non si pubblica.
+- Il coordinatore apre e unisce le PR dopo tester `SUPERATO` e validatore `APPROVATO`; in produzione dopo
+  guardiano `GO`, backup verificato e rollback pronto.
+- Restano riservate ad Andrea: soldi, contratti, account, store, acquisti, cancellazione reale di dati e
+  pulsante di blocco.
