@@ -24,7 +24,10 @@ PASSI=("Deploy Hosting (progetto di test)" "Regole e indici Firestore (progetto 
 git fetch --quiet origin "+refs/heads/staging:refs/remotes/origin/staging" \
   || { echo "ERRORE: impossibile leggere il ramo staging"; exit 1; }
 HEAD_SHA="$(git rev-parse HEAD)"; TREE="$(git rev-parse 'HEAD^{tree}')"
-TROVATO="$(git log -n "$N" --format='%H %T' origin/staging | awk -v t="$TREE" '$2==t{print $1; exit}')"
+# Il commit PIU' RECENTE di staging con lo stesso albero. Attenzione (T-20): awk NON deve uscire al primo risultato ("exit"): con `pipefail`
+# gawk chiude la pipe subito, `git log` riceve SIGPIPE e lo script termina con 141 PRIMA di fare qualsiasi controllo (rilascio del 29/10/2026).
+# Cosi' awk legge tutto l'elenco (al massimo $N righe) e stampa solo la prima corrispondenza.
+TROVATO="$(git log -n "$N" --format='%H %T' origin/staging | awk -v t="$TREE" '$2==t && !gia {print $1; gia=1}')"
 if [ -z "$TROVATO" ]; then
   echo "ERRORE: il contenuto di $HEAD_SHA non coincide con nessuno degli ultimi $N commit di staging."
   echo "In produzione si va solo con cio' che e' gia' passato da staging, senza aggiunte. Possibili cause: commit diretto su main, conflitto risolto a mano, staging troppo avanti."

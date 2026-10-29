@@ -229,6 +229,42 @@ nuovo pr-niente;   ( cd "$SC/lavoro" && git push -q origin staging:main -f ); pr
 if [ "$RC" = 0 ] && grep -q "^n=0$" "$GITHUB_OUTPUT" && ! chiamato "pr create" && ! chiamato "pr edit"; then echo "OK    staging = main -> nessuna PR aperta o modificata"
 else FALLITI=$((FALLITI+1)); echo "FALLITO staging = main: la PR non andava toccata"; fi
 
+# T-20: storia LUNGA di staging (migliaia di commit con lo stesso albero della testa). Con `set -o pipefail` una pipeline `git log | awk '...exit'`
+# muore per SIGPIPE (uscita 141) appena awk chiude: e' successo nel rilascio del 29/10/2026 PRIMA di toccare la produzione. Qui il caso e' deterministico:
+# l'output di git log (> 64 KB) non entra tutto nel buffer della pipe, quindi git scrive ancora dopo che awk e' uscito.
+storia_lunga() {  # $1 numero di commit "vuoti" (stesso albero) da aggiungere su staging; aggiorna X con la nuova testa nei file di scenario
+  local VECCHIO="$X" NUM="$1"
+  ( cd "$SC/lavoro" || exit 1
+    { for i in $(seq 1 "$NUM"); do
+        printf 'commit refs/heads/lunga\ncommitter prova <prova@example.com> %s +0000\ndata 2\nc\n' "$((1700000000 + i))"
+        [ "$i" = 1 ] && printf 'from %s\n' "$VECCHIO"
+        printf '\n'
+      done; } | git fast-import --quiet && git push -q origin lunga:staging && git checkout -q -B staging lunga )
+  X="$(git -C "$SC/lavoro" rev-parse lunga)"; export X
+  sed -i "s/$VECCHIO/$X/g" "$SC"/*.json
+}
+nuovo storia-lunga; storia_lunga 3000; export STAGING_PROFONDITA=5000
+# Il comportamento di `awk ... exit` dipende dall'implementazione: gawk chiude subito la pipe (SIGPIPE a monte, e' quello che e' successo nel rilascio),
+# mawk 1.3.4-20240123 invece legge fino in fondo e non fallisce mai (per questo la prova sul PC era passata). La prova usa gawk se c'e'.
+if command -v gawk >/dev/null 2>&1; then ln -sf "$(command -v gawk)" "$BIN/awk"; AWK_PROVA=gawk; else AWK_PROVA="$(awk --version 2>&1 | head -1)"; fi
+echo "      (awk usato dalla prova: $AWK_PROVA)"
+TOTALE=$((TOTALE+1))
+# 1) la prova e' valida solo se la vecchia pipeline fallisce davvero con questo repository (altrimenti non dimostrerebbe nulla)
+( cd "$SC/lavoro" && git fetch -q origin "+refs/heads/staging:refs/remotes/origin/staging" && T="$(git rev-parse 'HEAD^{tree}')" \
+  && set -o pipefail && git log -n 5000 --format='%H %T' origin/staging | awk -v t="$T" '$2==t{print $1; exit}' >/dev/null ); RCV=$?
+if [ "$RCV" = 141 ]; then echo "OK    premessa: la vecchia pipeline 'git log | awk ...exit' con pipefail esce con 141 (SIGPIPE) su una storia lunga"
+elif [ "$AWK_PROVA" != gawk ]; then echo "NON VERIFICATA premessa: con questo awk ($AWK_PROVA) la vecchia pipeline non fallisce (installare gawk per riprodurre il 141); i casi seguenti non dimostrano la correzione"
+else FALLITI=$((FALLITI+1)); echo "FALLITO premessa: la vecchia pipeline doveva uscire con 141, uscita $RCV (la prova non dimostrerebbe nulla)"; fi
+# 2) verifica-da-staging.sh direttamente, con la testa di staging avanti di 3000 commit con lo stesso albero
+TOTALE=$((TOTALE+1))
+( cd "$SC/lavoro" && bash .claude/scripts/verifica-da-staging.sh > "$SC/log.txt" 2>&1 ); RC=$?
+if [ "$RC" = 0 ] && grep -q "Contenuto identico al commit di staging $X" "$SC/log.txt" && grep -q "^OK: staging $X" "$SC/log.txt"; then
+  echo "OK    verifica-da-staging.sh con storia lunga (3000 commit) -> uscita 0, sceglie la testa di staging"
+else FALLITI=$((FALLITI+1)); echo "FALLITO verifica-da-staging.sh con storia lunga: uscita $RC (141 = SIGPIPE)"; sed 's/^/      | /' "$SC/log.txt" | tail -n 8; fi
+# 3) lo stesso caso da `promuovi-staging.sh` (e' lui che chiama la verifica): deve unire e avviare il rilascio
+esegui; verifica "promozione con storia lunga di staging (3000 commit, testa con lo stesso albero) -> unisce e avvia il rilascio" unita-e-rilascio-avviato 0 si si
+unset STAGING_PROFONDITA
+
 echo
 echo "Casi: $TOTALE, falliti: $FALLITI"
 [ "$FALLITI" = 0 ]
