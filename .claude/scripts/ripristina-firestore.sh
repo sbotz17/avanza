@@ -25,7 +25,10 @@ if [ -z "$IMPR" ]; then
   IMPR="$TMP/backup.impronta"
 fi
 [ -s "$IMPR" ] || { echo "ERRORE: impronta del backup vuota"; exit 1; }
-gcloud storage ls -r "$BK" | grep -q 'overall_export_metadata' || { echo "ERRORE: il backup non ha i metadati dell'export"; exit 1; }
+# Niente `gcloud ... | grep -q` con pipefail (T-20): grep -q esce alla prima corrispondenza, gcloud riceve SIGPIPE e la pipeline risulta fallita
+# anche con un backup buono. Si legge prima tutto l'elenco, poi si cerca (con la here-string, senza pipe).
+ELENCO_BK="$(gcloud storage ls -r "$BK")" || { echo "ERRORE: il backup non e' leggibile ($BK)"; exit 1; }
+grep -q 'overall_export_metadata' <<< "$ELENCO_BK" || { echo "ERRORE: il backup non ha i metadati dell'export"; exit 1; }
 
 echo "Creo il database copia $COPIA ($PROGETTO, $LOC)..."
 gcloud firestore databases create --database="$COPIA" --location="$LOC" --type=firestore-native --project="$PROGETTO" --quiet
