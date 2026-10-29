@@ -1,0 +1,80 @@
+# CI di Avanza: analisi, test, build web e funzioni. Gira su ogni pull request verso staging/main e sui rami di lavoro;
+# viene richiamato anche dai flussi di rilascio (rilascio-produzione.yml) e di test (deploy.yml) come primo passo.
+# Il job `controlli` va reso OBBLIGATORIO nella protezione dei rami `staging` e `main` (vedi .github/README-CI.md).
+name: ci
+on:
+  pull_request:
+    branches: [staging, main]
+  push:
+    branches: ['claude/**', 'feature/**', 'fix/**', 'hotfix/**']
+  workflow_call:
+    inputs:
+      # rilascio-produzione.yml lo imposta a true: in produzione i test rossi fermano il rilascio.
+      test_obbligatori:
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  controlli:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Analyze
+        run: flutter analyze --no-fatal-infos
+
+      # I test non erano mai stati eseguiti dalla CI: finche' la variabile TEST_OBBLIGATORI non e' 'true' un test rosso
+      # produce un avviso ma NON ferma il rilascio (cosi' la produzione non cambia comportamento). Quando i test sono
+      # verdi, si imposta TEST_OBBLIGATORI = true e diventano un controllo vero.
+      - name: Test
+        id: test
+        continue-on-error: ${{ vars.TEST_OBBLIGATORI != 'true' && inputs.test_obbligatori != true }}
+        run: flutter test
+
+      - name: Avviso test non superati
+        if: steps.test.outcome == 'failure'
+        run: |
+          echo "::warning::I test automatici NON sono passati. Non fermano il rilascio finche' TEST_OBBLIGATORI non e' 'true'."
+          echo "### Test non superati (non bloccanti finche' TEST_OBBLIGATORI non e' true)" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Build web
+        run: flutter build web --release --base-href / --pwa-strategy=none
+
+      # La build di produzione (senza APP_ENV=test) non deve contenere la configurazione del progetto di test: altrimenti il sito
+      # pubblicato userebbe il database sbagliato. Valvola di Andrea: variabile CONTROLLO_CONFIG_BUILD = no (solo dopo aver verificato un falso allarme).
+      - name: Controlla che la build usi il progetto di produzione
+        env:
+          CONTROLLO_CONFIG_BUILD: ${{ vars.CONTROLLO_CONFIG_BUILD }}
+        run: bash .claude/scripts/controlla-build-ambiente.sh prod build/web
+
+      - name: Salva la build web
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-build
+          path: build/web
+          retention-days: 7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install Functions dependencies
+        run: npm ci
+        working-directory: functions
+
+      - name: Build Functions
+        run: npm run build
+        working-directory: functions

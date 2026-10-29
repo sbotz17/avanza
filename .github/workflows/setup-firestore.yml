@@ -7,11 +7,41 @@ on:
         description: 'Regione del database (definitiva, non modificabile dopo la creazione)'
         default: 'eur3'
 
+# Revisione di sicurezza del 24/10/2026 (audit docs/progetto/test/2026-10-24-audit-rilascio-produzione.md): questo flusso cambia
+# REGOLE e INDICI della produzione, quindi (1) parte solo dal ramo main, cioe' da cio' che e' arrivato da staging; (2) il contenuto deve
+# essere identico a un commit di staging gia' pubblicato sull'ambiente di test con controlli verdi; (3) due pubblicazioni di regole non si sovrappongono: gruppo "produzione-regole", separato da quello dei rilasci per non restare
+# bloccato dietro a un rilascio che aspetta il tocco di Andrea); (4) la versione di firebase-tools e' fissata. Il backup prima della variazione resta com'e'.
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: produzione-regole
+  cancel-in-progress: false
+
 jobs:
   setup-firestore:
     runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: "Solo dal ramo main e solo cio' che e' gia' stato provato su staging"
+        env:
+          RIF: ${{ github.ref }}
+          CONTROLLO_STAGING: ${{ vars.CONTROLLO_STAGING }}
+          BLOCCO_VAR: ${{ vars.BLOCCO_SQUADRA }}
+        run: |
+          if [ "$BLOCCO_VAR" = "ATTIVO" ]; then echo "BLOCCO_SQUADRA attivo: pubblicazione sospesa"; exit 1; fi
+          if [ "$RIF" != "refs/heads/main" ]; then
+            echo "Le regole e gli indici di PRODUZIONE si pubblicano solo dal ramo main (ramo scelto: $RIF)."
+            echo "Prima la modifica passa da staging (dove viene pubblicata e provata sul progetto di test), poi arriva in main con la promozione."
+            exit 1
+          fi
+          bash .claude/scripts/verifica-da-staging.sh
 
       - uses: actions/setup-node@v4
         with:
@@ -24,6 +54,27 @@ jobs:
 
       - name: Setup gcloud
         uses: google-github-actions/setup-gcloud@v2
+
+      # Regola di Andrea (24/10/2026): backup nuovo e verificato prima di OGNI variazione al database (serie incrementale, ultimi 20).
+      # Se il database non esiste ancora non c'e' nulla da salvare; se il bucket non e' configurato lo si dichiara.
+      - name: Backup verificato prima della variazione
+        if: vars.BUCKET_BACKUP_FIRESTORE != ''
+        env:
+          BUCKET: ${{ vars.BUCKET_BACKUP_FIRESTORE }}
+          FIRESTORE_PROJECT: avanza-b62d7
+        run: |
+          if gcloud firestore databases describe --database='(default)' --project=avanza-b62d7 >/dev/null 2>&1; then
+            (cd functions && npm ci)
+            mkdir -p backup
+            .claude/scripts/backup-firestore.sh backup
+          else
+            echo "Il database non esiste ancora: nessun backup da fare."
+          fi
+
+      - name: Backup NON eseguito (bucket non configurato)
+        if: vars.BUCKET_BACKUP_FIRESTORE == ''
+        run: |
+          echo "::warning::Variazione a regole e indici SENZA backup: manca la variabile BUCKET_BACKUP_FIRESTORE (bucket dei backup non ancora creato). Va detto ad Andrea."
 
       # Crea il database (default) solo se non esiste: non tocca database esistenti.
       - name: Crea database (default) se assente
@@ -39,4 +90,4 @@ jobs:
           fi
 
       - name: Pubblica regole e indici
-        run: npx firebase-tools deploy --only firestore --project avanza-b62d7 --non-interactive
+        run: npx --yes firebase-tools@15.34.1 deploy --only firestore --project avanza-b62d7 --non-interactive

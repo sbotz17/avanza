@@ -1,0 +1,52 @@
+# Avvisi WhatsApp ad Andrea (tramite il SUO motore) quando la squadra scrive una decisione in sospeso, uno sviluppo da validare o un blocco.
+# Gira sul ramo staging e sulle pull request verso staging, ma SEMPRE con la versione del flusso presente sul ramo di destinazione
+# (pull_request_target): una modifica non puo' cambiare cosa viene inviato. Non esegue MAI codice delle pull request.
+# I testi sono sempre FISSI. Se il motore WhatsApp non e' configurato (AVVISI_URL / WHATSAPP_TOKEN assenti) lo script lo scrive
+# nel log ("AVVISO NON PARTITO") e il flusso resta verde. Gira solo con SQUADRA_CI_ATTIVA = si.
+name: avvisi-whatsapp
+on:
+  push:
+    branches: [staging]
+    paths: ['docs/progetto/da-validare.md', 'docs/progetto/registro-decisioni.md', 'BLOCCO-SQUADRA.md']
+  pull_request_target:
+    branches: [staging]
+    types: [opened, synchronize, reopened]
+    paths: ['docs/progetto/da-validare.md', 'docs/progetto/registro-decisioni.md']
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  avvisa:
+    if: vars.SQUADRA_CI_ATTIVA == 'si'
+    runs-on: ubuntu-latest
+    env:
+      AVVISI_URL: ${{ secrets.AVVISI_URL }}
+      AVVISI_TOKEN: ${{ secrets.AVVISI_TOKEN }}
+      AVVISI_NUMERO: ${{ secrets.AVVISI_NUMERO }}
+      AVVISI_PERMETTI_HTTP: ${{ vars.AVVISI_PERMETTI_HTTP }}
+      AVVISI_PROGETTO: ${{ vars.NOME_PROGETTO || 'Avanza' }}
+      GH_TOKEN: ${{ github.token }}
+      EVENTO: ${{ github.event_name }}
+      NUMERO: ${{ github.event.pull_request.number }}
+    steps:
+      - uses: actions/checkout@v4        # con pull_request_target questo e' il ramo di DESTINAZIONE, non la modifica
+        with:
+          fetch-depth: 2
+      - name: Avvisi da testi FISSI
+        run: |
+          if [ "$EVENTO" = "pull_request_target" ]; then
+            mod=$(gh pr view "$NUMERO" --repo "$GITHUB_REPOSITORY" --json files --jq '.files[].path')
+          else
+            mod=$(git diff --name-only HEAD~1 HEAD)
+          fi
+          if echo "$mod" | grep -q 'docs/progetto/da-validare.md'; then
+            python3 .claude/scripts/avvisa-whatsapp.py da_validare "C'e' un nuovo sviluppo in rilascio (accettato dalla squadra). Dettagli in rilasci.md."
+          fi
+          if echo "$mod" | grep -q 'docs/progetto/registro-decisioni.md'; then
+            python3 .claude/scripts/avvisa-whatsapp.py decisione_in_sospeso "La squadra ha aggiornato il registro decisioni (possibile decisione in sospeso). Controllalo quando puoi."
+          fi
+          if echo "$mod" | grep -q 'BLOCCO-SQUADRA.md'; then
+            python3 .claude/scripts/avvisa-whatsapp.py blocco "BLOCCO-SQUADRA.md modificato in staging."
+          fi

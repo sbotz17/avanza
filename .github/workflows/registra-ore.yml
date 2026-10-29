@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       action:
-        description: 'membro (crea/aggiorna un membro), ore (registra ore) migra (sposta i costi dai task al documento riservato e imposta admin i proprietari) admin (assegna il ruolo admin a una email), crea-progetto (crea un progetto reale per l email) oppure elimina-prova (elimina il progetto di prova del test)'
+        description: 'membro (crea/aggiorna un membro), ore (registra ore) migra (sposta i costi dai task al documento riservato e imposta admin i proprietari) admin (assegna il ruolo admin a una email), crea-progetto (crea un progetto reale per l email) oppure elimina-prova (elimina il progetto di prova del test) domande (elenca le domande dell admin senza risposta) rispondi (risponde nella chat del task task_code) collegamento (T-20: note=attiva con email e github_url, spegni, riammetti con github_url del repository) collegamento-stato (sola lettura)'
         default: 'ore'
       email:
         description: 'Email dell utente, solo per action=admin (assegna il ruolo admin)'
@@ -17,6 +17,9 @@ on:
         default: ''
       github_url:
         description: 'Indirizzo GitHub del repository (es. https://github.com/sbotz17/avanza), solo per action=crea-progetto'
+        default: ''
+      tasks_json:
+        description: 'Elenco task in JSON, solo per action=importa-task'
         default: ''
       project_id:
         description: 'ID del progetto (facoltativo: altrimenti si cerca per indirizzo GitHub)'
@@ -35,6 +38,9 @@ on:
         default: ''
       note:
         description: 'Nota (facoltativa)'
+        default: ''
+      message:
+        description: 'Testo della risposta della squadra alla domanda dell admin (max 2000 caratteri), solo per action=rispondi'
         default: ''
       kind:
         description: 'agent o person, solo per action=membro'
@@ -55,6 +61,32 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # T-20: le azioni "collegamento" (attiva, spegni, riammetti) cambiano la configurazione che comanda la creazione automatica dei
+      # progetti in PRODUZIONE. Partono solo dal ramo main; attiva e riammetti non con il blocco di Andrea attivo (BLOCCO_SQUADRA o BLOCCO-SQUADRA.md)
+      # e solo con il bucket dei backup configurato (una variazione senza backup non e' ammessa).
+      # "spegni" (il freno di emergenza) parte anche con il blocco attivo e senza backup, ma sempre solo da main. "collegamento-stato" e' sola lettura e resta libera.
+      - name: Controlli delle azioni collegamento (ramo main, blocco, backup)
+        if: inputs.action == 'collegamento'
+        env:
+          RIF: ${{ github.ref }}
+          BLOCCO_VAR: ${{ vars.BLOCCO_SQUADRA }}
+          BUCKET: ${{ vars.BUCKET_BACKUP_FIRESTORE }}
+          NOTA: ${{ inputs.note }}
+        run: |
+          NOTA_MIN="$(printf '%s' "$NOTA" | tr '[:upper:]' '[:lower:]' | tr -d '[:space:]')"
+          if [ "$RIF" != "refs/heads/main" ]; then
+            echo "::error::Le azioni collegamento cambiano la configurazione di PRODUZIONE e partono solo dal ramo main (ramo scelto: $RIF)."; exit 1
+          fi
+          # "spegni" e' il freno di emergenza: parte anche con il blocco di Andrea attivo e senza bucket dei backup.
+          # Resta il vincolo del ramo main (codice rivisto: da un altro ramo lo script potrebbe essere stato modificato).
+          if [ "$NOTA_MIN" != "spegni" ]; then
+            if [ "$BLOCCO_VAR" = "ATTIVO" ]; then echo "::error::BLOCCO_SQUADRA attivo: azione sospesa"; exit 1; fi
+            if [ -f BLOCCO-SQUADRA.md ] && head -n1 BLOCCO-SQUADRA.md | grep -qi '^ATTIVO'; then echo "::error::BLOCCO-SQUADRA.md attivo: azione sospesa"; exit 1; fi
+            if [ -z "$BUCKET" ]; then
+              echo "::error::Manca la variabile BUCKET_BACKUP_FIRESTORE (bucket dei backup non configurato): le azioni attiva e riammetti NON si eseguono senza un backup verificato. Solo 'spegni' e' sempre ammesso."; exit 1
+            fi
+          fi
+
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
@@ -63,16 +95,41 @@ jobs:
         run: npm ci
         working-directory: functions
 
+      # Lo script usa la logica condivisa con la Cloud Function (functions/src/lib/projectFactory.ts): serve la versione compilata.
+      - name: Build (logica condivisa con la funzione)
+        run: npm run build
+        working-directory: functions
+
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v2
         with:
           credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+
+      # Regola di Andrea (24/10/2026): prima di OGNI variazione al database un backup nuovo e verificato (serie incrementale, ultimi 20).
+      # Le azioni di sola lettura (stato, domande) non lo richiedono. Se il bucket non e' configurato lo si dichiara qui sotto.
+      - uses: google-github-actions/setup-gcloud@v2
+        if: vars.BUCKET_BACKUP_FIRESTORE != '' && inputs.action != 'stato' && inputs.action != 'domande' && inputs.action != 'collegamento-stato'
+
+      - name: Backup verificato prima della variazione
+        if: vars.BUCKET_BACKUP_FIRESTORE != '' && inputs.action != 'stato' && inputs.action != 'domande' && inputs.action != 'collegamento-stato'
+        env:
+          BUCKET: ${{ vars.BUCKET_BACKUP_FIRESTORE }}
+          FIRESTORE_PROJECT: avanza-b62d7
+        run: |
+          mkdir -p backup
+          .claude/scripts/backup-firestore.sh backup
+
+      - name: Backup NON eseguito (bucket non configurato)
+        if: vars.BUCKET_BACKUP_FIRESTORE == '' && inputs.action != 'stato' && inputs.action != 'domande' && inputs.action != 'collegamento-stato'
+        run: |
+          echo "::warning::Variazione al database SENZA backup: manca la variabile BUCKET_BACKUP_FIRESTORE (bucket dei backup non ancora creato). Va detto ad Andrea."
 
       - name: Registra
         run: node scripts/registra-ore.mjs
         env:
           ACTION: ${{ inputs.action }}
           EMAIL: ${{ inputs.email }}
+          TASKS_JSON: ${{ inputs.tasks_json }}
           PROJECT_ID: ${{ inputs.project_id }}
           PROJECT_NAME: ${{ inputs.project_name }}
           PROJECT_DESCRIPTION: ${{ inputs.project_description }}
@@ -82,6 +139,7 @@ jobs:
           PHASE: ${{ inputs.phase }}
           HOURS: ${{ inputs.hours }}
           NOTE: ${{ inputs.note }}
+          MESSAGE: ${{ inputs.message }}
           KIND: ${{ inputs.kind }}
           ROLE: ${{ inputs.role }}
           COST_RATE: ${{ inputs.cost_rate }}

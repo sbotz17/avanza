@@ -1,0 +1,128 @@
+# Controlli automatici su ogni pull request verso staging o main. Vanno resi "obbligatori" nella protezione dei due rami.
+# Gli script e le regole si prendono dal ramo di DESTINAZIONE (gia' protetto), non dalla modifica in esame:
+# una pull request non puo' indebolire i controlli che la giudicano. I flussi stessi (.github/) sono protetti da CODEOWNERS.
+# Il job `controlli` (analisi, test, build) sta in ci.yml. Leggi .github/README-CI.md.
+name: controlli-pr
+on:
+  pull_request:
+    branches: [staging, main]
+
+permissions:
+  contents: read
+
+env:
+  BASE: ${{ github.base_ref }}
+  RAMO: ${{ github.head_ref }}
+
+jobs:
+  blocco:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Blocco di emergenza
+        env:
+          BLOCCO_VAR: ${{ vars.BLOCCO_SQUADRA }}
+        run: |
+          if [ "$BLOCCO_VAR" = "ATTIVO" ]; then echo "BLOCCO_SQUADRA attivo (variabile GitHub)"; exit 1; fi
+          if [ -f BLOCCO-SQUADRA.md ] && head -n1 BLOCCO-SQUADRA.md | grep -qi '^ATTIVO'; then echo "BLOCCO-SQUADRA.md attivo"; exit 1; fi
+
+  verso-produzione-solo-da-staging:
+    # In produzione (main) si entra SOLO da staging: niente lavori diretti su main.
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          if [ "$BASE" = "main" ] && [ "$RAMO" != "staging" ]; then
+            echo "Verso main si arriva solo da staging (ramo attuale: $RAMO)"; exit 1
+          fi
+          echo "ok"
+
+  zone-protette:
+    # Una correzione nata da una segnalazione esterna (ramo claude/segnalazione-*) non puo' toccare le zone protette
+    # ne' essere troppo grande: in quel caso questo controllo FALLISCE e la modifica non entra.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Controllo con script e regole del ramo di destinazione
+        run: |
+          mkdir -p /tmp/ctl
+          if ! git show "origin/$BASE:.claude/scripts/controlla-zone-protette.py" > /tmp/ctl/zone.py 2>/dev/null; then
+            echo "::warning::Controlli non ancora installati sul ramo $BASE (prima installazione): controllo saltato"; exit 0
+          fi
+          git show "origin/$BASE:.claude/zone-protette.json" > /tmp/ctl/zone.json
+          python3 /tmp/ctl/zone.py "origin/$BASE" "$RAMO" /tmp/ctl/zone.json
+
+  regole:
+    # Le modifiche a firestore.rules e firestore.indexes.json devono essere sicure: niente regole aperte a chiunque,
+    # niente regole senza controllo di accesso, niente indici tolti (le query dell'app smetterebbero di funzionare).
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - run: |
+          if ! git show "origin/$BASE:.claude/scripts/controlla-regole.py" > /tmp/regole.py 2>/dev/null; then
+            echo "::warning::Controlli non ancora installati sul ramo $BASE (prima installazione): controllo saltato"; exit 0
+          fi
+          python3 /tmp/regole.py "origin/$BASE"
+
+  nessun-segreto:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Cerca segreti nelle righe aggiunte
+        run: |
+          # Le chiavi web di Firebase (AIza...) sono pubbliche per natura e non vengono cercate; si cercano invece le chiavi PRIVATE
+          # (account di servizio), i token e le password.
+          if git diff "origin/$BASE...HEAD" | grep '^+' | grep -v '^+++' \
+            | grep -E '(eyJ[A-Za-z0-9_-]{20,}\.eyJ[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{20,}|sk-ant-[A-Za-z0-9_-]{20,}|sk_live_[A-Za-z0-9]{10,}|-----BEGIN [A-Z ]*PRIVATE KEY-----|"private_key"[[:space:]]*:[[:space:]]*"-----BEGIN|AKIA[0-9A-Z]{16}|ghp_[A-Za-z0-9]{30,}|github_pat_[A-Za-z0-9_]{30,}|xox[baprs]-[A-Za-z0-9-]{10,}|ya29\.[A-Za-z0-9_-]{30,})'; then
+            echo "Possibile segreto nel codice: controllo fallito"; exit 1
+          fi
+          echo "Nessun segreto trovato"
+
+  anteprima-classificazione:
+    # Informativo: dice in anticipo se, arrivata in staging, la modifica sara' trattata come CORREZIONE (va in produzione
+    # da sola) o come NUOVO SVILUPPO (serve l'approvazione di Andrea). Scrive anche un commento sulla pull request.
+    if: github.base_ref == 'staging'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Classificazione prevista
+        env:
+          ETICHETTE: ${{ join(github.event.pull_request.labels.*.name, ',') }}
+          TITOLO: ${{ github.event.pull_request.title }}
+          CORPO: ${{ github.event.pull_request.body }}
+          NUMERO: ${{ github.event.pull_request.number }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if ! git show "origin/$BASE:.claude/scripts/classifica-modifica.py" > /tmp/cls.py 2>/dev/null; then echo "Prima installazione: nessuna classificazione"; exit 0; fi
+          git show "origin/$BASE:.claude/zone-protette.json" > /tmp/zone.json
+          jq -n --arg r "$RAMO" --arg e "$ETICHETTE" --arg t "$TITOLO" --arg c "$CORPO" --argjson n "$NUMERO" \
+            '{commit_senza_pr:0, pr:[{numero:$n, ramo:$r, etichette:($e|split(",")), titolo:$t, corpo:$c}]}' > /tmp/rich.json
+          python3 /tmp/cls.py "origin/$BASE" /tmp/rich.json /tmp/zone.json | tee /tmp/classifica.txt | tee -a "$GITHUB_STEP_SUMMARY"
+          TIPO=$(grep '^TIPO=' /tmp/classifica.txt | tail -1 | cut -d= -f2)
+          {
+            echo "**Classificazione prevista: ${TIPO:-n.d.}**"
+            echo
+            if [ "$TIPO" = "correzione" ]; then
+              echo "Una volta in staging e superati i controlli, potra' andare in produzione come correzione."
+            else
+              echo "Sara' trattata come **nuovo sviluppo**: prima di arrivare in produzione servono l'accettazione indipendente della squadra (tester e validatore) e la prova sul sito di test."
+            fi
+            echo
+            echo '```'
+            grep '^MOTIVO:' /tmp/classifica.txt | head -8 || true
+            echo '```'
+          } > /tmp/commento.md
+          # commento aggiornato a ogni esecuzione; sulle pull request da fork il token e' in sola lettura: si ignora l'errore
+          gh pr comment "$NUMERO" --body-file /tmp/commento.md --edit-last 2>/dev/null \
+            || gh pr comment "$NUMERO" --body-file /tmp/commento.md 2>/dev/null \
+            || echo "::notice::Commento sulla pull request non scritto (permessi)"
