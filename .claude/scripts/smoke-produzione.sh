@@ -4,8 +4,9 @@
 #   - main.dart.js e' JavaScript vero (non la pagina di ripiego), contiene la configurazione di PRODUZIONE (avanza-b62d7) e nessuna traccia del TEST (avanza-test);
 #   - intestazioni di cache corrette (no-cache su index.html, main.dart.js, flutter_bootstrap.js): altrimenti gli utenti vedono versioni vecchie;
 #   - nessun service worker attivo (build con --pwa-strategy=none);
-#   - la funzione githubWebhook risponde: GET -> 405 e POST con firma sbagliata -> 401 (prova anche che legge il segreto da Secret Manager;
-#     un 404/500/timeout significa funzione rotta). Nessun effetto: la firma sbagliata viene respinta prima di toccare Firestore;
+#   - la funzione githubWebhook risponde: GET -> 405; POST con firma sbagliata -> 401 (legge il segreto da Secret Manager); un 500 e' solo AVVISO
+#     (segreto non leggibile: prova non conclusiva, la verifica del segreto storico e' di E2E Webhook dopo il rilascio), 404/502/503/timeout = funzione rotta;
+#     POST SENZA firma -> 401 (risposta data prima di leggere qualsiasi segreto: qui un 500 e' un fallimento). Nessun effetto: respinte prima di toccare Firestore (T-20);
 #   - il login e' raggiungibile: una richiesta di accesso con un'email inventata deve ricevere dal servizio di accesso Firebase un rifiuto "normale"
 #     (400 EMAIL_NOT_FOUND / INVALID_LOGIN_CREDENTIALS). Nessun account viene creato o modificato.
 #     Limite di richieste o guasto di Google (TOO_MANY_ATTEMPTS, 403, 429, 5xx) o chiave web non trovata = solo AVVISO (prova non conclusiva), mai fallimento.
@@ -66,7 +67,19 @@ p_funz_get() { local c; c="$(curl -sS -m 30 -o /dev/null -w '%{http_code}' "$FUN
 p_funz_post() {
   local c; c="$(curl -sS -m 30 -o /dev/null -w '%{http_code}' -X POST -H 'content-type: application/json' -H 'x-github-event: ping' \
       -H 'x-hub-signature-256: sha256=0000000000000000000000000000000000000000000000000000000000000000' -d '{}' "$FUNZ" 2>&1)"
-  [ "$c" = 401 ] || { echo "POST con firma sbagliata -> HTTP $c (atteso 401; 404/5xx = funzione rotta o segreto non leggibile)"; return 1; }
+  case "$c" in
+    401) ;;
+    # 500 = la funzione risponde ma non riesce a leggere un segreto (es. quello della GitHub App, ancora da creare, o un permesso IAM mancante):
+    # prova NON conclusiva, non un guasto del rilascio (altrimenti si fermerebbe e annullerebbe un rilascio buono). Il percorso del segreto
+    # storico lo prova E2E Webhook dopo il rilascio; che la funzione risponda senza leggere segreti lo prova p_funz_post_nofirma. (T-20)
+    500) echo "ATTENZIONE: POST con firma sbagliata -> HTTP 500: segreto del webhook o della GitHub App non leggibile (IAM? segreto da creare?): prova NON conclusiva. Verificare il percorso del segreto storico con E2E Webhook dopo il rilascio." >> "$TMP/avvisi"
+        echo "HTTP 500 con firma sbagliata: segreto non leggibile, prova non conclusiva (avviso)" ;;
+    *)  echo "POST con firma sbagliata -> HTTP $c (atteso 401; 404/502/503/000 = funzione rotta o non raggiungibile)"; return 1 ;;
+  esac
+}
+p_funz_post_nofirma() {   # senza intestazione di firma la funzione risponde 401 PRIMA di leggere Secret Manager (authenticate.ts: "firma_assente")
+  local c; c="$(curl -sS -m 30 -o /dev/null -w '%{http_code}' -X POST -H 'content-type: application/json' -H 'x-github-event: ping' -d '{}' "$FUNZ" 2>&1)"
+  [ "$c" = 401 ] || { echo "POST senza firma -> HTTP $c (atteso 401 senza leggere segreti; 500 = la funzione non risponde nemmeno senza segreti, 404/5xx = rotta)"; return 1; }
 }
 p_login() {
   local chiave c corpo
@@ -104,7 +117,8 @@ prova "flutter_bootstrap.js: JavaScript e cache corretta" p_bootstrap
 prova "nessun service worker attivo" p_sw
 if [ "${SMOKE_FUNZIONE:-}" != no ]; then
   prova "funzione githubWebhook: GET -> 405" p_funz_get
-  prova "funzione githubWebhook: firma sbagliata -> 401 (legge il segreto, nessun effetto)" p_funz_post
+  prova "funzione githubWebhook: firma sbagliata -> 401 (legge il segreto, nessun effetto; 500 = avviso)" p_funz_post
+  prova "funzione githubWebhook: senza firma -> 401 (non legge segreti)" p_funz_post_nofirma
 else echo "SALTATA la prova della funzione (SMOKE_FUNZIONE=no)"; fi
 if [ "${SMOKE_LOGIN:-}" != no ]; then
   prova "servizio di accesso Firebase raggiungibile (rifiuto normale di credenziali inventate)" p_login

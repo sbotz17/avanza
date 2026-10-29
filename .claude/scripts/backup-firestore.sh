@@ -49,7 +49,8 @@ done
 
 # verifica che l'export esista e abbia il file dei metadati
 ELENCO="$(gcloud storage ls -r -l "$DEST" 2>/dev/null)" || { echo "ERRORE: export non leggibile dal bucket"; exit 1; }
-echo "$ELENCO" | grep -q 'overall_export_metadata' || { echo "ERRORE: export incompleto (manca overall_export_metadata)"; exit 1; }
+# here-string e non `echo | grep -q`: con pipefail, se l'elenco supera il buffer di una pipe (64 KB) echo prende SIGPIPE quando grep -q esce (T-20)
+grep -q 'overall_export_metadata' <<< "$ELENCO" || { echo "ERRORE: export incompleto (manca overall_export_metadata)"; exit 1; }
 SIZE="$(echo "$ELENCO" | awk '/^ *[0-9]+ /{s+=$1} END{print s+0}')"
 SHA="$(echo "$ELENCO" | awk '/gs:\/\//{print $NF" "$1}' | sort | sha256sum | cut -d' ' -f1)"   # impronta dell'elenco file e dimensioni
 [ "$SIZE" -gt 0 ] || { echo "ERRORE: export vuoto"; exit 1; }
