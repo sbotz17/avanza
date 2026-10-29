@@ -265,6 +265,13 @@ else FALLITI=$((FALLITI+1)); echo "FALLITO verifica-da-staging.sh con storia lun
 esegui; verifica "promozione con storia lunga di staging (3000 commit, testa con lo stesso albero) -> unisce e avvia il rilascio" unita-e-rilascio-avviato 0 si si
 unset STAGING_PROFONDITA
 
+# T-20 (tester): HEAD con contenuto che NON esiste in staging (es. commit diretto su main) -> verifica-da-staging.sh deve fallire (1) senza interrogare GitHub.
+nuovo albero-diverso; ( cd "$SC/lavoro" && echo extra > extra.txt && git add extra.txt && git commit -q -m "commit diretto" )
+TOTALE=$((TOTALE+1)); : > "$SC/calls.log"
+( cd "$SC/lavoro" && bash .claude/scripts/verifica-da-staging.sh > "$SC/log.txt" 2>&1 ); RC=$?
+if [ "$RC" = 1 ] && grep -q "non coincide con nessuno" "$SC/log.txt" && ! chiamato "actions/workflows"; then echo "OK    verifica-da-staging.sh: contenuto assente da staging -> uscita 1, nessuna chiamata a GitHub"
+else FALLITI=$((FALLITI+1)); echo "FALLITO verifica-da-staging.sh con contenuto assente da staging: uscita $RC (atteso 1)"; sed 's/^/      | /' "$SC/log.txt" | tail -n 6; fi
+
 echo
 echo "Casi: $TOTALE, falliti: $FALLITI"
 [ "$FALLITI" = 0 ]
