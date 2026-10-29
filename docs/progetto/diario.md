@@ -225,3 +225,9 @@ D1 creazione solo dalla GitHub App + coerenza del proprietario (`eventProcessor.
 **File:** `.claude/scripts/verifica-da-staging.sh`, `ripristina-firestore.sh`, `backup-firestore.sh`, `prova-promozione.sh` (+3 casi), `prova-script-gcloud.sh` (nuovo, 6 casi); `docs/progetto/registro-decisioni.md`, `diario.md`, `catalogo.md`.
 **Test:** prima 2+2 casi FALLITI, dopo `prova-promozione.sh` 60/60 e `prova-script-gcloud.sh` 6/6; `shellcheck -S warning` e `bash -n` puliti su tutti gli script.
 **Non provato:** runner GitHub reale, `gh` e `gcloud` reali. Serve la seconda lettura (zona protetta `.claude/**`) prima di unire.
+
+## 2026-10-29 — T-20: smoke test tollerante al 500 per segreto non leggibile, più prova senza firma (risolutore-bug)
+**Ramo:** `fix/T-20-verifica-da-staging-sigpipe` (stesso ramo, su richiesta del Coordinatore dopo il punto 5.1 del validatore). Nulla lanciato, nessuna PR.
+**Cosa:** `smoke-produzione.sh`: POST con firma sbagliata → 401 ok, **500 = AVVISO** (non fallisce), altri codici fallimento; nuova `p_funz_post_nofirma` (401 atteso, tutto il resto fallito). Letto `authenticate.ts`/`githubWebhook.ts`: senza firma 401 prima di Secret Manager (la funzione vecchia in produzione invece legge prima il segreto).
+**Test:** nuovo `prova-smoke.sh` (14 casi con curl finto): 6 falliti sulla versione precedente, 14/14 dopo. `prova-promozione.sh` 61/61, `prova-script-gcloud.sh` 6/6, shellcheck e `bash -n` puliti.
+**Non provato:** funzione e Secret Manager reali, CI.
