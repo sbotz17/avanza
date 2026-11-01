@@ -24,7 +24,6 @@ Aggiornare a ogni nuovo oggetto o modifica significativa.
 | `TaskCard` | `lib/widgets/task_card.dart` | [T-21] Card compatta per un task nella lista/kanban, con data e ora di creazione e ultimo aggiornamento | `kanban_board.dart`, `test/task_date_request_test.dart` |
 | `MetaLine` | `lib/widgets/meta_line.dart` | [T-21] Riga icona + testo per le date sotto il titolo del task (un solo componente per elenco e dettaglio) | `task_card.dart`, `task_detail_page.dart` |
 | `TaskRequestCard` | `lib/widgets/task_request_card.dart` | [T-21] Riquadro della richiesta originale del task: testo sempre visibile (o "Nessuna richiesta registrata") e data di ricezione | `task_detail_page.dart`, `test/task_date_request_test.dart` |
-| `CostRateNotice` | `lib/widgets/cost_rate_notice.dart` | [T-23] Avviso nella pagina Costi quando uno o più operatori hanno il costo orario a 0: la spesa per operatore e il margine non sono valorizzati | `time_report.dart`, `test/cost_rate_notice_test.dart` |
 | `PhaseRow` | `lib/widgets/phase_row.dart` | Riga singola fase di un task | `task_detail_page.dart`, `edit_task_page.dart` |
 | `ProgressBar` | `lib/widgets/progress_bar.dart` | Barra di avanzamento percentuale | `task_card.dart`, `task_detail_page.dart` |
 | `StatusPill` | `lib/widgets/status_pill.dart` | Pillola colorata per lo status del task | `task_card.dart`, `task_detail_page.dart` |
@@ -44,7 +43,6 @@ Aggiornare a ogni nuovo oggetto o modifica significativa.
 | `EditTaskPage` | `lib/pages/admin/edit_task_page.dart` | Form creazione/modifica task | `project_page.dart` |
 | `EditProjectPage` | `lib/pages/admin/edit_project_page.dart` | Form creazione/modifica progetto | `home_page.dart` |
 | `CostsPage` | `lib/pages/admin/costs_page.dart` | Riepilogo costi e ore per progetto | `app.dart` |
-| `TimeReportSection` | `lib/pages/admin/time_report.dart` | [T-23] Registro ore, costo reale, fatturato, margine e produttività per membro; avviso quando il costo orario è a 0 e testo "costo non impostato" nella riga del membro | `costs_page.dart` |
 | `TeamPage`, `TeamMembersView`, `MissingCostNotice`, `MemberDialog` | `lib/pages/admin/team_page.dart` | [T-19] Squadra: lista dei membri (aiuto se vuota, avviso se ci sono costi a 0) e dialogo Nuovo/Modifica membro con menu a tendina Ruolo (ruoli standard + "Altro…" con testo libero) | `app.dart`, `test/team_page_test.dart` |
 | `LoginPage` | `lib/pages/login_page.dart` | Login con email/password | `app.dart` |
 | `ClientAccessPage` | `lib/pages/client_access_page.dart` | Accesso cliente via token | `app.dart` |
