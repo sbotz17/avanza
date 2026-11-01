@@ -348,7 +348,7 @@ class _MemberRow extends StatelessWidget {
           const SizedBox(height: 6),
           Text(
             '${stat.hours.toStringAsFixed(1)}h · '
-            'costo ${costMissing ?? eur.format(stat.cost)} · '
+            '${costMissing ?? 'costo ${eur.format(stat.cost)}'} · '
             'fatturato ${eur.format(stat.billed)} · '
             'produttività ${p == null ? 'n.d.' : '${(p * 100).toStringAsFixed(0)}%'}',
             style: TextStyle(fontSize: 12, color: fg2),
