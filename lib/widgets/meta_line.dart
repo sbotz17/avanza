@@ -28,9 +28,13 @@ class MetaLine extends StatelessWidget {
       children: [
         Icon(icon, size: iconSize, color: effectiveColor),
         const SizedBox(width: 4),
-        Text(
-          text,
-          style: TextStyle(fontSize: fontSize, color: effectiveColor),
+        Flexible(
+          child: Text(
+            text,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(fontSize: fontSize, color: effectiveColor),
+          ),
         ),
       ],
     );

@@ -256,3 +256,11 @@ Con l'azione `crea-progetto` (backup verificato prima di ogni scrittura) sono na
 **File:** `lib/widgets/cost_rate_notice.dart` (nuovo), `lib/core/cost_summary.dart` (nuovo), `lib/pages/admin/time_report.dart`, `lib/pages/admin/team_page.dart` (l'avviso storico ora delega a `CostRateNotice`), `lib/widgets/team_member_tile.dart` (regola unica), `test/cost_rate_notice_test.dart` (nuovo), `docs/progetto/catalogo.md`.
 **Test:** `flutter test test/cost_rate_notice_test.dart` 8/8 verdi (widget + logica di selezione e testo del costo); suite completa verde; `flutter analyze` solo i 6 info già presenti. Dopo la verifica del tester indipendente, la logica è stata estratta in `lib/core/cost_summary.dart` per poterla provare senza Firestore.
 **Non provato:** browser; i valori reali delle tariffe restano da impostare (decisione di Andrea).
+
+## 2026-11-01 — T-24: date nel kanban e avanzamento dei task in corso
+**Ramo:** `feature/T-24-kanban-date-avanzamento` (da `origin/staging`). Task in Avanza: **T-24** (segnalazione di Andrea: «data e ora dei task non li vedo e poi ci sono dei task che sono in corso ma la barra di avanzamento è 0%»).
+**Cause:** (1) la vista kanban usava una card separata che non mostrava le date (la vista elenco sì); (2) `Task.pct` contava solo le fasi `done`, quindi un task `active` senza fasi concluse valeva 0%.
+**Correzione:** date compatte (`Creato gg/mm hh:mm` / `Agg. gg/mm hh:mm`) anche nella card kanban, con `MetaLine` reso restringibile; `Task.pct` conta una fase `active` come mezza fase e, se il task è `active` senza fasi in corso, considera in corso la prima fase da fare. Aggiornato il test dello stato in chat (1 done + 1 active + 1 pending = 50%).
+**File:** `lib/models/task.dart`, `lib/widgets/kanban_board.dart`, `lib/widgets/meta_line.dart`, `lib/core/date_format.dart`, `test/task_progress_kanban_test.dart` (nuovo), `test/chat_message_test.dart`, `docs/progetto/{catalogo,task}.md`.
+**Test:** nuovo file 6/6; suite completa 112/112; `flutter analyze` solo i 6 info già presenti; build web riuscita.
+**Non provato:** browser reale (le date erano già state provate nell'elenco e nel dettaglio; per il kanban resta la prova dei widget).
