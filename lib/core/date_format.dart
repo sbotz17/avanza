@@ -7,6 +7,7 @@ import 'package:intl/intl.dart';
 class AppDate {
   static final DateFormat _dateTime = DateFormat('dd/MM/yyyy HH:mm');
   static final DateFormat _date = DateFormat('dd/MM/yyyy');
+  static final DateFormat _shortDateTime = DateFormat('dd/MM HH:mm');
 
   /// Data e ora complete (dd/MM/yyyy HH:mm) oppure "data non disponibile".
   static String dateTime(DateTime value) =>
@@ -15,4 +16,8 @@ class AppDate {
   /// Solo la data (dd/MM/yyyy) oppure "data non disponibile".
   static String date(DateTime value) =>
       value.year < 2000 ? 'data non disponibile' : _date.format(value);
+
+  /// Forma compatta per le card strette (kanban): dd/MM HH:mm.
+  static String shortDateTime(DateTime value) =>
+      value.year < 2000 ? 'data non disp.' : _shortDateTime.format(value);
 }
