@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 import '../core/constants.dart';
 import '../models/chat_message.dart';
 import '../models/task.dart';
+import '../core/date_format.dart';
 import '../services/firestore_service.dart';
 import 'empty_state.dart';
 
@@ -30,7 +31,7 @@ List<(String, String)> taskStatusSummary(Task task, {int maxNotes = 3}) {
     ),
     if (active.isNotEmpty) ('Fase in corso', active.join(', ')),
     if (blocked.isNotEmpty) ('Fase bloccata', blocked.join(', ')),
-    ('Ultimo aggiornamento', DateFormat('dd/MM/yyyy HH:mm').format(task.updatedAt)),
+    ('Ultimo aggiornamento', AppDate.dateTime(task.updatedAt)),
     if (task.githubBranch != null && task.githubBranch!.isNotEmpty)
       ('Ramo GitHub', task.githubBranch!),
     if (task.githubPrNumber != null) ('Pull request', '#${task.githubPrNumber}'),

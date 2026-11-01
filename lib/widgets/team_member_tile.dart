@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../core/constants.dart';
 import '../models/team_member.dart';
+import '../core/cost_summary.dart';
 
 /// Testo del ruolo da mostrare: prima lettera maiuscola ("sviluppatore backend"
 /// -> "Sviluppatore backend"). Solo per la visualizzazione: il valore salvato
@@ -14,7 +15,7 @@ String memberRoleLabel(String role) {
 
 /// Il costo orario interno è "non impostato" quando vale 0 (valore di
 /// partenza dei membri creati dagli script o con il campo lasciato vuoto).
-bool memberCostNotSet(TeamMember m) => m.costRate <= 0;
+bool memberCostNotSet(TeamMember m) => memberCostMissing(m);
 
 /// Riga di un membro nella pagina Squadra: nome, tipo e ruolo ben visibili,
 /// costo e vendita orari sulla stessa riga; avviso quando il costo è 0.
