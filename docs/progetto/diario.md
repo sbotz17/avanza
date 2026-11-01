@@ -231,3 +231,10 @@ D1 creazione solo dalla GitHub App + coerenza del proprietario (`eventProcessor.
 **Cosa:** `smoke-produzione.sh`: POST con firma sbagliata → 401 ok, **500 = AVVISO** (non fallisce), altri codici fallimento; nuova `p_funz_post_nofirma` (401 atteso, tutto il resto fallito). Letto `authenticate.ts`/`githubWebhook.ts`: senza firma 401 prima di Secret Manager (la funzione vecchia in produzione invece legge prima il segreto).
 **Test:** nuovo `prova-smoke.sh` (14 casi con curl finto): 6 falliti sulla versione precedente, 14/14 dopo. `prova-promozione.sh` 61/61, `prova-script-gcloud.sh` 6/6, shellcheck e `bash -n` puliti.
 **Non provato:** funzione e Secret Manager reali, CI.
+
+## 2026-11-01 — T-22: webhook di Volty e Commerciali ripristinati; creazione automatica ancora bloccata
+**Ramo:** `feature/T-22-collegamento-github` (solo documentazione). Task in Avanza: **T-22**.
+**Verifiche:** `collegamento-stato` dice creazione automatica spenta e 1 repository noto; `stato` elenca 3 progetti e 24 membri; `gh api .../hooks` mostrava il webhook solo su `avanza`, nessuno su `volty-flutter` e `commerciali`.
+**Fatto:** aggiunti i webhook storici `push`, `pull_request`, `pull_request_review` a `volty-flutter` (706135402) e `commerciali` (706135407) verso `https://us-central1-avanza-b62d7.cloudfunctions.net/githubWebhook`, con il segreto letto da Secret Manager tramite la sessione `firebase` già autenticata (mai stampato). Consegna `ping` 200; ramo di prova `test/T-44-prova-webhook-20261101` su Volty → consegna **200**, ramo eliminato.
+**Non fatto (decisione in sospeso):** accensione della creazione automatica: manca la GitHub App e il segreto `GITHUB_APP_WEBHOOK_SECRET` (verificato assente in Secret Manager); il browser della sessione non è autenticato su GitHub. I repository senza progetto (`fantafriend`, `fantami`, `campionato-broccoli`, `squadraalphalab`) restano da decidere.
+**Non provato:** lettura della nota aggiornata nell'app (servono credenziali); log della funzione (`firebase functions:log` non raggiungibile da questa sessione).
