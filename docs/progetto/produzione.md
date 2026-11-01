@@ -84,3 +84,10 @@ Il rilascio la esegue in gran parte la CI (`rilascio-produzione.yml`); il guardi
 **Cloud Functions**: versioni precedenti visibili su Google Cloud Console → Cloud Functions → seleziona funzione → "Revisioni".
 
 **Dati Firestore**: nessuna migrazione eseguita finora. Le scritture della Cloud Function sono solo additive (aggiunge note e aggiorna campi nullable).
+
+## Registro operazioni — 29/10/2026
+- **Pre-volo**: GO del `guardiano-produzione` su `3f9f025` (docs/progetto/test/guardiano-go-2026-10-29.md). Tag di ritorno creati da Andrea su `4e66a0e`.
+- **Backup**: serie di backup su `avanza-backup-b62d7`: 29/10 prima di `importa-task` (T-20), backup giornaliero del 29/10 (run 40796070108 e 40798343003, con prova di ripristino su copia IDENTICO), backup + prova IDENTICO dentro il rilascio (run 40827011960), backup di Setup Firestore (run 40828038880).
+- **Operazioni**: rilascio run 40827011960 (sito `avanza-b62d7`, funzione `githubWebhook`) riuscito; Setup Firestore: pubblicate regole (aggiunta sola `tasks/{id}/chat`) e indici (invariati). Task registrato: T-20 (importa-task).
+- **Esito post-volo**: OK per quanto verificabile da CI e API (smoke test, impronta dopo = backup, Verifica sito, E2E Webhook). NON verificato: prova nel browser con account reale; testo dei log.
+- **Stato dati**: nessuna cancellazione, nessuna modifica distruttiva. La funzione nuova scrive in modo additivo (`githubRepoId`, `githubRepos`, `githubUrlPrecedente`); la creazione automatica di progetti è **spenta**.

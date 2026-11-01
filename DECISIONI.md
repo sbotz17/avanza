@@ -66,3 +66,83 @@ non chiude un'area senza evidenza. Tester e validatore sono due sessioni distint
 sviluppato. Il gate tecnico non è ancora attivo in tutti i progetti: finché non lo è, il controllo è
 manuale e annotato, e il deploy resta vietato con aree non `PROVATA`. Se un guasto arriva ad Andrea, la squadra lo riconosce subito, corregge
 la causa e aggiunge il test che lo avrebbe fermato.
+
+## 2026-10-29 — La squadra non si ferma mai
+
+**Decisione di Andrea** (chat del 29/10/2026): «mettilo nelle regole della squadra» e «la squadra non si deve mai fermare».
+Una sessione non può chiudere il lavoro annunciando un passo («proseguo con…», «lo faccio ora») e poi
+fermarsi: ciò che si annuncia si esegue, oppure si mette in coda con motivo, codice del task e chi lo sblocca.
+
+**Effetto**
+- Durante le attese esterne (CI, deploy, servizi, documenti) si prosegue su altro lavoro utile e si riprende
+  il passo appena è possibile; non si chiede ad Andrea di riavviare la sessione.
+- Prima di chiudere una risposta si rilegge ciò che è stato annunciato: niente resta annunciato e non fatto.
+- Restano fermi solo i lavori dipendenti da un blocco di Andrea (`BLOCCO-SQUADRA.md` / `BLOCCO_SQUADRA`), da
+  una decisione riservata, da un segreto o accesso che solo Andrea può fornire, o dalla cancellazione dei dati
+  di produzione. Tutto il resto prosegue.
+
+**Propagazione**: il workflow `sync-squad-rules.yml` fonde `CLAUDE.md` nei blocchi `SQUADRA-AGENTI` dei progetti
+(`AGENTS.md`, o `CLAUDE.md` se manca) e copia `DECISIONI.md` e le skill `squadra-*`; ogni progetto allinea anche
+il proprio `CLAUDE.md`.
+
+**Seconda lettura indipendente**: sessione separata da chi scrive, prima del merge; esito annotato nel
+registro del progetto che ha aperto il lavoro.
+
+## 2026-10-30 — Costi dei modelli: DeepSeek a pagamento solo per lo sviluppo
+
+**Decisione di Andrea** (chat del 30/10/2026): consumare meno crediti DeepSeek usando il modello a pagamento
+solo per lo sviluppo; test, analisi e controlli su modelli gratuiti performanti. Su richiesta successiva,
+**il validatore resta l'unico controllo sempre a pagamento**.
+
+**Numeri misurati a mano** sul database locale di OpenCode (sessioni degli ultimi 30 giorni; non sono
+riproducibili dal repository): tester 23 sessioni = 0,30 $ (1,3 centesimi l'una),
+analista 8 = 0,08 $, validatore `v4-pro#high` 28 = 1,12 $ (4 centesimi), sviluppatore-backend 38 = 2,29 $;
+la **sessione interattiva principale** 12 sessioni = 10,84 $ (90 centesimi l'una, il 65% della spesa, con
+194 milioni di token di cache riletta per sessione).
+
+**Effetto**
+- Modello predefinito delle sessioni: `opencode/deepseek-v4.1-flash-free` (gratuito).
+- Agenti gratuiti: `coordinatore`, `analista`, `designer-frontend`, `tester` (`#high`); `gestore-ritorni`,
+  `redattore-manuale`, `marketing` (`#low`).
+- Agenti a pagamento: `sviluppatore-backend`, `risolutore-bug`, `architetto`, `dba`, `revisore-sicurezza`,
+  `guardiano-produzione`, **`validatore`** su `deepseek/deepseek-v4-pro#high`; `sviluppatore-frontend` su
+  `deepseek/deepseek-flash#high`.
+- `deepseek/deepseek-flash#low` non è mai il predefinito: il risparmio rispetto a `#high` è di ~0,2 centesimi
+  a sessione, il calo di ragionamento no.
+- Ripiego: se il modello gratuito è occupato o in limite, `~/.config/opencode/scripts/modello-agenti.sh
+  ripiego` porta gli agenti gratuiti su `deepseek/deepseek-flash#high`; `gratis` li riporta indietro; `stato`
+  elenca i modelli e avvisa se un agente a pagamento finisce su un gratuito. Lo script è globale della
+  macchina (non versionato): la regola è il criterio, le righe `model:` stanno nella configurazione locale
+  degli agenti.
+- La chiave DeepSeek vive in `~/.config/opencode/deepseek.key` (permessi 600) e la configurazione la legge con
+  `{file:...}`: non si scrive nei file di configurazione né nel repository.
+- Leva sui costi: sessioni interattive più corte (`/new` quando si cambia argomento).
+- Se un modello gratuito dà esiti incoerenti in un audit o in una validazione, quell'agente torna a pagamento
+  prima di chiudere l'area.
+
+**Prove fatte**: i modelli gratuiti rispondono e usano gli strumenti (provato su `deepseek-v4.1-flash-free`
+`#high`, `glm-5.3-flash-free`, `mimo-v2.6-flash-free`); l'agente `tester` parte con il modello gratuito;
+l'agente `validatore` parte con `deepseek-v4-pro`; DeepSeek a pagamento risponde ancora con la chiave da file;
+il giro completo `ripiego` → `gratis` dello script lascia invariati gli agenti a pagamento.
+
+## 2026-10-30 — Lo strumento dei modelli arriva in ogni progetto
+
+**Perché**: la regola del 30/10/2026 citava uno strumento (`modello-agenti.sh`) che esisteva solo sulla
+macchina di chi l'aveva scritto; negli altri progetti il comando non c'era. Segnalato dalla seconda lettura
+indipendente della PR #6.
+
+**Effetto**
+- Il file `scripts/modello-agenti.sh` sta in questo repository e `sync-squad-rules.yml` lo copia in
+  `scripts/` di ogni progetto a ogni sincronizzazione, come le skill: file unico, mai personalizzato.
+- Funziona da qualunque cartella del progetto (cerca `.opencode/agents` accanto allo script e poi nella
+  cartella corrente); se un progetto non ha agenti OpenCode, esce con un messaggio chiaro senza toccare nulla.
+- `stato` elenca i modelli e avvisa se un agente che deve restare a pagamento finisce su un modello gratuito;
+  `gratis` e `ripiego` cambiano **solo** gli agenti di test e controllo.
+- La regola in `CLAUDE.md` ora dice il percorso nel progetto, con la copia globale
+  `~/.config/opencode/scripts/modello-agenti.sh` come riserva.
+- L'eccezione al divieto di push diretto del workflow di sincronizzazione comprende ora anche questo
+  strumento: resta escluso tutto il resto (codice, dati, configurazioni).
+
+**Prove richieste prima del merge**: `bash -n` e `controlla-riassunto.py` verdi; esecuzione reale di
+`stato` da una copia del progetto; verifica dopo il merge che almeno un progetto abbia ricevuto il file e
+che il comando funzioni lì.

@@ -44,7 +44,24 @@ operativa: la cancellazione dei dati di produzione, che la squadra prepara ma no
 Regole, CI, hook e zone protette le aggiorna la squadra con **seconda lettura indipendente** (sessione
 diversa da chi scrive) e voce nel registro; non si indeboliscono né disattivano i controlli. Non si toccano
 il meccanismo di blocco (`BLOCCO-SQUADRA`, `blocco-squadra.py`, hook che lo applicano), i segreti e le
-credenziali di produzione. Le decisioni sulla squadra stanno in `DECISIONI.md`.
+credenziali di produzione. Le decisioni sulla squadra stanno in `DECISIONI.md`. Il riassunto semplice di
+tutte le regole è `REGOLE-IN-BREVE.md`: si aggiorna a ogni cambio di regola, nello stesso giro.
+
+## La squadra non si ferma mai (decisione di Andrea, 29/10/2026)
+
+**Decisione di Andrea** (chat del 29/10/2026): «la squadra non si deve mai fermare». Nessuna sessione chiude
+il lavoro annunciando un passo senza eseguirlo («lo faccio dopo», «il turno è finito», «proseguo con…» e poi
+silenzio): ciò che si annuncia si esegue nello stesso giro, oppure si mette in coda con motivo, codice del
+task e chi lo sblocca.
+
+- Se un passo dipende da un'attesa esterna (CI, deploy, servizio, documenti), la sessione **prosegue su
+  altro lavoro utile** e riprende il passo appena è possibile: non chiede ad Andrea di riavviarla.
+- Prima di chiudere una risposta la sessione rilegge ciò che ha annunciato: niente deve restare annunciato e
+  non fatto. Se ha finito, elenca ciò che resta e chi lo sblocca — e intanto cerca altro lavoro utile.
+- Restano fermi solo i lavori che dipendono da un blocco di Andrea (`BLOCCO-SQUADRA.md` /
+  `BLOCCO_SQUADRA`), da una decisione riservata, da un segreto o accesso che solo Andrea può fornire, dalla
+  cancellazione di dati di produzione, o dal caso «Quando fermarsi e valutare insieme» (errore scoperto,
+  passaggio saltato, incertezza sul proprio lavoro o su un esito). Tutto il resto prosegue.
 
 ## Limiti invalicabili
 
@@ -117,7 +134,8 @@ Un task = un obiettivo verificabile, di norma un file, una schermata o un serviz
 - Mai push diretto su `main` o ramo di produzione; si passa da PR e controlli.
 - Le PR le apre e le unisce il coordinatore dopo i gate; Andrea non deve unire né pubblicare nulla.
 - Unica eccezione al push diretto: il workflow di sincronizzazione delle regole aggiorna solo i file di
-  regole (`CLAUDE.md`/`AGENTS.md` e skill), mai codice, dati o configurazioni.
+  regole (`CLAUDE.md`/`AGENTS.md`, `DECISIONI.md`, `REGOLE-IN-BREVE.md`, le skill e lo strumento
+  `scripts/modello-agenti.sh`), mai il codice applicativo dei progetti, i dati o le configurazioni.
 - Verificare sempre `pwd` e `git remote -v` prima di modificare o pubblicare.
 
 ## Staging è un ambiente di rilascio
@@ -189,6 +207,32 @@ sbagliato.**
 - Aggiorna il nodo di memoria dell'area e `docs/progetto/task.md`.
 - Audit a basso consumo: un tester/validatore per ondata, test una volta per blocco, output riassunto,
   screenshot solo sui fallimenti, massimo 2 tentativi per area.
+
+## Costi dei modelli (decisione di Andrea, 30/10/2026)
+
+DeepSeek a pagamento **solo dove serve ragionare**; il resto su modelli gratuiti.
+
+- **A pagamento**: `sviluppatore-backend`, `risolutore-bug`, `architetto`, `dba`, `revisore-sicurezza`,
+  `guardiano-produzione` su `deepseek/deepseek-v4-pro#high`; `sviluppatore-frontend` su
+  `deepseek/deepseek-flash#high`.
+- **Il `validatore` resta sempre a pagamento** (`deepseek/deepseek-v4-pro#high`): richiesta esplicita di
+  Andrea, unica eccezione al criterio «test e controlli gratis». Non va riportato su un modello gratuito.
+- **Gratuiti** (`opencode/deepseek-v4.1-flash-free`, `#high` per coordinatore, analista, designer-frontend,
+  tester; `#low` per gestore-ritorni, redattore-manuale, marketing) e modello predefinito delle sessioni.
+- `deepseek/deepseek-flash#low` **non è mai il modello predefinito**: costa quasi come `#high` (~0,2
+  centesimi di differenza a sessione) e ragiona meno.
+- Lo strumento è `scripts/modello-agenti.sh` in ogni progetto: lo copia la sincronizzazione delle regole e
+  non si personalizza per progetto (copia globale di riserva: `~/.config/opencode/scripts/modello-agenti.sh`).
+  Se non è disponibile, si cambia a mano la riga `model:` del file dell'agente.
+- Se il modello gratuito è occupato o in limite d'uso: `./scripts/modello-agenti.sh ripiego`
+  (`deepseek/deepseek-flash#high`) e, quando torna disponibile, `./scripts/modello-agenti.sh gratis`.
+  `./scripts/modello-agenti.sh stato` elenca i modelli e avvisa se un agente che deve restare a pagamento
+  finisce su un gratuito.
+- La spesa vera sono le sessioni interattive lunghe: `/new` quando si cambia argomento.
+- Numeri e motivi: `DECISIONI.md`, voce 30/10/2026.
+- **Limite noto**: qui ci sono il criterio e lo strumento, non l'impostazione tecnica. Le righe `model:`
+  vivono nella configurazione locale degli agenti (`.opencode/agents/`, non versionata): lo script allinea
+  gli agenti presenti sulla macchina dove viene eseguito, quindi va lanciato nel progetto in cui si lavora.
 
 ## Skill operative
 

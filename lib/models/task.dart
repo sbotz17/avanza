@@ -79,10 +79,18 @@ class Task {
     required this.updatedAt,
   });
 
-  factory Task.fromFirestore(DocumentSnapshot doc, String projectId) {
-    final d = doc.data() as Map<String, dynamic>;
+  factory Task.fromFirestore(DocumentSnapshot doc, String projectId) =>
+      Task.fromMap(doc.data() as Map<String, dynamic>, doc.id, projectId);
+
+  /// Costruzione da una mappa Firestore, separata dallo snapshot per poterla
+  /// provare senza Firebase (in particolare la sentinella per le date mancanti).
+  factory Task.fromMap(
+    Map<String, dynamic> d,
+    String id,
+    String projectId,
+  ) {
     return Task(
-      id: doc.id,
+      id: id,
       projectId: projectId,
       title: d['title'] as String? ?? '',
       description: d['description'] as String? ?? '',
@@ -99,8 +107,13 @@ class Task {
       taskNumber: (d['taskNumber'] as int?) ?? 0,
       githubBranch: d['githubBranch'] as String?,
       githubPrNumber: d['githubPrNumber'] as int?,
-      createdAt: (d['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
-      updatedAt: (d['updatedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      // I task creati prima dell'introduzione del campo non hanno la data: si
+      // usa una sentinella (1970) e l'interfaccia scrive "data non disponibile"
+      // invece di mostrare l'ora di apertura della pagina.
+      createdAt: (d['createdAt'] as Timestamp?)?.toDate() ??
+          DateTime.fromMillisecondsSinceEpoch(0),
+      updatedAt: (d['updatedAt'] as Timestamp?)?.toDate() ??
+          DateTime.fromMillisecondsSinceEpoch(0),
     );
   }
 

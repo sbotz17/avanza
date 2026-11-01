@@ -231,3 +231,28 @@ D1 creazione solo dalla GitHub App + coerenza del proprietario (`eventProcessor.
 **Cosa:** `smoke-produzione.sh`: POST con firma sbagliata → 401 ok, **500 = AVVISO** (non fallisce), altri codici fallimento; nuova `p_funz_post_nofirma` (401 atteso, tutto il resto fallito). Letto `authenticate.ts`/`githubWebhook.ts`: senza firma 401 prima di Secret Manager (la funzione vecchia in produzione invece legge prima il segreto).
 **Test:** nuovo `prova-smoke.sh` (14 casi con curl finto): 6 falliti sulla versione precedente, 14/14 dopo. `prova-promozione.sh` 61/61, `prova-script-gcloud.sh` 6/6, shellcheck e `bash -n` puliti.
 **Non provato:** funzione e Secret Manager reali, CI.
+
+## 2026-11-01 — T-22: webhook di Volty e Commerciali ripristinati; creazione automatica ancora bloccata
+**Ramo:** `feature/T-22-collegamento-github` (solo documentazione). Task in Avanza: **T-22**.
+**Verifiche:** `collegamento-stato` dice creazione automatica spenta e 1 repository noto; `stato` elenca 3 progetti e 24 membri; `gh api .../hooks` mostrava il webhook solo su `avanza`, nessuno su `volty-flutter` e `commerciali`.
+**Fatto:** aggiunti i webhook storici `push`, `pull_request`, `pull_request_review` a `volty-flutter` (706135402) e `commerciali` (706135407) verso `https://us-central1-avanza-b62d7.cloudfunctions.net/githubWebhook`, con il segreto letto da Secret Manager tramite la sessione `firebase` già autenticata (mai stampato). Consegna `ping` 200; ramo di prova `test/T-44-prova-webhook-20261101` su Volty → consegna **200**, ramo eliminato.
+**Non fatto (decisione in sospeso):** accensione della creazione automatica: manca la GitHub App e il segreto `GITHUB_APP_WEBHOOK_SECRET` (verificato assente in Secret Manager); il browser della sessione non è autenticato su GitHub. I repository senza progetto (`fantafriend`, `fantami`, `campionato-broccoli`, `squadraalphalab`) restano da decidere.
+**Non provato:** lettura della nota aggiornata nell'app (servono credenziali); log della funzione (`firebase functions:log` non raggiungibile da questa sessione).
+
+### Aggiornamento T-22 (stesso giorno): caricati i progetti mancanti
+Con l'azione `crea-progetto` (backup verificato prima di ogni scrittura) sono nati **Fantafriend**, **Fantami**, **Campionato Broccoli** e **Squadra Alpha Lab**: prima erano repository senza progetto, ora i progetti sono 7 e appartengono tutti ad Andrea. Codici cliente: FH3ZCL, ANWH7R, 4W3W6A, 9KTXT2. Non ho creato task per questi progetti: la funzione non li crea da sola per scelta di prodotto.
+
+## 2026-11-01 — T-21: data/ora e richiesta originale visibili nel task
+**Ramo:** `feature/T-21-data-ora-richiesta-task` (da `origin/staging`). Task in Avanza: **T-21** (richiesta di Andrea dell'1/11: «il task non ha data e orario e non si capisce a quale richiesta fa riferimento nel dettaglio»).
+**Cosa:** `TaskCard` e `TaskDetailPage` mostrano "Creato il …" e "Aggiornato il …" con data e ora (`dd/MM/yyyy HH:mm`). Nel dettaglio la sezione diventa "RICHIESTA ORIGINALE", sempre visibile: testo della richiesta oppure "Nessuna richiesta registrata per questo task", con data di ricezione e codice `T-N`. I task vecchi senza `createdAt`/`updatedAt` non mostrano l'ora di apertura della pagina: `AppDate` scrive "data non disponibile".
+**File:** `lib/core/date_format.dart` (nuovo), `lib/widgets/task_request_card.dart` (nuovo), `lib/widgets/task_card.dart`, `lib/pages/task_detail_page.dart`, `lib/models/task.dart`, `test/task_date_request_test.dart` (nuovo), `docs/progetto/catalogo.md`.
+**Test:** `flutter test test/task_date_request_test.dart` 8/8 verdi (inclusi due test su `Task.fromMap`: date mancanti → sentinella 1970, date presenti lette da Firestore); `flutter test` verde; `flutter analyze` solo i 6 info già presenti. Il tester indipendente ha rilevato una duplicazione (`_MetaLine` in due file) e una lacuna di copertura sul modello: corretti con il widget condiviso `MetaLine` e con `Task.fromMap` + test dedicati.
+**Non provato:** browser e Firestore reali.
+
+## 2026-11-01 — T-23: avviso quando le spese per operatore non sono valorizzate
+**Ramo:** `feature/T-23-costi-operatore` (da `origin/staging`). Task in Avanza: **T-23** (richiesta di Andrea dell'1/11: «le spese per operatore della squadra non vengono valorizzate»).
+**Causa:** tutti i 24 membri hanno `costRate = 0` (verificato con l'azione di sola lettura `stato`): il report calcola costo = ore × tariffa, quindi costo e margine valgono zero. Le tariffe interne sono una decisione di Andrea (soldi): la squadra non le inventa.
+**Cosa:** nella sezione "Registro ore e produttività" compare un avviso con l'elenco degli operatori attivi a costo 0; la riga del membro scrive "costo non impostato (tariffa 0)" invece di € 0,00. La pagina Squadra aveva già l'avviso sui costi a 0 (`MissingCostNotice`).
+**File:** `lib/widgets/cost_rate_notice.dart` (nuovo), `lib/core/cost_summary.dart` (nuovo), `lib/pages/admin/time_report.dart`, `lib/pages/admin/team_page.dart` (l'avviso storico ora delega a `CostRateNotice`), `lib/widgets/team_member_tile.dart` (regola unica), `test/cost_rate_notice_test.dart` (nuovo), `docs/progetto/catalogo.md`.
+**Test:** `flutter test test/cost_rate_notice_test.dart` 8/8 verdi (widget + logica di selezione e testo del costo); suite completa verde; `flutter analyze` solo i 6 info già presenti. Dopo la verifica del tester indipendente, la logica è stata estratta in `lib/core/cost_summary.dart` per poterla provare senza Firestore.
+**Non provato:** browser; i valori reali delle tariffe restano da impostare (decisione di Andrea).
