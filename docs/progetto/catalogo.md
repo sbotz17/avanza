@@ -21,7 +21,9 @@ Aggiornare a ogni nuovo oggetto o modifica significativa.
 |------|----------|-------|----------|
 | `TaskCodeBadge` | `lib/widgets/task_code_badge.dart` | Badge compatto che mostra il codice univoco di un task (es. "T-3"); si nasconde se vuoto | `task_card.dart`, `kanban_board.dart`, `edit_task_page.dart`, `task_detail_page.dart` |
 | `KanbanBoard` | `lib/widgets/kanban_board.dart` | Board kanban con colonne per status | `project_page.dart` |
-| `TaskCard` | `lib/widgets/task_card.dart` | Card compatta per un task nella lista/kanban | `kanban_board.dart` |
+| `TaskCard` | `lib/widgets/task_card.dart` | [T-21] Card compatta per un task nella lista/kanban, con data e ora di creazione e ultimo aggiornamento | `kanban_board.dart`, `test/task_date_request_test.dart` |
+| `MetaLine` | `lib/widgets/meta_line.dart` | [T-21] Riga icona + testo per le date sotto il titolo del task (un solo componente per elenco e dettaglio) | `task_card.dart`, `task_detail_page.dart` |
+| `TaskRequestCard` | `lib/widgets/task_request_card.dart` | [T-21] Riquadro della richiesta originale del task: testo sempre visibile (o "Nessuna richiesta registrata") e data di ricezione | `task_detail_page.dart`, `test/task_date_request_test.dart` |
 | `PhaseRow` | `lib/widgets/phase_row.dart` | Riga singola fase di un task | `task_detail_page.dart`, `edit_task_page.dart` |
 | `ProgressBar` | `lib/widgets/progress_bar.dart` | Barra di avanzamento percentuale | `task_card.dart`, `task_detail_page.dart` |
 | `StatusPill` | `lib/widgets/status_pill.dart` | Pillola colorata per lo status del task | `task_card.dart`, `task_detail_page.dart` |
@@ -38,7 +40,7 @@ Aggiornare a ogni nuovo oggetto o modifica significativa.
 |------|----------|-------|----------|
 | `HomePage` | `lib/pages/home_page.dart` | Lista dei progetti | `app.dart` |
 | `ProjectPage` | `lib/pages/project_page.dart` | Dettaglio progetto con kanban | `app.dart` |
-| `TaskDetailPage` | `lib/pages/task_detail_page.dart` | Dettaglio task (sola lettura cliente) | `app.dart` |
+| `TaskDetailPage` | `lib/pages/task_detail_page.dart` | Dettaglio task (sola lettura cliente); [T-21] mostra data/ora di creazione e aggiornamento e la richiesta originale | `app.dart` |
 | `EditTaskPage` | `lib/pages/admin/edit_task_page.dart` | Form creazione/modifica task | `project_page.dart` |
 | `EditProjectPage` | `lib/pages/admin/edit_project_page.dart` | Form creazione/modifica progetto | `home_page.dart` |
 | `CostsPage` | `lib/pages/admin/costs_page.dart` | Riepilogo costi e ore per progetto | `app.dart` |
@@ -69,6 +71,7 @@ Aggiornare a ogni nuovo oggetto o modifica significativa.
 | `AppConstants` | `lib/core/constants.dart` | Costanti applicative (statusOrder, colori status, ecc.; [T-12] `kCompletedStatuses`, `kChatMaxLength`) | Widget, pagine |
 | `memberCostMissing`, `missingCostMemberNames`, `memberCostNotSetLabel` | `lib/core/cost_summary.dart` | [T-23] Regola unica "costo orario non impostato" (`costRate <= 0`), elenco dei membri attivi senza costo e testo "costo non impostato (tariffa 0)" | `time_report.dart`, `team_member_tile.dart`, `test/cost_rate_notice_test.dart` |
 | `kMemberRoles` | `lib/core/constants.dart` | [T-19] Elenco dei 13 ruoli standard della squadra (valori minuscoli salvati in `teamMembers.role`) per il menu Ruolo | `team_page.dart`, `test/team_page_test.dart` |
+| `AppDate` | `lib/core/date_format.dart` | [T-21] Formattazione unica di date e orari (`dd/MM/yyyy HH:mm`), con "data non disponibile" per i task vecchi senza data | `task_card.dart`, `task_request_card.dart`, `task_detail_page.dart`, `test/task_date_request_test.dart` |
 
 ---
 

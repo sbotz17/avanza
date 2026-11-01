@@ -12,6 +12,7 @@ Stato rapido: `LEGGI-PRIMA.md` · Decisioni: `registro-decisioni.md` · Rilasci:
 | Collegamento GitHub (webhook, App, progetti automatici) | `functions/src/githubWebhook.ts`, `functions/src/lib/` | `memoria/collegamento-github.md` | `requisiti-collegamento.md`, `docs/*-integrazione-github.md` |
 | Rilascio e promozione | `.github/workflows/{rilascio-produzione,promozione,ci,deploy,controlli-pr}.yml`, `.claude/scripts/` | `memoria/rilascio-e-promozione.md` | `produzione.md`, `ambienti.md`, `rilasci.md` |
 | Sicurezza, limiti, regole della squadra | `AGENTS.md`, `CLAUDE.md`, `.claude/skills/squadra-*`, `.claude/zone-protette.json` | `memoria/sicurezza-e-limiti.md` | `regole-globali-squadra.md`, `registro-decisioni.md` |
+| Blocchi funzionali (una sessione per blocco) | `docs/progetto/blocchi.md` | — | `AGENTS.md` |
 | Registro task e ore in Avanza | `scripts/registra-ore.mjs`, `.github/workflows/registra-ore.yml` | (in `collegamento-github.md`) | `protocollo-task.md` |
 | Configurazioni GitHub/Google | `scripts/applica-configurazioni.sh` | `memoria/rilascio-e-promozione.md` | `configurazioni-da-fare.md` |
 | Test e collaudi | `test/`, `functions/src/test/` | — | `docs/progetto/test/*`, `ritorni.md` |
