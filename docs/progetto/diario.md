@@ -237,5 +237,5 @@ D1 creazione solo dalla GitHub App + coerenza del proprietario (`eventProcessor.
 **Causa:** tutti i 24 membri hanno `costRate = 0` (verificato con l'azione di sola lettura `stato`): il report calcola costo = ore × tariffa, quindi costo e margine valgono zero. Le tariffe interne sono una decisione di Andrea (soldi): la squadra non le inventa.
 **Cosa:** nella sezione "Registro ore e produttività" compare un avviso con l'elenco degli operatori attivi a costo 0; la riga del membro scrive "costo non impostato (tariffa 0)" invece di € 0,00. La pagina Squadra aveva già l'avviso sui costi a 0 (`MissingCostNotice`).
 **File:** `lib/widgets/cost_rate_notice.dart` (nuovo), `lib/pages/admin/time_report.dart`, `test/cost_rate_notice_test.dart` (nuovo), `docs/progetto/catalogo.md`.
-**Test:** `flutter test test/cost_rate_notice_test.dart` 3/3 verdi; suite completa verde; `flutter analyze` solo i 6 info già presenti.
+**Test:** `flutter test test/cost_rate_notice_test.dart` 8/8 verdi (widget + logica di selezione e testo del costo); suite completa verde; `flutter analyze` solo i 6 info già presenti. Dopo la verifica del tester indipendente, la logica è stata estratta in `lib/core/cost_summary.dart` per poterla provare senza Firestore.
 **Non provato:** browser; i valori reali delle tariffe restano da impostare (decisione di Andrea).
