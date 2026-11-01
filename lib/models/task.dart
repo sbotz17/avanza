@@ -133,12 +133,21 @@ class Task {
         'updatedAt': Timestamp.fromDate(updatedAt),
       };
 
-  // Percentage completion based on non-skip phases
+  // Percentage completion based on non-skip phases. Una fase "in corso" vale
+  // metà: altrimenti un task avviato ma senza fasi concluse mostrerebbe 0%.
+  // Se il task è "in corso" e nessuna fase è segnata in corso, si considera in
+  // corso la prima fase ancora da fare.
   double get pct {
     final nonSkip = phases.where((p) => p.status != 'skip').toList();
     if (nonSkip.isEmpty) return 0;
-    final done = nonSkip.where((p) => p.status == 'done').length;
-    return (done / nonSkip.length) * 100;
+    double score =
+        nonSkip.where((p) => p.status == 'done').length.toDouble();
+    final active = nonSkip.where((p) => p.status == 'active').length;
+    score += active * 0.5;
+    if (active == 0 && status == 'active') {
+      if (nonSkip.any((p) => p.status == 'pending')) score += 0.5;
+    }
+    return (score / nonSkip.length * 100).clamp(0, 100).toDouble();
   }
 
   // Computed kanban column from status field

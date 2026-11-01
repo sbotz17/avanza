@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import '../models/task.dart';
 import '../core/constants.dart';
 import 'progress_bar.dart';
+import 'meta_line.dart';
+import '../core/date_format.dart';
 import 'task_code_badge.dart';
 
 class KanbanBoard extends StatelessWidget {
@@ -199,6 +201,20 @@ class _KanbanCard extends StatelessWidget {
               style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
+            ),
+            const SizedBox(height: 4),
+            MetaLine(
+              icon: Icons.event_outlined,
+              iconSize: 10,
+              fontSize: 9,
+              text: 'Creato ${AppDate.shortDateTime(task.createdAt)}',
+            ),
+            const SizedBox(height: 1),
+            MetaLine(
+              icon: Icons.update,
+              iconSize: 10,
+              fontSize: 9,
+              text: 'Agg. ${AppDate.shortDateTime(task.updatedAt)}',
             ),
             const SizedBox(height: 6),
             Row(

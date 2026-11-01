@@ -132,7 +132,7 @@ void main() {
     test('stato, avanzamento (fasi non necessarie escluse) e fase in corso', () {
       final m = asMap(_task());
       expect(m['Stato'], 'In corso');
-      expect(m['Avanzamento'], '33% (1 su 3 fasi completate)');
+      expect(m['Avanzamento'], '50% (1 su 3 fasi completate)');
       expect(m['Fase in corso'], 'Backend');
       expect(m['Ultimo aggiornamento'], '23/10/2026 14:30');
       expect(m.containsKey('Ultime note'), isFalse);
