@@ -8,6 +8,8 @@ import '../../models/team_member.dart';
 import '../../models/time_entry.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/firestore_service.dart';
+import '../../widgets/cost_rate_notice.dart';
+import '../../core/cost_summary.dart';
 
 /// Registro ore del progetto: preventivo, costo reale, da fatturare, margine
 /// e produttività per membro della squadra.
@@ -45,6 +47,9 @@ class TimeReportSection extends StatelessWidget {
             final margin = stats.billed - stats.cost;
             final preventivo = tasks.fold<double>(
                 0, (s, t) => s + (costs[t.id]?.estimatedCost ?? 0));
+            // Tariffa interna mancante: senza di essa la spesa per operatore
+            // vale zero e il margine risulta gonfiato. Lo si dice in chiaro.
+            final senzaCosto = missingCostMemberNames(members);
 
             return Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -96,6 +101,7 @@ class TimeReportSection extends StatelessWidget {
                       style: TextStyle(fontSize: 12, color: fg2),
                     ),
                   ),
+                CostRateNotice(memberNames: senzaCosto),
                 const SizedBox(height: 10),
                 Row(children: [
                   _Stat(
@@ -324,6 +330,7 @@ class _MemberRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final p = stat.productivity;
+    final costMissing = memberCostNotSetLabel(stat.hours, stat.cost);
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(14),
@@ -340,7 +347,8 @@ class _MemberRow extends StatelessWidget {
                   const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
           const SizedBox(height: 6),
           Text(
-            '${stat.hours.toStringAsFixed(1)}h · costo ${eur.format(stat.cost)} · '
+            '${stat.hours.toStringAsFixed(1)}h · '
+            '${costMissing ?? 'costo ${eur.format(stat.cost)}'} · '
             'fatturato ${eur.format(stat.billed)} · '
             'produttività ${p == null ? 'n.d.' : '${(p * 100).toStringAsFixed(0)}%'}',
             style: TextStyle(fontSize: 12, color: fg2),
