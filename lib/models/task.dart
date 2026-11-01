@@ -99,8 +99,13 @@ class Task {
       taskNumber: (d['taskNumber'] as int?) ?? 0,
       githubBranch: d['githubBranch'] as String?,
       githubPrNumber: d['githubPrNumber'] as int?,
-      createdAt: (d['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
-      updatedAt: (d['updatedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      // I task creati prima dell'introduzione del campo non hanno la data: si
+      // usa una sentinella (1970) e l'interfaccia scrive "data non disponibile"
+      // invece di mostrare l'ora di apertura della pagina.
+      createdAt: (d['createdAt'] as Timestamp?)?.toDate() ??
+          DateTime.fromMillisecondsSinceEpoch(0),
+      updatedAt: (d['updatedAt'] as Timestamp?)?.toDate() ??
+          DateTime.fromMillisecondsSinceEpoch(0),
     );
   }
 

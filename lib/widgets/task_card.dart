@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../models/task.dart';
 import '../core/constants.dart';
+import '../core/date_format.dart';
 import 'status_pill.dart';
 import 'progress_bar.dart';
 import 'task_code_badge.dart';
@@ -73,6 +74,26 @@ class TaskCard extends StatelessWidget {
                           overflow: TextOverflow.ellipsis,
                         ),
                       ],
+                      const SizedBox(height: 6),
+                      // Data e ora: senza di esse non si capisce quando il task
+                      // è nato né quando è stato aggiornato l'ultima volta.
+                      Wrap(
+                        spacing: 10,
+                        runSpacing: 2,
+                        children: [
+                          _MetaLine(
+                            icon: Icons.event_outlined,
+                            text: 'Creato il ${AppDate.dateTime(task.createdAt)}',
+                            color: fg2,
+                          ),
+                          _MetaLine(
+                            icon: Icons.update,
+                            text:
+                                'Aggiornato il ${AppDate.dateTime(task.updatedAt)}',
+                            color: fg2,
+                          ),
+                        ],
+                      ),
                     ],
                   ),
                 ),
@@ -116,6 +137,26 @@ class TaskCard extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _MetaLine extends StatelessWidget {
+  final IconData icon;
+  final String text;
+  final Color color;
+
+  const _MetaLine({required this.icon, required this.text, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 12, color: color),
+        const SizedBox(width: 3),
+        Text(text, style: TextStyle(fontSize: 11, color: color)),
+      ],
     );
   }
 }

@@ -6,12 +6,14 @@ import '../services/firestore_service.dart';
 import '../models/chat_message.dart';
 import '../models/task.dart';
 import '../core/constants.dart';
+import '../core/date_format.dart';
 import '../widgets/status_pill.dart';
 import '../widgets/progress_bar.dart';
 import '../widgets/phase_row.dart';
 import '../widgets/empty_state.dart';
 import '../widgets/task_chat.dart';
 import '../widgets/task_code_badge.dart';
+import '../widgets/task_request_card.dart';
 
 class TaskDetailPage extends StatelessWidget {
   final String projectId;
@@ -142,6 +144,26 @@ class TaskDetailPage extends StatelessWidget {
                                         fontSize: 13, color: fg2),
                                   ),
                                 ],
+                                const SizedBox(height: 8),
+                                // Data e ora di creazione e ultimo aggiornamento:
+                                // rendono leggibile la storia del task anche senza
+                                // aprire le note.
+                                Wrap(
+                                  spacing: 12,
+                                  runSpacing: 2,
+                                  children: [
+                                    _MetaLine(
+                                      icon: Icons.event_outlined,
+                                      text:
+                                          'Creato il ${AppDate.dateTime(task.createdAt)}',
+                                    ),
+                                    _MetaLine(
+                                      icon: Icons.update,
+                                      text:
+                                          'Aggiornato il ${AppDate.dateTime(task.updatedAt)}',
+                                    ),
+                                  ],
+                                ),
                               ],
                             ),
                           ),
@@ -172,30 +194,12 @@ class TaskDetailPage extends StatelessWidget {
 
                 const SizedBox(height: 16),
 
-                // Client request
-                if (task.clientRequest.isNotEmpty) ...[
-                  Text('Richiesta', style: sectionTitle),
-                  const SizedBox(height: 8),
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(14),
-                    decoration: BoxDecoration(
-                      color: isDark ? kCardDark : kCardLight,
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border(
-                        left: BorderSide(
-                          color: isDark ? kActiveColorDark : kActiveColor,
-                          width: 3,
-                        ),
-                      ),
-                    ),
-                    child: Text(
-                      task.clientRequest,
-                      style: const TextStyle(fontSize: 13, height: 1.6),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                ],
+                // Richiesta originale: sempre visibile, anche quando manca, così
+                // si capisce subito a quale richiesta il task si riferisce.
+                Text('RICHIESTA ORIGINALE', style: sectionTitle),
+                const SizedBox(height: 8),
+                TaskRequestCard(task: task),
+                const SizedBox(height: 16),
 
                 // Phases
                 Text('Fasi di sviluppo', style: sectionTitle),
@@ -227,6 +231,27 @@ class TaskDetailPage extends StatelessWidget {
           ),
         );
       },
+    );
+  }
+}
+
+class _MetaLine extends StatelessWidget {
+  final IconData icon;
+  final String text;
+
+  const _MetaLine({required this.icon, required this.text});
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final color = isDark ? kFg2Dark : kFg2Light;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 13, color: color),
+        const SizedBox(width: 4),
+        Text(text, style: TextStyle(fontSize: 11, color: color)),
+      ],
     );
   }
 }
