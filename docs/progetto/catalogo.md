@@ -67,6 +67,7 @@ Aggiornare a ogni nuovo oggetto o modifica significativa.
 |------|----------|-------|----------|
 | `AppTheme` | `lib/core/theme.dart` | Tema Material3 (light/dark, colori, tipografia) | `main.dart` |
 | `AppConstants` | `lib/core/constants.dart` | Costanti applicative (statusOrder, colori status, ecc.; [T-12] `kCompletedStatuses`, `kChatMaxLength`) | Widget, pagine |
+| `memberCostMissing`, `missingCostMemberNames`, `memberCostNotSetLabel` | `lib/core/cost_summary.dart` | [T-23] Regola unica "costo orario non impostato" (`costRate <= 0`), elenco dei membri attivi senza costo e testo "costo non impostato (tariffa 0)" | `time_report.dart`, `team_member_tile.dart`, `test/cost_rate_notice_test.dart` |
 | `kMemberRoles` | `lib/core/constants.dart` | [T-19] Elenco dei 13 ruoli standard della squadra (valori minuscoli salvati in `teamMembers.role`) per il menu Ruolo | `team_page.dart`, `test/team_page_test.dart` |
 
 ---

@@ -5,6 +5,7 @@ import '../../core/constants.dart';
 import '../../models/team_member.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/firestore_service.dart';
+import '../../widgets/cost_rate_notice.dart';
 import '../../widgets/empty_state.dart';
 import '../../widgets/team_member_tile.dart';
 
@@ -101,35 +102,14 @@ class MissingCostNotice extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final color = isDark ? kBlockedColorDark : kBlockedColor;
-    final bg = isDark ? kBlockedBgDark : kBlockedBg;
     final who = count == 1
         ? '1 membro attivo ha il costo orario non impostato'
         : '$count membri attivi hanno il costo orario non impostato';
-    return Container(
+    return CostRateNotice(
+      memberNames: const [],
       margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: bg,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(Icons.info_outline, size: 20, color: color),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              '$who (vale 0). Tocca il membro e inserisci il "Costo orario '
-              'interno (€/h)": le ore registrate con costo 0 non generano '
-              'costo.',
-              style: TextStyle(fontSize: 13, color: color),
-            ),
-          ),
-        ],
-      ),
+      message: '$who (vale 0). Tocca il membro e inserisci il "Costo orario '
+          'interno (€/h)": le ore registrate con costo 0 non generano costo.',
     );
   }
 }

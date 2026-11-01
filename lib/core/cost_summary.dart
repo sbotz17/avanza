@@ -2,8 +2,10 @@ import '../models/team_member.dart';
 
 /// Nomi dei membri attivi che non hanno ancora un costo orario interno.
 /// Un costo a 0 non valorizza la spesa per operatore: il report lo deve dire.
+bool memberCostMissing(TeamMember m) => m.costRate <= 0;
+
 List<String> missingCostMemberNames(Iterable<TeamMember> members) => members
-    .where((m) => m.active && m.costRate <= 0)
+    .where((m) => m.active && memberCostMissing(m))
     .map((m) => m.name)
     .toList();
 
