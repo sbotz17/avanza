@@ -25,6 +25,7 @@ Aggiornare a ogni nuovo oggetto o modifica significativa.
 | `PhaseRow` | `lib/widgets/phase_row.dart` | Riga singola fase di un task | `task_detail_page.dart`, `edit_task_page.dart` |
 | `ProgressBar` | `lib/widgets/progress_bar.dart` | Barra di avanzamento percentuale | `task_card.dart`, `task_detail_page.dart` |
 | `StatusPill` | `lib/widgets/status_pill.dart` | Pillola colorata per lo status del task | `task_card.dart`, `task_detail_page.dart` |
+| `CostRateNotice` | `lib/widgets/cost_rate_notice.dart` | [T-23] Avviso nella pagina Costi quando uno o più operatori hanno il costo orario a 0: la spesa per operatore e il margine non sono valorizzati | `time_report.dart`, `test/cost_rate_notice_test.dart` |
 | `EmptyState` | `lib/widgets/empty_state.dart` | Schermata vuota con messaggio e icona | `project_page.dart`, `home_page.dart`, `task_chat.dart` |
 | `TaskChat`, `taskStatusSummary` | `lib/widgets/task_chat.dart` | [T-12] Chat in tempo reale dell'admin con la squadra su un task non completato; riquadro "Stato attuale" calcolato dai dati del task | `task_detail_page.dart` (solo admin) |
 | `TeamMemberTile`, `memberRoleLabel`, `memberCostNotSet` | `lib/widgets/team_member_tile.dart` | [T-19] Riga di un membro della squadra: tipo e ruolo ben visibili, costo e vendita orari sulla stessa riga, "Costo non impostato" quando il costo è 0; helper per il testo del ruolo e per il costo a 0 | `team_page.dart`, `test/team_page_test.dart` |
@@ -41,6 +42,7 @@ Aggiornare a ogni nuovo oggetto o modifica significativa.
 | `EditTaskPage` | `lib/pages/admin/edit_task_page.dart` | Form creazione/modifica task | `project_page.dart` |
 | `EditProjectPage` | `lib/pages/admin/edit_project_page.dart` | Form creazione/modifica progetto | `home_page.dart` |
 | `CostsPage` | `lib/pages/admin/costs_page.dart` | Riepilogo costi e ore per progetto | `app.dart` |
+| `TimeReportSection` | `lib/pages/admin/time_report.dart` | [T-23] Registro ore, costo reale, fatturato, margine e produttività per membro; avviso quando il costo orario è a 0 e testo "costo non impostato" nella riga del membro | `costs_page.dart` |
 | `TeamPage`, `TeamMembersView`, `MissingCostNotice`, `MemberDialog` | `lib/pages/admin/team_page.dart` | [T-19] Squadra: lista dei membri (aiuto se vuota, avviso se ci sono costi a 0) e dialogo Nuovo/Modifica membro con menu a tendina Ruolo (ruoli standard + "Altro…" con testo libero) | `app.dart`, `test/team_page_test.dart` |
 | `LoginPage` | `lib/pages/login_page.dart` | Login con email/password | `app.dart` |
 | `ClientAccessPage` | `lib/pages/client_access_page.dart` | Accesso cliente via token | `app.dart` |
