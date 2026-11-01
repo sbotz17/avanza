@@ -5,6 +5,7 @@ import '../core/date_format.dart';
 import 'status_pill.dart';
 import 'progress_bar.dart';
 import 'task_code_badge.dart';
+import 'meta_line.dart';
 
 class TaskCard extends StatelessWidget {
   final Task task;
@@ -81,16 +82,14 @@ class TaskCard extends StatelessWidget {
                         spacing: 10,
                         runSpacing: 2,
                         children: [
-                          _MetaLine(
+                          MetaLine(
                             icon: Icons.event_outlined,
                             text: 'Creato il ${AppDate.dateTime(task.createdAt)}',
-                            color: fg2,
                           ),
-                          _MetaLine(
+                          MetaLine(
                             icon: Icons.update,
                             text:
                                 'Aggiornato il ${AppDate.dateTime(task.updatedAt)}',
-                            color: fg2,
                           ),
                         ],
                       ),
@@ -141,22 +140,3 @@ class TaskCard extends StatelessWidget {
   }
 }
 
-class _MetaLine extends StatelessWidget {
-  final IconData icon;
-  final String text;
-  final Color color;
-
-  const _MetaLine({required this.icon, required this.text, required this.color});
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(icon, size: 12, color: color),
-        const SizedBox(width: 3),
-        Text(text, style: TextStyle(fontSize: 11, color: color)),
-      ],
-    );
-  }
-}

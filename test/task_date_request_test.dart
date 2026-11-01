@@ -1,6 +1,7 @@
 // T-21: il task mostra data e ora di creazione/aggiornamento e la richiesta
 // originale a cui si riferisce. Test dei widget, senza Firebase.
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:avanza/core/date_format.dart';
 import 'package:avanza/models/task.dart';
@@ -47,6 +48,30 @@ void main() {
     test('una data sentinella diventa "data non disponibile"', () {
       expect(AppDate.dateTime(DateTime.fromMillisecondsSinceEpoch(0)),
           'data non disponibile');
+    });
+  });
+
+  group('Task.fromMap', () {
+    test('senza date usa la sentinella, non l ora di apertura', () {
+      final t = Task.fromMap({'title': 'Vecchio task'}, 't1', 'p1');
+      expect(t.createdAt.year, 1970);
+      expect(t.updatedAt.year, 1970);
+      expect(AppDate.dateTime(t.createdAt), 'data non disponibile');
+    });
+
+    test('legge le date Firestore quando ci sono', () {
+      final when = DateTime(2026, 11, 1, 14, 30);
+      final t = Task.fromMap(
+        {
+          'title': 'Task nuovo',
+          'createdAt': Timestamp.fromDate(when),
+          'updatedAt': Timestamp.fromDate(when.add(const Duration(hours: 2))),
+        },
+        't2',
+        'p1',
+      );
+      expect(t.createdAt, when);
+      expect(AppDate.dateTime(t.createdAt), '01/11/2026 14:30');
     });
   });
 

@@ -14,6 +14,7 @@ import '../widgets/empty_state.dart';
 import '../widgets/task_chat.dart';
 import '../widgets/task_code_badge.dart';
 import '../widgets/task_request_card.dart';
+import '../widgets/meta_line.dart';
 
 class TaskDetailPage extends StatelessWidget {
   final String projectId;
@@ -152,13 +153,17 @@ class TaskDetailPage extends StatelessWidget {
                                   spacing: 12,
                                   runSpacing: 2,
                                   children: [
-                                    _MetaLine(
+                                    MetaLine(
                                       icon: Icons.event_outlined,
+                                      iconSize: 13,
+                                      fontSize: 12,
                                       text:
                                           'Creato il ${AppDate.dateTime(task.createdAt)}',
                                     ),
-                                    _MetaLine(
+                                    MetaLine(
                                       icon: Icons.update,
+                                      iconSize: 13,
+                                      fontSize: 12,
                                       text:
                                           'Aggiornato il ${AppDate.dateTime(task.updatedAt)}',
                                     ),
@@ -231,27 +236,6 @@ class TaskDetailPage extends StatelessWidget {
           ),
         );
       },
-    );
-  }
-}
-
-class _MetaLine extends StatelessWidget {
-  final IconData icon;
-  final String text;
-
-  const _MetaLine({required this.icon, required this.text});
-
-  @override
-  Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final color = isDark ? kFg2Dark : kFg2Light;
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(icon, size: 13, color: color),
-        const SizedBox(width: 4),
-        Text(text, style: TextStyle(fontSize: 11, color: color)),
-      ],
     );
   }
 }

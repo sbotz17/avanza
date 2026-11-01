@@ -22,6 +22,7 @@ Aggiornare a ogni nuovo oggetto o modifica significativa.
 | `TaskCodeBadge` | `lib/widgets/task_code_badge.dart` | Badge compatto che mostra il codice univoco di un task (es. "T-3"); si nasconde se vuoto | `task_card.dart`, `kanban_board.dart`, `edit_task_page.dart`, `task_detail_page.dart` |
 | `KanbanBoard` | `lib/widgets/kanban_board.dart` | Board kanban con colonne per status | `project_page.dart` |
 | `TaskCard` | `lib/widgets/task_card.dart` | [T-21] Card compatta per un task nella lista/kanban, con data e ora di creazione e ultimo aggiornamento | `kanban_board.dart`, `test/task_date_request_test.dart` |
+| `MetaLine` | `lib/widgets/meta_line.dart` | [T-21] Riga icona + testo per le date sotto il titolo del task (un solo componente per elenco e dettaglio) | `task_card.dart`, `task_detail_page.dart` |
 | `TaskRequestCard` | `lib/widgets/task_request_card.dart` | [T-21] Riquadro della richiesta originale del task: testo sempre visibile (o "Nessuna richiesta registrata") e data di ricezione | `task_detail_page.dart`, `test/task_date_request_test.dart` |
 | `CostRateNotice` | `lib/widgets/cost_rate_notice.dart` | [T-23] Avviso nella pagina Costi quando uno o più operatori hanno il costo orario a 0: la spesa per operatore e il margine non sono valorizzati | `time_report.dart`, `test/cost_rate_notice_test.dart` |
 | `PhaseRow` | `lib/widgets/phase_row.dart` | Riga singola fase di un task | `task_detail_page.dart`, `edit_task_page.dart` |

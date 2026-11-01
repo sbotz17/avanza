@@ -236,7 +236,7 @@ D1 creazione solo dalla GitHub App + coerenza del proprietario (`eventProcessor.
 **Ramo:** `feature/T-21-data-ora-richiesta-task` (da `origin/staging`). Task in Avanza: **T-21** (richiesta di Andrea dell'1/11: «il task non ha data e orario e non si capisce a quale richiesta fa riferimento nel dettaglio»).
 **Cosa:** `TaskCard` e `TaskDetailPage` mostrano "Creato il …" e "Aggiornato il …" con data e ora (`dd/MM/yyyy HH:mm`). Nel dettaglio la sezione diventa "RICHIESTA ORIGINALE", sempre visibile: testo della richiesta oppure "Nessuna richiesta registrata per questo task", con data di ricezione e codice `T-N`. I task vecchi senza `createdAt`/`updatedAt` non mostrano l'ora di apertura della pagina: `AppDate` scrive "data non disponibile".
 **File:** `lib/core/date_format.dart` (nuovo), `lib/widgets/task_request_card.dart` (nuovo), `lib/widgets/task_card.dart`, `lib/pages/task_detail_page.dart`, `lib/models/task.dart`, `test/task_date_request_test.dart` (nuovo), `docs/progetto/catalogo.md`.
-**Test:** `flutter test test/task_date_request_test.dart` 6/6 verdi; `flutter test` 98/98; `flutter analyze` solo i 6 info già presenti.
+**Test:** `flutter test test/task_date_request_test.dart` 8/8 verdi (inclusi due test su `Task.fromMap`: date mancanti → sentinella 1970, date presenti lette da Firestore); `flutter test` verde; `flutter analyze` solo i 6 info già presenti. Il tester indipendente ha rilevato una duplicazione (`_MetaLine` in due file) e una lacuna di copertura sul modello: corretti con il widget condiviso `MetaLine` e con `Task.fromMap` + test dedicati.
 **Non provato:** browser e Firestore reali.
 
 ## 2026-11-01 — T-23: avviso quando le spese per operatore non sono valorizzate

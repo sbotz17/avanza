@@ -79,10 +79,18 @@ class Task {
     required this.updatedAt,
   });
 
-  factory Task.fromFirestore(DocumentSnapshot doc, String projectId) {
-    final d = doc.data() as Map<String, dynamic>;
+  factory Task.fromFirestore(DocumentSnapshot doc, String projectId) =>
+      Task.fromMap(doc.data() as Map<String, dynamic>, doc.id, projectId);
+
+  /// Costruzione da una mappa Firestore, separata dallo snapshot per poterla
+  /// provare senza Firebase (in particolare la sentinella per le date mancanti).
+  factory Task.fromMap(
+    Map<String, dynamic> d,
+    String id,
+    String projectId,
+  ) {
     return Task(
-      id: doc.id,
+      id: id,
       projectId: projectId,
       title: d['title'] as String? ?? '',
       description: d['description'] as String? ?? '',
