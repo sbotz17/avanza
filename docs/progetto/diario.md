@@ -231,3 +231,18 @@ D1 creazione solo dalla GitHub App + coerenza del proprietario (`eventProcessor.
 **Cosa:** `smoke-produzione.sh`: POST con firma sbagliata → 401 ok, **500 = AVVISO** (non fallisce), altri codici fallimento; nuova `p_funz_post_nofirma` (401 atteso, tutto il resto fallito). Letto `authenticate.ts`/`githubWebhook.ts`: senza firma 401 prima di Secret Manager (la funzione vecchia in produzione invece legge prima il segreto).
 **Test:** nuovo `prova-smoke.sh` (14 casi con curl finto): 6 falliti sulla versione precedente, 14/14 dopo. `prova-promozione.sh` 61/61, `prova-script-gcloud.sh` 6/6, shellcheck e `bash -n` puliti.
 **Non provato:** funzione e Secret Manager reali, CI.
+
+## 2026-11-01 — T-21: data/ora e richiesta originale visibili nel task
+**Ramo:** `feature/T-21-data-ora-richiesta-task` (da `origin/staging`). Task in Avanza: **T-21** (richiesta di Andrea dell'1/11: «il task non ha data e orario e non si capisce a quale richiesta fa riferimento nel dettaglio»).
+**Cosa:** `TaskCard` e `TaskDetailPage` mostrano "Creato il …" e "Aggiornato il …" con data e ora (`dd/MM/yyyy HH:mm`). Nel dettaglio la sezione diventa "RICHIESTA ORIGINALE", sempre visibile: testo della richiesta oppure "Nessuna richiesta registrata per questo task", con data di ricezione e codice `T-N`. I task vecchi senza `createdAt`/`updatedAt` non mostrano l'ora di apertura della pagina: `AppDate` scrive "data non disponibile".
+**File:** `lib/core/date_format.dart` (nuovo), `lib/widgets/task_request_card.dart` (nuovo), `lib/widgets/task_card.dart`, `lib/pages/task_detail_page.dart`, `lib/models/task.dart`, `test/task_date_request_test.dart` (nuovo), `docs/progetto/catalogo.md`.
+**Test:** `flutter test test/task_date_request_test.dart` 8/8 verdi (inclusi due test su `Task.fromMap`: date mancanti → sentinella 1970, date presenti lette da Firestore); `flutter test` verde; `flutter analyze` solo i 6 info già presenti. Il tester indipendente ha rilevato una duplicazione (`_MetaLine` in due file) e una lacuna di copertura sul modello: corretti con il widget condiviso `MetaLine` e con `Task.fromMap` + test dedicati.
+**Non provato:** browser e Firestore reali.
+
+## 2026-11-01 — T-23: avviso quando le spese per operatore non sono valorizzate
+**Ramo:** `feature/T-23-costi-operatore` (da `origin/staging`). Task in Avanza: **T-23** (richiesta di Andrea dell'1/11: «le spese per operatore della squadra non vengono valorizzate»).
+**Causa:** tutti i 24 membri hanno `costRate = 0` (verificato con l'azione di sola lettura `stato`): il report calcola costo = ore × tariffa, quindi costo e margine valgono zero. Le tariffe interne sono una decisione di Andrea (soldi): la squadra non le inventa.
+**Cosa:** nella sezione "Registro ore e produttività" compare un avviso con l'elenco degli operatori attivi a costo 0; la riga del membro scrive "costo non impostato (tariffa 0)" invece di € 0,00. La pagina Squadra aveva già l'avviso sui costi a 0 (`MissingCostNotice`).
+**File:** `lib/widgets/cost_rate_notice.dart` (nuovo), `lib/pages/admin/time_report.dart`, `test/cost_rate_notice_test.dart` (nuovo), `docs/progetto/catalogo.md`.
+**Test:** `flutter test test/cost_rate_notice_test.dart` 3/3 verdi; suite completa verde; `flutter analyze` solo i 6 info già presenti.
+**Non provato:** browser; i valori reali delle tariffe restano da impostare (decisione di Andrea).
