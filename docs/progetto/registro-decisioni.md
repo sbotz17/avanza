@@ -358,3 +358,7 @@ funzioni, dispositivi o link e non unisce pull request.
 - Esiti: scorrimento verticale e orizzontale e apertura scheda dopo trascinamento verificati (report `docs/progetto/test/2026-11-02-r5-browser.md`). Il codice del repository non è stato toccato per la prova.
 - **Validatore indipendente: APPROVATO** (report `docs/progetto/test/2026-11-02-r5-validazione.md`): `flutter analyze` 6 info preesistenti, `flutter test` 118/118, prova rossa dei 3 test di scorrimento confermata. Residui dichiarati: dispositivi fisici, trackpad/rotella orizzontale; il validatore non ha potuto vedere gli screenshot (strumento senza immagini) né rilanciare lo e2e.
 - **Non** è stata fatta la promozione: resta necessaria l'audit-completa e il GO del guardiano prima di `staging`/produzione. La PR #54 è aperta e non unita.
+
+## 2026-11-02 — T-26: ore dichiarate
+- Create tre voci su `T-26` con l'azione `ore` (stime oneste, non misurate, strumento OpenCode): `sviluppatore-frontend` Frontend 1,5 h; `tester` Test 0,6 h; `validatore` Validazione 0,4 h. Tutte le run sono terminate con successo.
+- La voce del `coordinatore` (Analisi, 0,3 h) **non è stata accettata**: «Membro "coordinatore" non presente nella squadra» (run 41506058534, fallita). Non attribuisco le ore a un altro membro: da dichiarare quando il membro esiste in Avanza.
