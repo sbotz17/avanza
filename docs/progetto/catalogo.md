@@ -39,9 +39,9 @@ Aggiornare a ogni nuovo oggetto o modifica significativa.
 | Nome | Percorso | Scopo | Usato in |
 |------|----------|-------|----------|
 | `HomePage` | `lib/pages/home_page.dart` | Lista dei progetti | `app.dart` |
-| `ProjectPage` | `lib/pages/project_page.dart` | Dettaglio progetto con kanban | `app.dart` |
+| `ProjectPage` | `lib/pages/project_page.dart` | Dettaglio progetto con elenco/kanban; [T-25] la vista scelta viaggia nel percorso e si ritrova al ritorno | `app.dart` |
 | `TaskDetailPage` | `lib/pages/task_detail_page.dart` | Dettaglio task (sola lettura cliente); [T-21] mostra data/ora di creazione e aggiornamento e la richiesta originale | `app.dart` |
-| `EditTaskPage` | `lib/pages/admin/edit_task_page.dart` | Form creazione/modifica task | `project_page.dart` |
+| `EditTaskPage` | `lib/pages/admin/edit_task_page.dart` | Form creazione/modifica task; [T-25] torna alla vista (elenco/kanban) da cui è stato aperto | `project_page.dart`, `task_detail_page.dart` |
 | `EditProjectPage` | `lib/pages/admin/edit_project_page.dart` | Form creazione/modifica progetto | `home_page.dart` |
 | `CostsPage` | `lib/pages/admin/costs_page.dart` | Riepilogo costi e ore per progetto | `app.dart` |
 | `TimeReportSection` | `lib/pages/admin/time_report.dart` | [T-23] Registro ore, costo reale, fatturato, margine e produttività per membro; avviso quando il costo orario è a 0 e testo "costo non impostato" nella riga del membro | `costs_page.dart` |
@@ -71,6 +71,7 @@ Aggiornare a ogni nuovo oggetto o modifica significativa.
 | `AppConstants` | `lib/core/constants.dart` | Costanti applicative (statusOrder, colori status, ecc.; [T-12] `kCompletedStatuses`, `kChatMaxLength`) | Widget, pagine |
 | `memberCostMissing`, `missingCostMemberNames`, `memberCostNotSetLabel` | `lib/core/cost_summary.dart` | [T-23] Regola unica "costo orario non impostato" (`costRate <= 0`), elenco dei membri attivi senza costo e testo "costo non impostato (tariffa 0)" | `time_report.dart`, `team_member_tile.dart`, `test/cost_rate_notice_test.dart` |
 | `kMemberRoles` | `lib/core/constants.dart` | [T-19] Elenco dei 13 ruoli standard della squadra (valori minuscoli salvati in `teamMembers.role`) per il menu Ruolo | `team_page.dart`, `test/team_page_test.dart` |
+| `isKanbanQuery`, `projectPath`, `taskPath`, `editTaskPath` | `lib/core/routes.dart` | [T-25] Percorsi con `?view=kanban`: mantengono la vista scelta tra progetto, task e modifica | `project_page.dart`, `task_detail_page.dart`, `edit_task_page.dart`, `app.dart`, `test/routes_test.dart` |
 | `AppDate` | `lib/core/date_format.dart` | [T-21] Formattazione unica di date e orari (`dd/MM/yyyy HH:mm`), con "data non disponibile" per i task vecchi senza data | `task_card.dart`, `task_request_card.dart`, `task_detail_page.dart`, `test/task_date_request_test.dart` |
 
 ---

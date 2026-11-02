@@ -6,6 +6,7 @@ import '../services/firestore_service.dart';
 import '../models/project.dart';
 import '../models/task.dart';
 import '../core/constants.dart';
+import '../core/routes.dart';
 import '../widgets/task_card.dart';
 import '../widgets/kanban_board.dart';
 import '../widgets/empty_state.dart';
@@ -13,9 +14,14 @@ import '../widgets/empty_state.dart';
 class ProjectPage extends StatefulWidget {
   final String projectId;
 
+  /// [T-25] Vista scelta nel percorso (`?view=kanban`): così, tornando dal
+  /// dettaglio di un task, si ritrova il kanban invece della lista.
+  final bool initialKanban;
+
   const ProjectPage({
     super.key,
     required this.projectId,
+    this.initialKanban = false,
   });
 
   @override
@@ -23,8 +29,14 @@ class ProjectPage extends StatefulWidget {
 }
 
 class _ProjectPageState extends State<ProjectPage> {
-  bool _kanbanView = false;
+  late bool _kanbanView;
   final _service = FirestoreService();
+
+  @override
+  void initState() {
+    super.initState();
+    _kanbanView = widget.initialKanban;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -113,25 +125,21 @@ class _ProjectPageState extends State<ProjectPage> {
                       : _kanbanView
                           ? KanbanBoard(
                               tasks: tasks,
-                              onTaskTap: (t) => context.go(
-                                '/project/${widget.projectId}/task/${t.id}',
-                              ),
+                              onTaskTap: (t) =>
+                                  context.go(_taskPath(t.id)),
                             )
                           : ListView.builder(
                               padding: const EdgeInsets.all(16),
                               itemCount: tasks.length,
                               itemBuilder: (context, i) => TaskCard(
                                 task: tasks[i],
-                                onTap: () => context.go(
-                                  '/project/${widget.projectId}/task/${tasks[i].id}',
-                                ),
+                                onTap: () =>
+                                    context.go(_taskPath(tasks[i].id)),
                               ),
                             ),
               floatingActionButton: isAdmin
                   ? FloatingActionButton(
-                      onPressed: () => context.go(
-                        '/project/${widget.projectId}/task/new/edit',
-                      ),
+                      onPressed: () => context.go(_editTaskPath('new')),
                       child: const Icon(Icons.add),
                     )
                   : null,
@@ -141,6 +149,13 @@ class _ProjectPageState extends State<ProjectPage> {
       },
     );
   }
+
+  /// Porta la vista scelta nel percorso, così il dettaglio task può tornarci.
+  String _taskPath(String taskId) =>
+      taskPath(widget.projectId, taskId, kanban: _kanbanView);
+
+  String _editTaskPath(String taskId) =>
+      editTaskPath(widget.projectId, taskId, kanban: _kanbanView);
 
   String _shortUrl(String url) => url
       .replaceFirst('https://github.com/', '')

@@ -264,3 +264,11 @@ Con l'azione `crea-progetto` (backup verificato prima di ogni scrittura) sono na
 **File:** `lib/models/task.dart`, `lib/widgets/kanban_board.dart`, `lib/widgets/meta_line.dart`, `lib/core/date_format.dart`, `test/task_progress_kanban_test.dart` (nuovo), `test/chat_message_test.dart`, `docs/progetto/{catalogo,task}.md`.
 **Test:** nuovo file 6/6; suite completa 112/112; `flutter analyze` solo i 6 info già presenti; build web riuscita.
 **Non provato:** browser reale (le date erano già state provate nell'elenco e nel dettaglio; per il kanban resta la prova dei widget).
+
+## 2026-11-02 — T-25: la vista kanban resta selezionata tornando da un task
+**Ramo:** `feature/T-25-vista-kanban-persistente` (da `origin/staging`). Task in Avanza: **T-25** (richiesta di Andrea del 2/11: «se sono in visualizzazione kanban entro nel task e poi esco mi ritorna nella visualizzazione a card»).
+**Causa:** `ProjectPage` teneva la vista in uno stato locale; il dettaglio del task tornava a `/project/:id` senza indicare la vista, quindi la pagina ripartiva dalla lista.
+**Correzione:** la vista viaggia nel percorso (`?view=kanban`). Nuovo `lib/core/routes.dart` con `isKanbanQuery`, `projectPath`, `taskPath`, `editTaskPath`; il progetto legge la query, il dettaglio e la modifica task la portano con sé e il ritorno la conserva. Aggiunto `test/routes_test.dart`.
+**File:** `lib/core/routes.dart` (nuovo), `lib/pages/project_page.dart`, `lib/pages/task_detail_page.dart`, `lib/pages/admin/edit_task_page.dart`, `lib/app.dart`, `test/routes_test.dart`, `docs/progetto/{catalogo,task}.md`.
+**Test:** `test/routes_test.dart` copre i percorsi con e senza kanban e la lettura della query. **Nota:** su questa macchina `flutter test`/`flutter build web` restano bloccati in `impellerc` (compilatore shader) dopo `flutter clean`; `dart analyze` dei file toccati è pulito e la compilazione dart2js arriva a termine. La verifica vera è la CI (runner Linux).
+**Non provato:** browser locale per il blocco di `impellerc`; la CI e la prova dopo il rilascio.
