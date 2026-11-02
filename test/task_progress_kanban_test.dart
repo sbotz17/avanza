@@ -1,5 +1,6 @@
 // T-24: un task «in corso» non deve mostrare 0% e il kanban deve mostrare
 // data e ora, come la vista elenco.
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:avanza/models/task.dart';
@@ -139,6 +140,33 @@ void main() {
       expect(horizontal.offset, 0);
 
       await tester.dragFrom(const Offset(200, 150), const Offset(-150, 0));
+      await tester.pumpAndSettle();
+      expect(horizontal.offset, greaterThan(0));
+    });
+
+    // D-1 del tester: sul web lo scorrimento predefinito di Flutter non
+    // trascina con il mouse. Questo controllo cade se si toglie
+    // `dragDevices` dal comportamento locale del kanban.
+    testWidgets('si trascina con il mouse in entrambi i sensi',
+        (tester) async {
+      await pumpTallAndWideBoard(tester);
+
+      final vertical = scrollViewFor(tester, Axis.vertical).controller!;
+      final horizontal = scrollViewFor(tester, Axis.horizontal).controller!;
+
+      await tester.dragFrom(
+        const Offset(200, 150),
+        const Offset(0, -150),
+        kind: PointerDeviceKind.mouse,
+      );
+      await tester.pumpAndSettle();
+      expect(vertical.offset, greaterThan(0));
+
+      await tester.dragFrom(
+        const Offset(200, 150),
+        const Offset(-150, 0),
+        kind: PointerDeviceKind.mouse,
+      );
       await tester.pumpAndSettle();
       expect(horizontal.offset, greaterThan(0));
     });
