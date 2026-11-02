@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import 'core/theme.dart';
+import 'core/routes.dart';
 import 'providers/auth_provider.dart';
 import 'services/firestore_service.dart';
 import 'pages/login_page.dart';
@@ -107,6 +108,7 @@ class _AvanzaAppState extends State<AvanzaApp> {
             path: '/project/:projectId',
             builder: (context, state) => ProjectPage(
               projectId: state.pathParameters['projectId']!,
+              initialKanban: isKanbanQuery(state.uri.queryParameters),
             ),
           ),
           GoRoute(
@@ -126,6 +128,7 @@ class _AvanzaAppState extends State<AvanzaApp> {
             builder: (context, state) => TaskDetailPage(
               projectId: state.pathParameters['projectId']!,
               taskId: state.pathParameters['taskId']!,
+              kanbanView: isKanbanQuery(state.uri.queryParameters),
             ),
           ),
           GoRoute(
@@ -136,6 +139,7 @@ class _AvanzaAppState extends State<AvanzaApp> {
               return EditTaskPage(
                 projectId: projectId,
                 taskId: taskId == 'new' ? null : taskId,
+                kanbanView: isKanbanQuery(state.uri.queryParameters),
               );
             },
           ),

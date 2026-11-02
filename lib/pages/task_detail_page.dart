@@ -7,6 +7,7 @@ import '../models/chat_message.dart';
 import '../models/task.dart';
 import '../core/constants.dart';
 import '../core/date_format.dart';
+import '../core/routes.dart';
 import '../widgets/status_pill.dart';
 import '../widgets/progress_bar.dart';
 import '../widgets/phase_row.dart';
@@ -19,11 +20,13 @@ import '../widgets/meta_line.dart';
 class TaskDetailPage extends StatelessWidget {
   final String projectId;
   final String taskId;
+  final bool kanbanView;
 
   const TaskDetailPage({
     super.key,
     required this.projectId,
     required this.taskId,
+    this.kanbanView = false,
   });
 
   @override
@@ -71,7 +74,8 @@ class TaskDetailPage extends StatelessWidget {
           appBar: AppBar(
             leading: IconButton(
               icon: const Icon(Icons.arrow_back),
-              onPressed: () => context.go('/project/$projectId'),
+              onPressed: () =>
+                  context.go(projectPath(projectId, kanban: kanbanView)),
             ),
             title: task.taskCode.isEmpty
                 ? Text(task.title)
@@ -92,8 +96,9 @@ class TaskDetailPage extends StatelessWidget {
               if (isAdmin)
                 IconButton(
                   icon: const Icon(Icons.edit_outlined),
-                  onPressed: () =>
-                      context.go('/project/$projectId/task/$taskId/edit'),
+                  onPressed: () => context.go(
+                    editTaskPath(projectId, taskId, kanban: kanbanView),
+                  ),
                   tooltip: 'Modifica',
                 ),
             ],
