@@ -1,3 +1,4 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import '../models/task.dart';
 import '../core/constants.dart';
@@ -6,37 +7,99 @@ import 'meta_line.dart';
 import '../core/date_format.dart';
 import 'task_code_badge.dart';
 
-class KanbanBoard extends StatelessWidget {
+class KanbanBoard extends StatefulWidget {
   final List<Task> tasks;
   final void Function(Task) onTaskTap;
 
   const KanbanBoard({super.key, required this.tasks, required this.onTaskTap});
 
   @override
+  State<KanbanBoard> createState() => _KanbanBoardState();
+}
+
+class _KanbanBoardState extends State<KanbanBoard> {
+  // [R-5] Il kanban è più largo e più alto dello schermo: servono due
+  // scorrimenti indipendenti (orizzontale tra le colonne, verticale tra le
+  // schede), altrimenti il contenuto oltre il bordo non è raggiungibile.
+  final ScrollController _horizontal = ScrollController();
+  final ScrollController _vertical = ScrollController();
+
+  @override
+  void dispose() {
+    _horizontal.dispose();
+    _vertical.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final colBg = isDark ? const Color(0xFF1E1E22) : const Color(0xFFE8E8E2);
 
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: kKanbanColumns.map((colId) {
-          final colTasks = tasks.where((t) => t.kanbanCol == colId).toList();
-          final label = kKanbanLabels[colId] ?? colId;
-          return _KanbanColumn(
-            id: colId,
-            label: label,
-            tasks: colTasks,
-            bg: colBg,
-            isDark: isDark,
-            onTaskTap: onTaskTap,
-          );
-        }).toList(),
+    return ScrollConfiguration(
+      // Con il mouse si può trascinare il kanban (e la rotella verticale
+      // scorre la pagina), come ci si aspetta da una lavagna sul web.
+      behavior: const _KanbanScrollBehavior(),
+      child: Scrollbar(
+        controller: _vertical,
+        thumbVisibility: true,
+        child: SingleChildScrollView(
+          controller: _vertical,
+          padding: const EdgeInsets.only(top: 8, bottom: 16),
+          child: Scrollbar(
+            controller: _horizontal,
+            thumbVisibility: true,
+            notificationPredicate: (n) => n.metrics.axis == Axis.horizontal,
+            child: SingleChildScrollView(
+              controller: _horizontal,
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: kKanbanColumns.map((colId) {
+                  final colTasks =
+                      widget.tasks.where((t) => t.kanbanCol == colId).toList();
+                  final label = kKanbanLabels[colId] ?? colId;
+                  return _KanbanColumn(
+                    id: colId,
+                    label: label,
+                    tasks: colTasks,
+                    bg: colBg,
+                    isDark: isDark,
+                    onTaskTap: widget.onTaskTap,
+                  );
+                }).toList(),
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }
+}
+
+/// Il comportamento predefinito di Flutter non lascia trascinare i contenuti
+/// con il mouse: sul web il kanban sembrerebbe bloccato. Qui il mouse vale
+/// come il dito; le barre di scorrimento restano quelle esplicite del widget.
+class _KanbanScrollBehavior extends MaterialScrollBehavior {
+  const _KanbanScrollBehavior();
+
+  /// Le barre di scorrimento sono già fornite esplicitamente dal widget:
+  /// niente doppioni sovrapposti sulla stessa lista.
+  @override
+  Widget buildScrollbar(
+          BuildContext context, Widget child, ScrollableDetails details) =>
+      child;
+
+  @override
+  Set<PointerDeviceKind> get dragDevices => const {
+        PointerDeviceKind.touch,
+        PointerDeviceKind.stylus,
+        PointerDeviceKind.invertedStylus,
+        PointerDeviceKind.trackpad,
+        PointerDeviceKind.mouse,
+        PointerDeviceKind.unknown,
+      };
 }
 
 class _KanbanColumn extends StatelessWidget {
