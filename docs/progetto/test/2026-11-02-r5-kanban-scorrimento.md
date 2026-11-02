@@ -79,3 +79,8 @@ Nessun duplicato evitabile introdotto: `_KanbanScrollBehavior` è privato e loca
 - Prova rossa eseguita: togliendo `PointerDeviceKind.mouse` da `dragDevices` il test **fallisce**; rimettendolo **passa**. Quindi ora la protezione del mouse è coperta.
 - `flutter test` dopo l'aggiunta: **118/118 verdi**.
 - D-1 è chiuso. Resta `BLOCCATA` solo la prova nel browser reale (mancano credenziali).
+
+## Addendum 2 — prova nel browser reale (dopo il report)
+- Eseguita il 2/11 sulla build `--dart-define=APP_ENV=test --dart-define=EMU=true` con emulatori Auth/Firestore locali e dati finti (22 schede): scorrimento verticale, scorrimento orizzontale col mouse e apertura di una scheda dopo il trascinamento **verificati**.
+- Report: `docs/progetto/test/2026-11-02-r5-browser.md`; screenshot: `docs/progetto/test/2026-11-02-evidenze-r5/`.
+- L'area «kanban nel browser» passa da `BLOCCATA` a `PROVATA`. Restano non provati telefono/tablet fisici e trackpad.
