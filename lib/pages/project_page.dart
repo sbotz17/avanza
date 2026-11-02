@@ -39,6 +39,16 @@ class _ProjectPageState extends State<ProjectPage> {
   }
 
   @override
+  void didUpdateWidget(covariant ProjectPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Cambio di `?view=` (es. avanti/indietro del browser o link diretto):
+    // la schermata segue l'indirizzo.
+    if (oldWidget.initialKanban != widget.initialKanban) {
+      _kanbanView = widget.initialKanban;
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthProvider>();
     final isAdmin = auth.isAdmin;
@@ -82,7 +92,15 @@ class _ProjectPageState extends State<ProjectPage> {
                     icon: Icon(_kanbanView
                         ? Icons.view_list_rounded
                         : Icons.view_column_rounded),
-                    onPressed: () => setState(() => _kanbanView = !_kanbanView),
+                    onPressed: () {
+                      final next = !_kanbanView;
+                      setState(() => _kanbanView = next);
+                      // Tiene l'indirizzo allineato alla vista: ricaricando la
+                      // pagina si ritrova il kanban e il link è condivisibile.
+                      context.go(
+                        projectPath(widget.projectId, kanban: next),
+                      );
+                    },
                     tooltip: _kanbanView ? 'Vista lista' : 'Vista kanban',
                   ),
                   if (isAdmin) ...[
