@@ -12,6 +12,7 @@ Ultima revisione: 2026-10-25 · La fonte vera è l'app Avanza (progetto Avanza).
 | T-25 | Kanban: mantenere la vista tornando da un task | in corso | richiesta di Andrea del 2/11; ramo `feature/T-25-vista-kanban-persistente` |
 | T-24 | Kanban: date visibili e avanzamento non a 0% per i task in corso | in corso | richiesta di Andrea dell'1/11; ramo `feature/T-24-kanban-date-avanzamento` |
 | T-23 | Costi squadra: valorizzare la spesa per operatore | in corso | tariffe interne tutte a 0 (decisione di Andrea); avviso in Costi |
+| T-26 | Kanban: scorrimento verticale e orizzontale (R-5) | in attesa di rilascio | PR #54 aperta verso `staging`, tester SUPERATO e validatore APPROVATO, prova browser con emulatori; da unire solo dopo audit-completa e GO del guardiano |
 
 Lavori senza task dedicato (da registrare a posteriori): regola "quando fermarsi" (nei rami: T-17 vecchio), promozione automatica (nei rami: T-18 vecchio), script configurazioni (T-16). Vedi `registro-decisioni.md` (dichiarazione del 25/10).
 Prossimo: prima promozione `staging` → `main` (con Andrea, dopo audit-completa).

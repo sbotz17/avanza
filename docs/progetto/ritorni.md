@@ -88,6 +88,8 @@
 
 ### R-5 — Kanban: la pagina non scorre in verticale né in orizzontale
 
+- Task Avanza: **T-26** (creato il 2/11; il ramo è `fix/kanban-scorrimento` perché è nato prima del codice)
+
 - Data: 2026-11-02
 - Esito verifica: confermato (lettura del codice + test scritto prima della correzione: sul codice precedente i due nuovi test falliscono)
 - Prova della verifica: `lib/widgets/kanban_board.dart` aveva un solo `SingleChildScrollView` orizzontale; le colonne crescevano in altezza ma nessun widget scorreva in verticale. Inoltre il comportamento predefinito di Flutter sul web non lascia trascinare i contenuti con il mouse.
