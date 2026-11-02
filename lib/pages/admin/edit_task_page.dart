@@ -3,16 +3,19 @@ import 'package:go_router/go_router.dart';
 import '../../services/firestore_service.dart';
 import '../../models/task.dart';
 import '../../core/constants.dart';
+import '../../core/routes.dart';
 import '../../widgets/task_code_badge.dart';
 
 class EditTaskPage extends StatefulWidget {
   final String projectId;
   final String? taskId; // null = new task
+  final bool kanbanView;
 
   const EditTaskPage({
     super.key,
     required this.projectId,
     this.taskId,
+    this.kanbanView = false,
   });
 
   @override
@@ -38,6 +41,9 @@ class _EditTaskPageState extends State<EditTaskPage> {
   List<TaskNote> _notes = [];
 
   bool get _isNew => widget.taskId == null || widget.taskId == 'new';
+
+  String get _projectPath =>
+      projectPath(widget.projectId, kanban: widget.kanbanView);
 
   @override
   void initState() {
@@ -128,7 +134,7 @@ class _EditTaskPageState extends State<EditTaskPage> {
           ),
         );
       }
-      if (mounted) context.go('/project/${widget.projectId}');
+      if (mounted) context.go(_projectPath);
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context)
@@ -150,7 +156,7 @@ class _EditTaskPageState extends State<EditTaskPage> {
       appBar: AppBar(
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
-          onPressed: () => context.go('/project/${widget.projectId}'),
+          onPressed: () => context.go(_projectPath),
         ),
         title: _isNew || (_existingTask?.taskCode ?? '').isEmpty
             ? Text(_isNew ? 'Nuovo task' : 'Modifica task')
