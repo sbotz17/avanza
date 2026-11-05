@@ -83,3 +83,28 @@
 - Stato: IN TEST
 - Note / storico:
   - 2026-10-25: se i contatori reali risultano gia' azzerati, la correzione dei dati (aggiornare `nextTaskNumber` a massimo+1) e' una modifica ai dati reali: da decidere con Andrea, con backup e prova su copia. Non fatta qui.
+
+---
+
+### R-5 — Kanban: la pagina non scorre in verticale né in orizzontale
+
+- Task Avanza: **T-26** (creato il 2/11; il ramo è `fix/kanban-scorrimento` perché è nato prima del codice)
+
+- Data: 2026-11-02
+- Esito verifica: confermato (lettura del codice + test scritto prima della correzione: sul codice precedente i due nuovi test falliscono)
+- Prova della verifica: `lib/widgets/kanban_board.dart` aveva un solo `SingleChildScrollView` orizzontale; le colonne crescevano in altezza ma nessun widget scorreva in verticale. Inoltre il comportamento predefinito di Flutter sul web non lascia trascinare i contenuti con il mouse.
+- Gravità: media (schede oltre il bordo non raggiungibili, soprattutto con molti task)
+- Area: kanban (widget `KanbanBoard`, schermata progetto)
+- Descrizione: nella vista kanban non era possibile scorrere la pagina né in verticale né in orizzontale.
+- Atteso: il kanban si scorre in entrambi i sensi; le schede e le colonne oltre il bordo restano raggiungibili; barre di scorrimento visibili; trascinamento possibile anche con il mouse.
+- Passi per riprodurre: aprire un progetto con molti task, passare alla vista kanban, provare a scorrere verso il basso e verso destra.
+- Origine: Andrea
+- Ambiente di segnalazione: produzione
+- Urgente (corsia hotfix): no
+- Causa: unico scorrimento orizzontale; nessuno scorrimento verticale; `dragDevices` predefinito esclude il mouse sul web.
+- Correzione: due scorrimenti annidati (verticale esterno, orizzontale interno) con `Scrollbar` visibili e un `ScrollConfiguration` locale che abilita il trascinamento con il mouse. Nessun cambio alle altre schermate.
+- File toccati: `lib/widgets/kanban_board.dart`, `test/task_progress_kanban_test.dart`, `docs/progetto/{ritorni,catalogo,registro-decisioni,memoria/app-flutter}.md`
+- Stato: PRONTO PER RILASCIO — validatore indipendente **APPROVATO** (report `test/2026-11-02-r5-validazione.md`); PR #54 aperta, non unita
+- Note / storico:
+  - 2026-11-02: tester indipendente `SUPERATO` (report `test/2026-11-02-r5-kanban-scorrimento.md`), con difetto **D-1** (mancava il test del mouse) subito corretto: aggiunto il test con `PointerDeviceKind.mouse`, prova rossa eseguita. `flutter test` 118/118. Prova nel browser reale eseguita il 2/11 con build `EMU=true` sugli emulatori Auth/Firestore e dati finti (report `test/2026-11-02-r5-browser.md`, screenshot in `test/2026-11-02-evidenze-r5/`): scorrimento verticale, orizzontale e apertura di una scheda dopo il trascinamento **verificati**. Area `PROVATA`; non provati solo telefono/tablet fisici.
+  - 2026-11-02: pull request **#54** verso `staging`, ramo `fix/kanban-scorrimento`; task Avanza non ancora registrato per limite delle API GitHub Actions (vedi registro decisioni). `flutter analyze` senza nuovi avvisi; `flutter test` 118/118 verdi; i due test di scorrimento falliscono sul codice precedente e passano dopo la correzione. L'area «kanban nel browser» è `PROVATA` (emulatori locali, 2/11). Restano non provati i dispositivi fisici.
