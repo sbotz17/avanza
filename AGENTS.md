@@ -730,6 +730,16 @@ Prima di un rilascio, di un audit, di un bug o di un'operazione sui dati **la sk
 Se lo strumento non la trova, apri il file `~/.claude/skills/<nome>/SKILL.md` (o
 `.claude/skills/<nome>/SKILL.md` nel progetto): è la stessa procedura.
 
+## Uso efficiente dei token (decisione di Andrea, 8/11/2026)
+
+Per contenere i costi di token su tutte le sessioni:
+
+- **Contesto mirato**: vietato caricare interi repository o file di grandi dimensioni nel contesto — oltre a essere costoso, causa errori di quota. Si leggono solo le sezioni strettamente necessarie tramite strumenti mirati (`grep`, `Read` con `offset`/`limit`, `Glob`). Se un intero file è davvero necessario, lo si legge una volta sola e si lavora su quello.
+- **Risposte concise**: ogni agente produce la risposta più breve che risolve il problema — niente ripetizioni del contesto ricevuto, niente spiegazioni ovvie, niente riassunti a fine turno di ciò che si è appena fatto. Il codice parla da solo; i commenti si limitano al "perché non ovvio".
+- **Atomicità dei task**: le richieste complesse si suddividono in passaggi brevi e indipendenti. Ogni passaggio ha un obiettivo verificabile e si chiude prima di aprire il successivo. Questo mantiene bassi sia i token per turno sia le richieste al minuto.
+- **Batching delle richieste**: gli agenti sub-task raggruppano feedback, analisi e output intermedi in un'unica risposta strutturata per turno; non inviano messaggi atomici separati.
+- **Auto-compaction del contesto**: non appena un sotto-task è completato, il contesto intermedio non più rilevante (risultati di ricerca, diff già applicati, log di build superati) non viene ripetuto nei turni successivi — si cita solo il risultato finale.
+
 ## Comandi
 
 - `/nuovo-progetto <idea>` — avvia un progetto da zero con tutta la squadra

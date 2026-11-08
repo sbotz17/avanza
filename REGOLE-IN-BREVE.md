@@ -332,6 +332,17 @@ Regole pratiche:
 
 ---
 
+## Uso efficiente dei token (8/11/2026)
+
+Per tenere bassi i costi e prevenire errori di quota:
+- **Contesto mirato**: si leggono solo le sezioni di file necessarie, mai l'intero repository.
+- **Risposte concise**: niente ripetizioni del contesto ricevuto né riassunti di ciò che si è appena fatto.
+- **Task atomici**: richieste complesse suddivise in passi brevi, ognuno verificabile e chiuso prima del successivo.
+- **Batching**: output e analisi raggruppati in una sola risposta per turno.
+- **Auto-compaction**: contesto intermedio già consumato (log, diff applicati) non ripetuto nei turni successivi.
+
+---
+
 ## In una riga
 
 **La squadra progetta, sviluppa, prova, valida e pubblica; Andrea decide solo le cose riservate e può fermare tutto. Ogni sessione parte autonoma: non chiede mai il via libera, usa le credenziali in `~/Progetti locali/` e si blocca SOLO per le 5 cause della Lista STOP. Le prove le fa la squadra, non Andrea. I dati di produzione si toccano solo con backup e, per le cancellazioni, con il suo via libera.**
